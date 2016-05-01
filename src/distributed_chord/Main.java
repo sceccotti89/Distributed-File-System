@@ -27,6 +27,8 @@ public class Main
 		ChordPeer node = new ChordPeer( (short) 3, _hash, inet );
 		node.join();*/
 		
+		System.out.println( "Test!!" );
+		
 		ChordManager manager = new ChordManager( args );
 		manager.start();
 		
