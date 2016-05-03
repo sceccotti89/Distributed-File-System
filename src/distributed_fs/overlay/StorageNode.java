@@ -152,10 +152,7 @@ public class StorageNode extends DFSnode
 		stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );
 		
 		try {
-			//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 			MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
-			//byte opType = data.get();
-			//boolean isCoordinator = (data.get() == (byte) 0x1);
 			byte opType = data.getType();
 			boolean isCoordinator = data.startQuorum();
 			LOGGER.debug( "[SN] Received: " + opType + ":" + isCoordinator );
@@ -164,25 +161,18 @@ public class StorageNode extends DFSnode
 				setBlocked( false );
 			else {
 				// the connection with the client must be estabilished before the quorum
-				//openClientConnection( data );
 				openClientConnection( data.getClientAddress() );
 				
 				// get the destination id, since it can be a virtual node
-				//destId = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
 				agreedNodes = quorum_t.checkQuorum( session, opType, destId );
 				int replicaNodes = agreedNodes.size();
-				// TODO rimuovere i commenti di TEST dalla classe QuorumSystem
-				//QuorumSystem.saveDecision( me.getId(), opType, replicaNodes );
 				
 				// checks if the quorum has been completed successfully
 				if(!QuorumSystem.isQuorum( opType, replicaNodes )) {
 					LOGGER.info( "[SN] Quorum failed: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
-					//session.sendMessage( new byte[]{ Utils.TRANSACTION_FAILED }, false );
-					//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
-					//session.sendMessage( message, true );
 					session.close();
 					stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
 					return;
@@ -192,21 +182,12 @@ public class StorageNode extends DFSnode
 						LOGGER.info( "[SN] Quorum completed succesfully: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
 						quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
 						QuorumSystem.saveDecision( agreedNodes );
-						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_OK );
-						//session.sendMessage( message, true );
 					}
-					//session.sendMessage( new byte[]{ Utils.TRANSACTION_OK }, false );
 				}
 			}
 			
 			switch( opType ) {
 				case( Message.PUT ):
-					/*RemoteFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
-					
-					// get (if present) the hinted handoff address
-					String hintedHandoff = null;
-					if(data.remaining() > 0)
-						hintedHandoff = new String( Utils.getNextBytes( data ) );*/
 					RemoteFile file = Utils.deserializeObject( data.getFile() );
 					
 					// get (if present) the hinted handoff address
@@ -218,17 +199,14 @@ public class StorageNode extends DFSnode
 					break;
 					
 				case( Message.GET ):
-					//handleGET( isCoordinator, new String( Utils.getNextBytes( data ) ) );
 					handleGET( isCoordinator, data.getFileName() );
 					break;
 					
-				case( Message.GET_ALL ): 
-					//handleGET_ALL( data );
+				case( Message.GET_ALL ):
 					handleGET_ALL( data.getClientAddress() );
 					break;
 				
 				case( Message.DELETE ):
-					//handleDELETE( isCoordinator, Utils.deserializeObject( Utils.getNextBytes( data ) ) );
 					handleDELETE( isCoordinator, Utils.deserializeObject( data.getFile() ) );
 					break;
 			}
@@ -276,8 +254,6 @@ public class StorageNode extends DFSnode
 				} catch( IOException e ) {
 					if(QuorumSystem.unmakeQuorum( ++errors, Message.GET )) {
 						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSystem.getMinQuorum( Message.GET ) );
-						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
-						//this.session.sendMessage( message, true );
 						
 						quorum_t.cancelQuorum( this.session, agreedNodes );
 						return;
@@ -306,14 +282,6 @@ public class StorageNode extends DFSnode
 			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
 			
 			// send the files directly to the client
-			/*session.sendMessage( Utils.intToByteArray( reconciledFiles.size() ), false );
-			for(int i = 0; i < reconciledFiles.size(); i++) {
-				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
-				session.sendMessage( data, true );
-			}
-			sendFilesToClient( reconciledFiles );
-			*/
-			
 			message = new MessageResponse();
 			for(int i = 0; i < reconciledFiles.size(); i++) {
 				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
@@ -327,15 +295,11 @@ public class StorageNode extends DFSnode
 			// REPLICA node: send the requested file to the coordinator
 			DistributedFile file = fMgr.getDatabase().getFile( Utils.getId( fileName ) );
 			if(file == null)
-				//session.sendMessage( new byte[]{ (byte) 0x0 }, false );
 				session.sendMessage( new MessageResponse( (byte) 0x0 ), false );
 			else {
-				//RemoteFile rFile = new RemoteFile( file );
 				MessageResponse message = new MessageResponse( (byte) 0x1 );
 				message.addFile( Utils.serializeObject( new RemoteFile( file ) ) );
 				session.sendMessage( message, true );
-				//byte[] msg = _net.createMessage( new byte[]{ (byte) 0x1 }, Utils.serializeObject( rFile ), true );
-				//session.sendMessage( msg, true );
 			}
 		}
 	}
@@ -363,22 +327,6 @@ public class StorageNode extends DFSnode
 		
 		return uncorrelatedVersions;
 	}
-	
-	/*private void handleGET_ALL( final ByteBuffer data ) throws IOException
-	{
-		openClientConnection( data );
-		
-		if(session != null) {
-			List<DistributedFile> files = fMgr.getDatabase().getAllFiles();
-			session.sendMessage( Utils.intToByteArray( files.size() ), true );
-			for(int i = files.size() - 1; i >= 0; i --) {
-				RemoteFile file = new RemoteFile( files.get( i ) );
-				session.sendMessage( Utils.serializeObject( file ), true );
-			}
-			
-			session.close();
-		}
-	}*/
 	
 	private void handleGET_ALL( final String clientAddress ) throws IOException
 	{
@@ -421,25 +369,6 @@ public class StorageNode extends DFSnode
 	*/
 	private List<TCPSession> sendRequestToReplicaNodes( final String fileName )
 	{
-		// create the message
-		/*ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES * 2 + Integer.BYTES + fileName.length() );
-		buffer.put( Utils.GET ).put( (byte) 0x0 ).putInt( fileName.length() ).put( fileName.getBytes( StandardCharsets.UTF_8 ) );
-		byte[] data = buffer.array();
-		
-		// send the message to the replica nodes
-		List<TCPSession> openSessions = new ArrayList<>();
-		LOGGER.info( "Send request to replica nodes..." );
-		
-		for(String address : agreedNodes) {
-			try{
-				TCPSession session = _net.tryConnect( address, Utils.SERVICE_PORT, 2000 );
-				if(session != null) {
-					session.sendMessage( data, true );
-					openSessions.add( session );
-				}
-			} catch( IOException e ) {}
-		}*/
-		
 		// send the message to the replica nodes
 		List<TCPSession> openSessions = new ArrayList<>();
 		byte[] message = Utils.serializeObject( new MessageRequest( Message.GET, fileName ) );
@@ -457,18 +386,6 @@ public class StorageNode extends DFSnode
 		
 		return openSessions;
 	}
-	
-	/**
-	 * Opens a connection with the client.
-	*/
-	/*private void openClientConnection( final ByteBuffer data ) throws IOException
-	{
-		session.close();
-		
-		String clientAddress = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
-		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-		session = _net.tryConnect( clientAddress, Utils.SERVICE_PORT, 5000 );
-	}*/
 	
 	private void openClientConnection( final String clientAddress ) throws IOException
 	{
@@ -503,7 +420,6 @@ public class StorageNode extends DFSnode
 		private static final int BLOCKED_TIME = 300000; // 5 minutes
 		private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
 		private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
-		//private static final int QUORUM_PORT = 2500;
 		
 		public QuorumThread( final int port ) throws IOException, JSONException
 		{
@@ -524,17 +440,8 @@ public class StorageNode extends DFSnode
 		@Override
 		public void run()
 		{
-			/*UDPnet net;
-			
-			//try{ net = new UDPnet( _address, QUORUM_PORT ); }
-			try{ net = new UDPnet( _address, port ); }
-			catch( IOException e ) {
-				return;
-			}*/
-			
 			TCPnet net;
 			
-			//try{ net = new UDPnet( _address, QUORUM_PORT ); }
 			try{ net = new TCPnet( _address, port ); }
 			catch( IOException e ) {
 				return;
@@ -545,9 +452,6 @@ public class StorageNode extends DFSnode
 					TCPSession session = net.waitForConnection();
 					
 					// read the request
-					//byte[] data = net.receiveMessage();
-					//LOGGER.info( "[QUORUM] Received a connection from: " + net.getSrcAddress() );
-					
 					byte[] data = session.receiveMessage();
 					LOGGER.info( "[QUORUM] Received a connection from: " + session.getSrcAddress() );
 					
@@ -614,9 +518,7 @@ public class StorageNode extends DFSnode
 			int errors = 0;
 			List<GossipMember> agreedNodes = new ArrayList<>();
 			
-			//UDPnet net = new UDPnet();
 			TCPnet net = new TCPnet();
-			//net.setSoTimeout( 2000 );
 			
 			for(GossipMember node : nodes) {
 				LOGGER.info( "[SN] Contacting " + node.getHost() + "..." );
@@ -625,10 +527,7 @@ public class StorageNode extends DFSnode
 					mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
 					mySession.sendMessage( new byte[]{ MAKE_QUORUM, opType }, false );
 					
-					//net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), QUORUM_PORT );
-					//net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
 					LOGGER.info( "[SN] Waiting the response..." );
-					//byte[] data = net.receiveMessage();
 					byte[] data = mySession.receiveMessage();
 					mySession.close();
 					
@@ -676,19 +575,14 @@ public class StorageNode extends DFSnode
 			if(session != null)
 				LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
 			
-			//UDPnet net = new UDPnet();
 			TCPnet net = new TCPnet();
-			//System.out.println( "[SN] NODES:" + agreedNodes );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
 				GossipMember node = agreedNodes.get( i );
 				TCPSession mySession = null;
-				//try { net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), QUORUM_PORT ); }
 				try {
 					mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
-					//net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
 					mySession.sendMessage( new byte[]{ RELEASE_QUORUM }, false );
 					agreedNodes.remove( i );
-					//{"members":[{"port":8101,"host":"192.168.1.101"}]}
 					QuorumSystem.saveDecision( agreedNodes );
 				}
 				catch( IOException | JSONException e ) {
@@ -722,10 +616,6 @@ public class StorageNode extends DFSnode
 
 	public static void main( String args[] ) throws Exception
 	{
-		/*if(args.length != 1)
-			throw new Exception( "Wrong number of arguments.\nUsage: java -jar StorageNode <port>" );
-		
-		int port = Integer.parseInt( args[0] );*/
 		new StorageNode();
 	}
 }

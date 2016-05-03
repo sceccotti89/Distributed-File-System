@@ -47,7 +47,6 @@ public class Utils
 	public static final String VERSIONS_LOCATION = "./Database/";
 	
 	/** Logger used to print the application state. */
-	//public static final Logger LOGGER = Logger.getLogger( Utils.class );
 	public static Level logLevel;
 	
 	/** Port used to send/receive data in the service. */

@@ -107,8 +107,6 @@ public class QuorumSystem
 	}
 	
 	public static boolean isQuorum( final byte opType, final int replicaNodes ) {
-		// TODO TEST (finito il test togliere i commenti)
-		//return true;
 		if(opType == Message.PUT || opType == Message.DELETE)
 			return isWriteQuorum( replicaNodes );
 		else
@@ -124,20 +122,9 @@ public class QuorumSystem
 	
 	public static int getMinQuorum( final byte opType )
 	{
-		// TODO TEST (finito il test togliere i commenti)
-		//return 0;
-		
 		if(opType == Message.GET)
 			return R;
 		else
 			return W;
-	}
-	
-	public static class QuorumSession
-	{
-		public QuorumSession()
-		{
-			
-		}
 	}
 }

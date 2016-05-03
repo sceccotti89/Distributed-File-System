@@ -311,27 +311,6 @@ public class Networking
 		}
 	}
 	
-	/*public static class UDPSession implements Closeable
-	{
-		private DatagramSocket socket;
-		
-		public UDPSession( final DatagramSocket socket )
-		{
-			this.socket = socket;
-		}
-		
-		public void sendMessage()
-		{
-			
-		}
-
-		@Override
-		public void close() throws IOException
-		{
-			
-		}
-	}*/
-	
 	public static class UDPnet extends Networking implements Closeable
 	{
 		private int soTimeout = 0;

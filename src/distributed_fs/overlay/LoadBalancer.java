@@ -44,10 +44,8 @@ public class LoadBalancer extends DFSnode
 		monitor.start();
 		
 		this.port = Utils.SERVICE_PORT;
-		//this.port = port;
 		_net.setSoTimeout( 2000 );
 		while(!GossipManager.doShutdown) {
-			//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
 			TCPSession session = _net.waitForConnection( _address, this.port );
 			if(session != null)
 				threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
@@ -79,7 +77,6 @@ public class LoadBalancer extends DFSnode
 	{
 		_net.setSoTimeout( 2000 );
 		while(!GossipManager.doShutdown) {
-			//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
 			TCPSession session = _net.waitForConnection( _address, this.port );
 			if(session != null)
 				threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
@@ -117,14 +114,10 @@ public class LoadBalancer extends DFSnode
 			newSession = null;
 			
 			try {
-				//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 				MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
 				LOGGER.info( "[LB] Received a new request" );
 				
 				// get the operation type
-				/*byte opType = data.get();
-				// get the file name
-				String fileName = new String( Utils.getNextBytes( data ) );*/
 				byte opType = data.getType();
 				String fileName;
 				if(opType == Message.GET_ALL)
@@ -150,7 +143,6 @@ public class LoadBalancer extends DFSnode
 							GossipMember targetNode = getBalancedNode( nodes );
 							
 							// contact the target node
-							//try{ newSession = _net.tryConnect( targetNode.getHost(), Utils.SERVICE_PORT, 2000 ); }
 							LOGGER.debug( "[LB] Contacting: " + targetNode );
 							try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
 							catch( IOException e ){
@@ -159,18 +151,14 @@ public class LoadBalancer extends DFSnode
 							
 							if(newSession == null) {
 								if(opType == Message.PUT && hintedHandoff == null)
-									//hintedHandoff = targetNode.getHost();
 									hintedHandoff = targetNode.getHost() + ":" + (targetNode.getPort() + 1);
 							}
 							else {
 								// notify the client that a remote node is available
 								MessageResponse response = new MessageResponse( Message.TRANSACTION_OK );
 								session.sendMessage( response, true );
-								//session.close();
-								//session = newSession;
 								
 								// forward the message to the target node
-								//forwardRequest( opType, targetNode.getId(), hintedHandoff, fileName, data );
 								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getFile() );
 								newSession.close();
 								LOGGER.info( "[LB] Request forwarded to: " + targetNode.getHost() );
@@ -189,12 +177,9 @@ public class LoadBalancer extends DFSnode
 					MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
 					session.sendMessage( response, true );
 				}
-				
-				//session.close();
 			}
 			catch( IOException e ){
 				//e.printStackTrace();
-				//session.close();
 				if(newSession != null)
 					newSession.close();
 				
@@ -252,63 +237,6 @@ public class LoadBalancer extends DFSnode
 		return nodes.get( (targetNode == null) ? 0 : targetNode );
 	}
 
-	/** 
-	 * Forward the message to the target node.
-	 * 
-	 * @param opType
-	 * @param destId
-	 * @param hintedHandoff
-	 * @param fileName
-	 * @param data
-	*/
-	/*private void forwardRequest( final byte opType, final String destId, final String hintedHandoff,
-								 final String fileName, final ByteBuffer data ) throws IOException
-	{
-		byte[] message;
-		byte startQuorum;
-		
-		if(opType == Utils.GET_ALL) {
-			startQuorum = (byte) 0x0;
-			// serialization format: [opType startQuorum clientAddress]
-			message = _net.createMessage( new byte[]{ opType, startQuorum }, clientAddress.getBytes( StandardCharsets.UTF_8 ), true );
-		}
-		else {
-			startQuorum = (byte) 0x1;
-			if(opType != Utils.GET) {
-				// PUT and DELETE operations
-				// serialization format: [opType startQuorum clientAddress destId file [hintedHandoff]]
-				int length = Byte.BYTES * 2 + Integer.BYTES * 2 + clientAddress.length() + destId.length() + data.remaining();
-				ByteBuffer buffer = ByteBuffer.allocate( length );
-				byte[] serialFile = Utils.getNextBytes( data );
-				//LOGGER.info( "File size: " + serialFile.length );
-				buffer.put( opType ).put( startQuorum );
-				buffer.putInt( clientAddress.length() ).put( clientAddress.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( destId.length() ).put( destId.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( serialFile.length ).put( serialFile );
-				
-				message = buffer.array();
-				
-				if(hintedHandoff != null) {
-					// add the hinted handoff address to the end of the message
-					message = _net.createMessage( message, hintedHandoff.getBytes( StandardCharsets.UTF_8 ), true );
-				}
-			}
-			else {
-				// GET operation
-				// serialization format: [opType startQuorum clientAddress destId fileName]
-				int length = Byte.BYTES * 2 + Integer.BYTES * 3 + clientAddress.length() + destId.length() + fileName.length();
-				ByteBuffer buffer = ByteBuffer.allocate( length );
-				buffer.put( opType ).put( startQuorum );
-				buffer.putInt( clientAddress.length() ).put( clientAddress.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( destId.length() ).put( destId.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( fileName.length() ).put( fileName.getBytes( StandardCharsets.UTF_8 ) );
-				message = buffer.array();
-			}
-		}
-		
-		session.sendMessage( message, true );
-	}*/
-	
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
 								 final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
 	{
@@ -333,10 +261,6 @@ public class LoadBalancer extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		/*if(args.length != 1)
-			throw new Exception( "Wrong number of arguments.\nUsage: java -jar LoadBalancer <port>" );
-		
-		int port = Integer.parseInt( args[0] );*/
 		new LoadBalancer();
 	}
 }

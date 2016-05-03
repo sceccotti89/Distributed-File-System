@@ -63,7 +63,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 		if(nodeType == GossipMember.STORAGE)
 			QuorumSystem.init();
 		
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		LOGGER.setLevel( Utils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -77,7 +77,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	public DFSnode() throws IOException, JSONException
 	{
 		Utils.createDirectory( Utils.RESOURCE_LOCATION );
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		LOGGER.setLevel( Utils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		testing = true;
@@ -217,7 +217,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 			GossipMember node = cHasher.getBucket( currId );
 			if(node != null && !filterAddress.contains( node.getHost() )) {
 				nodes.add( node );
-				//filterAddress.add( node.getHost() );
+				filterAddress.add( node.getHost() );
 				size++;
 			}
 		}
@@ -232,7 +232,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 				GossipMember node = cHasher.getBucket( currId );
 				if(node != null && !filterAddress.contains( node.getHost() )) {
 					nodes.add( node );
-					//filterAddress.add( node.getHost() );
+					filterAddress.add( node.getHost() );
 					size++;
 				}
 			}

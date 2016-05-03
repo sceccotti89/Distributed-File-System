@@ -55,9 +55,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			try{ Thread.sleep( EXCH_TIMER ); }
 			catch( InterruptedException e ){}
 			
-			// TODO in effetti sarebbe molto piu' semplice se ogni nodo dialogasse con il proprio vicino
-			// TODO senza contare i nodi virtuali, e scambiando quindi l'intero database
-			
 			// Each virtual node sends the Merkle tree to its successor node,
 			// and to a random predecessor node.
 			List<ByteBuffer> vNodes = cHasher.getVirtualNodesFor( me );
@@ -74,7 +71,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				}
 				
 				List<ByteBuffer> nodes = getPredecessorNodes( vNodeId, QuorumSystem.getMaxNodes() );
-				//nodes.addAll( getPredecessors( vNodeId, QuorumSystem.getMaxNodes() ) );
 				while(nodes.size() > 0) {
 					ByteBuffer randomPeer = selectPartner( nodes );
 					GossipMember node = cHasher.getBucket( randomPeer );
@@ -109,7 +105,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		LOGGER.debug( "FILES: " + files );
 		LOGGER.debug( "Type: " + msg_type + ", from: " + Utils.bytesToHex( fromId.array() ) + ", to: " + Utils.bytesToHex( nodeId.array() ) );
 		
-		//session = Net.tryConnect( address, MERKLE_TREE_EXCHANGE_PORT, 2000 );
 		session = Net.tryConnect( address, port, 2000 );
 		
 		// check the differences among the trees

@@ -61,18 +61,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		LOGGER.info( "Anti Entropy Receiver Thread launched" );
 		String srcAddress;
 		
-		while(true) {//TODO while(!shoutdown) {
+		while(true) {
 			byte[] sourceId = null;
 			
 			try {
-				// TODO anche qui settare la porta giusta
-				//session = Net.waitForConnection( me.getHost(), MERKLE_TREE_EXCHANGE_PORT );
-				//System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
 				session = Net.waitForConnection( me.getHost(), port );
 				
 				srcAddress = session.getSrcAddress();
-				// TODO lanciare un altro thread che gestisca la connessione??
-				// TODO magari usare un ThreadPool con solo QuorumSystem.getMaxNodes() connessioni
 				
 				// receive the first message from the source node
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
@@ -83,8 +78,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					session.close();
 					continue;
 				}
-				
-				//TODO LOGGER.info( "Received connection from: " + srcAddress + ", Id: " + Utils.bytesToHex( sourceId ) );
 				
 				if(syncNodes.containsKey( sourceId )) {
 					LOGGER.info( "Node " + Utils.bytesToHex( sourceId ) + " is syncronizing..." );
@@ -126,7 +119,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				if(hasKey) {
 					// receive the vector clocks associated to the shared files
 					byte[] versions = session.receiveMessage();
-					//List<VectorClock> vClocks = getVersions( Utils.bytesToHex( versions ) );
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
 					filesToSend.addAll( checkVersions( sourceNode.getPort() + 1, files, vClocks, srcAddress, sourceId ) );
 				}

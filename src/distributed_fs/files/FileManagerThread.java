@@ -54,7 +54,7 @@ public class FileManagerThread extends Thread
 		threadPoolSend = Executors.newCachedThreadPool();
 		threadPoolReceive = Executors.newFixedThreadPool( 32 );
 		
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		LOGGER.setLevel( Utils.logLevel );
 		
 		LOGGER.info( "File Manager Thread successfully initialized" );
 	}
