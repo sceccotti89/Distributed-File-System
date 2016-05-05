@@ -14,6 +14,8 @@ public class Client
 	
 	public static void main( final String args[] )
 	{
+		checkInput();
+		
 		try {
 			DFSService service = new DFSService();
 			if(service.start()) {
@@ -43,10 +45,18 @@ public class Client
 	
 	private static Operation checkInput()
 	{
-		while(true) {
+		int i = 0;
+		while(i < 1) {
 			String line = SCAN.nextLine();
 			
-			break;
+			if(line.startsWith( "GET" ))
+				;
+			else if(line.startsWith( "PUT" ))
+				;
+			else if(line.startsWith( "DELETE" ))
+				;
+			else
+				System.out.println( "[CLIENT] Command '" + line + "' unknown." );
 		}
 		
 		return null;
