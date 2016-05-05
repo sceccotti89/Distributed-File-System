@@ -20,6 +20,8 @@ import javax.swing.Timer;
 
 import org.json.JSONException;
 
+import com.google.common.base.Preconditions;
+
 import distributed_fs.exception.DFSException;
 import distributed_fs.files.DFSDatabase;
 import distributed_fs.files.DistributedFile;
@@ -128,7 +130,10 @@ public class DFSService extends DFSManager implements IDFSService
 	 * 
 	 * @return the file, if present, {@code null} otherwise
 	*/
-	public DistributedFile getFile( String fileName ) {
+	public DistributedFile getFile( String fileName )
+	{
+		if(!fileName.startsWith( "./" ))
+			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName = fileName + "/";
 		
@@ -198,9 +203,13 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public DistributedFile get( String fileName ) throws DFSException
 	{
+		Preconditions.checkNotNull( fileName );
+		
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
+		if(!fileName.startsWith( "./" ))
+			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
 		
@@ -323,9 +332,13 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public boolean put( String fileName ) throws DFSException, IOException
 	{
+		Preconditions.checkNotNull( fileName );
+		
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
+		if(!fileName.startsWith( "./" ))
+			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
 		
@@ -397,9 +410,13 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public boolean delete( String fileName ) throws IOException, DFSException
 	{
+		Preconditions.checkNotNull( fileName );
+		
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
+		if(!fileName.startsWith( "./" ))
+			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
 		

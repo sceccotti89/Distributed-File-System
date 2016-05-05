@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
@@ -74,7 +75,7 @@ public class Utils
 	 * @param object	the given object. It, and all of its superclasses,
 	 * 					must implement the {@link java.io.Serializable} interface
 	*/
-	public static <S> ByteBuffer getId( final S object )
+	public static <S extends Serializable> ByteBuffer getId( final S object )
 	{
 		byte[] bucketNameInBytes = serializeObject( object );
 		byte[] bucketNameAndCode = new byte[bucketNameInBytes.length];

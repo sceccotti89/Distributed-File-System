@@ -1,6 +1,7 @@
 
 package distributed_fs.consistent_hashing;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +41,7 @@ import gossiping.GossipMember;
  */
 // @ThreadSafe
 
-public class ConsistentHasherImpl<B extends GossipMember, M> implements ConsistentHasher<B, M> 
+public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable> implements ConsistentHasher<B, M> 
 {
 	private final NavigableMap<ByteBuffer, B> bucketsMap;
 	private final NavigableMap<ByteBuffer, M> membersMap;
@@ -328,7 +329,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M> implements Consiste
 	 * @return map of virtual node ids and corresponding distribution map. Value
 	 *         contains a map of bucket names and corresponding members.
 	 */
-	public static <B  extends GossipMember, M> Map<Integer, Map<B, List<M>>> getDistribution(
+	public static <B  extends GossipMember, M extends Serializable> Map<Integer, Map<B, List<M>>> getDistribution(
 			final int startVirtNodeId, 
 			final int endVirtNodeId,
 			final BytesConverter<B> bucketDataToBytesConverter,
@@ -362,7 +363,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M> implements Consiste
 	 * @return map of virtual node ids and corresponding distribution map. Value
 	 *         contains a map of bucket names and corresponding members size.
 	 */
-	public static <B extends GossipMember, M> Map<Integer, Map<Integer, B>> getDistributionCount(
+	public static <B extends GossipMember, M extends Serializable> Map<Integer, Map<Integer, B>> getDistributionCount(
 			final int startVirtNodeId, 
 			final int endVirtNodeId,
 			final BytesConverter<B> bucketDataToBytesConverter,
@@ -406,7 +407,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M> implements Consiste
 	 *         contains a map of bucket names and corresponding percentage of
 	 *         members.
 	 */
-	public static <B extends GossipMember, M> Map<Integer, Map<Double, B>> getDistributionPercentage(
+	public static <B extends GossipMember, M extends Serializable> Map<Integer, Map<Double, B>> getDistributionPercentage(
 			final int startVirtNodeId, 
 			final int endVirtNodeId,
 			final BytesConverter<B> bucketDataToBytesConverter,
