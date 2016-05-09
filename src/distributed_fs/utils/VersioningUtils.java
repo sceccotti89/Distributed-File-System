@@ -29,8 +29,8 @@ import java.util.Comparator;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -129,34 +129,38 @@ public class VersioningUtils {
 
     /**
      * Given a set of versions, constructs a resolved list of versions based on
-     * the compare function above
+     * the compare function above.<br>
+     * The returned list doesn't contain obsolete items.
      *
      * @param values
      * 
      * @return list of values after resolution
      */
-    public static List<Versioned<byte[]>> resolveVersions( final List<Versioned<byte[]>> values ) 
+    public static <T> List<Versioned<T>> resolveVersions( final List<Versioned<T>> values ) 
     {
-        List<Versioned<byte[]>> resolvedVersions = new ArrayList<Versioned<byte[]>>( values.size() );
+        List<Versioned<T>> resolvedVersions = new ArrayList<Versioned<T>>( values.size() );
         // Go over all the values and determine whether the version is
-        // acceptable
-        for (Versioned<byte[]> value: values) {
-            Iterator<Versioned<byte[]>> iter = resolvedVersions.iterator();
+        // acceptable.
+        for(Versioned<T> value: values) {
+        	ListIterator<Versioned<T>> iter = resolvedVersions.listIterator();
             boolean obsolete = false;
             // Compare the current version with a set of accepted versions
-            while (iter.hasNext()) {
-                Versioned<byte[]> curr = iter.next();
+            while(iter.hasNext()) {
+                Versioned<T> curr = iter.next();
                 Occurred occurred = value.getVersion().compare( curr.getVersion() );
-                if (occurred == Occurred.BEFORE) {
-                    obsolete = true;
+                if(occurred == Occurred.AFTER) {
+                	obsolete = true;
+                	resolvedVersions.remove( curr );
+                    resolvedVersions.add( value );
                     break;
-                } else if (occurred == Occurred.AFTER) {
-                    iter.remove();
                 }
+                
+                if(occurred == Occurred.CONCURRENTLY)
+                    resolvedVersions.add( value );
             }
             
             if (!obsolete) {
-                // else update the set of accepted versions
+                // else update the set of accepted versions.
                 resolvedVersions.add( value );
             }
         }
@@ -165,11 +169,11 @@ public class VersioningUtils {
     }
 
     /**
-     * Generates a vector clock with the provided values
+     * Generates a vector clock with the provided values.
      *
-     * @param serverIds servers in the clock
-     * @param clockValue value of the clock for each server entry
-     * @param timestamp ts value to be set for the clock
+     * @param serverIds		servers in the clock
+     * @param clockValue	value of the clock for each server entry
+     * @param timestamp		ts value to be set for the clock
      * @return
      */
     @SuppressWarnings("deprecation")

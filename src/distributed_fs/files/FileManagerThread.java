@@ -6,22 +6,25 @@ package distributed_fs.files;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.log4j.Logger;
+import org.json.JSONException;
 
+import distributed_fs.anti_entropy.AntiEntropyReceiverThread;
+import distributed_fs.anti_entropy.AntiEntropySenderThread;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.merkle_tree.AntiEntropyReceiverThread;
-import distributed_fs.merkle_tree.AntiEntropySenderThread;
+import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.StorageNode;
+import distributed_fs.overlay.StorageNode.QuorumNode;
+import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 
@@ -31,21 +34,23 @@ public class FileManagerThread extends Thread
 	private final ExecutorService threadPoolReceive; // Pool used to receive the files in parallel.
 	private final DFSDatabase database; // The database where the files are stored.
 	
-	private StorageNode node; // The associated storage node
+	private StorageNode node; // The associated storage node.
 	
 	private final AntiEntropySenderThread sendAE_t;
 	private final AntiEntropyReceiverThread receiveAE_t;
 	
 	private final TCPnet net;
 	
-	public static final short DEFAULT_PORT = 7535; // Default port used to send/receive files.
+	//public static final short DEFAULT_PORT = 7535; // Default port used to send/receive files.
 	public static final Logger LOGGER = Logger.getLogger( FileManagerThread.class );
 	
 	public FileManagerThread( final GossipMember node,
 							  final int port,
-							  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
+							  final ConsistentHasherImpl<GossipMember, String> cHasher,
+							  final String resourcesLocation,
+							  final String databaseLocation ) throws IOException, DFSException
 	{
-		database = new DFSDatabase( this );
+		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
 		sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
 		receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
 		
@@ -54,12 +59,14 @@ public class FileManagerThread extends Thread
 		threadPoolSend = Executors.newCachedThreadPool();
 		threadPoolReceive = Executors.newFixedThreadPool( 32 );
 		
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		if(!Utils.testing)
+			LOGGER.setLevel( Utils.logLevel );
 		
 		LOGGER.info( "File Manager Thread successfully initialized" );
 	}
 	
-	public void addStorageNode( final StorageNode node ) {
+	public void addStorageNode( final StorageNode node )
+	{
 		this.node = node;
 	}
 	
@@ -86,12 +93,55 @@ public class FileManagerThread extends Thread
 	}
 	
 	/** 
+	 * Reads the incoming files and apply the appropriate operation,
+	 * based on file's deleted bit.
+	 * 
+	 * @param session
+	 * @param data
+	*/
+	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException
+	{
+		// read the synch attribute
+		boolean synch = (data.get() == (byte) 0x1);
+		// get and verify the quorum attribute
+		if(data.get() == (byte) 0x1)
+			node.setBlocked( false, data.getLong() );
+		// get the number of files
+		int num_files = data.getInt();
+		LOGGER.debug( "Node: " + node.getPort() + ", receiving " + num_files + " files..." );
+		
+		for(int i = 0; i < num_files; i++) {
+			data = ByteBuffer.wrap( session.receiveMessage() );
+			if(data.get() == Message.PUT) {
+				//RemoteFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
+				RemoteFile file = new RemoteFile( Utils.getNextBytes( data ) );
+				LOGGER.debug( "File \"" + file + "\" downloaded." );
+				boolean updated = (database.saveFile( file, file.getVersion(), null, true ) != null);
+				LOGGER.debug( "Updated save: " + updated );
+			}
+			else {
+				//DistributedFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
+				DistributedFile file = new DistributedFile( Utils.getNextBytes( data ) );
+				LOGGER.debug( "File \"" + file + "\" downloaded." );
+				boolean updated = (database.removeFile( file.getName(), file.getVersion(), true ) != null);
+				LOGGER.debug( "Updated delete: " + updated );
+			}
+		}
+		
+		LOGGER.debug( "Files successfully downloaded." );
+		
+		// Send just 1 byte for the synchronization
+		if(synch)
+			session.sendMessage( Networking.TRUE, false );
+	}
+	
+	/** 
 	 * Saves the incoming files.
 	 * 
 	 * @param session
 	 * @param data
 	*/
-	private void readFilesToSave( final TCPSession session, ByteBuffer data ) throws IOException, SQLException
+	/*private void readFilesToSave( final TCPSession session, final ByteBuffer data ) throws IOException, SQLException
 	{
 		// read the synch attribute
 		boolean synch = (data.get() == (byte) 0x1);
@@ -110,8 +160,8 @@ public class FileManagerThread extends Thread
 		for(int i = 0; i < num_files; i++) {
 			//data = ByteBuffer.wrap( session.receiveMessage() );
 			RemoteFile file = Utils.deserializeObject( session.receiveMessage() );
-			LOGGER.debug( "File \"" + file.getName() + "\" downloaded." );
-			database.saveFile( file, hintedHandoff, true );
+			LOGGER.debug( "File \"" + file + "\" downloaded." );
+			LOGGER.debug( "Saved: " + (database.saveFile( file, file.getVersion(), hintedHandoff, true ) != null) );
 		}
 		
 		LOGGER.debug( "Files successfully downloaded." );
@@ -119,7 +169,7 @@ public class FileManagerThread extends Thread
 		// just 1 byte (for the synchronization ACK)
 		if(synch)
 			session.sendMessage( Networking.TRUE, false );
-	}
+	}*/
 	
 	/** 
 	 * Deletes all the received files.
@@ -127,7 +177,7 @@ public class FileManagerThread extends Thread
 	 * @param session
 	 * @param data
 	*/
-	private void readFilesToDelete( final TCPSession session, final ByteBuffer data ) throws IOException, SQLException
+	/*private void readFilesToDelete( final TCPSession session, final ByteBuffer data ) throws IOException, SQLException
 	{
 		// get and verify the quorum attribute
 		if(data.get() == (byte) 0x1)
@@ -136,10 +186,10 @@ public class FileManagerThread extends Thread
 		int size = data.getInt();
 		for(int i = 0; i < size; i++) {
 			DistributedFile file = Utils.deserializeObject( session.receiveMessage() );
-			database.removeFile( file.getName(), file.getVersion() );
+			database.removeFile( file.getName(), file.getVersion(), true );
 			LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
 		}
-	}
+	}*/
 	
 	/** 
 	 * Sends the list of files, for saving or deleting operation, to the destination address.
@@ -148,20 +198,20 @@ public class FileManagerThread extends Thread
 	 * @param opType			operation type (PUT or DELETE)
 	 * @param files				list of files
 	 * @param address			destination IP address
-	 * @param hintedHandoff		the hinted handoff node address
 	 * @param wait_response		{@code true} if the process have to wait the response, {@code false} otherwise
-	 * @param synchNodeId		identifier of the synchronizing node
-	 * @param isQuorum			{@code true} if the message is for the termination of a quorum,
-	 * 							{@code false} otherwise
+	 * @param synchNodeId		identifier of the synchronizing node (used during the anti-entropy phase)
+	 * @param node			
 	 * 
 	 * @return {@code true} if the files are successfully transmitted, {@code false} otherwise
 	*/
-	public boolean sendFiles( final int port, final byte opType, final List<DistributedFile> files,
-							  final String address, final String hintedHandoff,
-							  final boolean wait_response, final byte[] synchNodeId,
-							  final boolean isQuorum )
+	public boolean sendFiles( final int port/*, final byte opType*/,
+							  final List<DistributedFile> files,
+							  final String address,
+							  final boolean wait_response,
+							  final byte[] synchNodeId,
+							  final QuorumNode node )
 	{
-		SendFilesThread t = new SendFilesThread( port, opType, files, address, hintedHandoff, synchNodeId, isQuorum );
+		SendFilesThread t = new SendFilesThread( port, /*opType, */files, address, synchNodeId, node );
 		threadPoolSend.execute( t );
 		
 		if(!wait_response)
@@ -180,61 +230,76 @@ public class FileManagerThread extends Thread
 	 * @param opType			operation type (PUT or DELETE)
 	 * @param files				list of files
 	 * @param address			destination IP address
-	 * @param hintedHandoff		the hinted handoff node address
-	 * @param synchNodeId		identifier of the synchronizing node
-	 * @param isQuorum			{@code true} if the message is for the termination of a quorum,
-	 * 							{@code false} otherwise
+	 * @param synchNodeId		identifier of the synchronizing node (used during the anti-entropy phase)
+	 * @param node			
 	 * 
 	 * @return {@code true} if the files are successfully transmitted,
 	 * 		   {@code false} otherwise
 	*/
-	private boolean transmitFiles( final int port, final byte opType,
-								   final List<DistributedFile> files, final String address,
-								   final String hintedHandoff, final byte[] synchNodeId,
-								   final boolean isQuorum )
+	private boolean transmitFiles( final int port, //final byte opType,
+								   final List<DistributedFile> files,
+								   final String address,
+								   final byte[] synchNodeId,
+								   final QuorumNode node )
 	{
 		boolean complete = true;
 		TCPSession session = null;
 		
-		LOGGER.debug( "Type " + opType + ": sending " + files.size() + " files to \"" + address + "\"" );
-		
 		try {
 			//session = net.tryConnect( address, DEFAULT_PORT );
+			LOGGER.debug( "Connecting to " + address + ":" + port );
 			session = net.tryConnect( address, port );
 			
 			int size = files.size();
+			LOGGER.debug( /*"Type " + opType + */"Sending " + size + " files to \"" + address + ":" + port + "\"" );
 			
-			byte[] msg;
+			/*byte[] msg;
 			if(opType == Message.PUT) {
 				msg = net.createMessage( new byte[]{ opType, (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (isQuorum) ? (byte) 0x1 : (byte) 0x0 },
 										 Utils.intToByteArray( size ),
 										 false );
 				
-				if(hintedHandoff != null)
-					msg = net.createMessage( msg, hintedHandoff.getBytes( StandardCharsets.UTF_8 ), true );
+				//if(hintedHandoff != null)
+					//msg = net.createMessage( msg, hintedHandoff.getBytes( StandardCharsets.UTF_8 ), true );
 			}
 			else {
 				// DELETE operation
 				msg = net.createMessage( new byte[]{ opType, (isQuorum) ? (byte) 0x1 : (byte) 0x0 },
 										 Utils.intToByteArray( size ),
 										 false );
-			}
+			}*/
 			
+			byte[] msg = new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (node != null) ? (byte) 0x1 : (byte) 0x0 };
+			if(node != null)
+				msg = net.createMessage( msg, Utils.longToByteArray( node.getId() ), false );
+			msg = net.createMessage( msg, Utils.intToByteArray( size ), false );
+			
+			/*byte[] msg = net.createMessage( new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0,
+														  (quorumId >= 0) ? (byte) 0x1 : (byte) 0x0 },
+											Utils.intToByteArray( size ),
+											false );*/
 			session.sendMessage( msg, true );
 			
 			for(int i = 0; i < size; i++) {
-				// get the serialization of the file
-				byte bytes[];
 				DistributedFile dFile = files.get( i );
-				if(opType == Message.DELETE)
-					bytes = Utils.serializeObject( dFile );
-				else{
-					RemoteFile file = new RemoteFile( dFile );
-					bytes = Utils.serializeObject( file );
+				if(dFile.isDeleted())
+					//msg = net.createMessage( new byte[]{ Message.DELETE }, Utils.serializeObject( dFile ), true );
+					msg = net.createMessage( new byte[]{ Message.DELETE }, dFile.read(), true );
+				else {
+					RemoteFile file = new RemoteFile( dFile, database.getFileSystemRoot() );
+					//msg = net.createMessage( new byte[]{ Message.PUT }, Utils.serializeObject( file ), true );
+					msg = net.createMessage( new byte[]{ Message.PUT }, file.read(), true );
 				}
 				
-				LOGGER.debug( "Sending file \"" + dFile.getName() + "\"" );
-				session.sendMessage( bytes, true );
+				/*if(opType == Message.DELETE)
+					msg = Utils.serializeObject( dFile );
+				else{
+					RemoteFile file = new RemoteFile( dFile, database.getFileSystemRoot() );
+					msg = Utils.serializeObject( file );
+				}*/
+				
+				LOGGER.debug( "Sending file \"" + dFile + "\"" );
+				session.sendMessage( msg, true );
 				LOGGER.debug( "File \"" + dFile.getName() + "\" transmitted." );
 			}
 			
@@ -242,12 +307,20 @@ public class FileManagerThread extends Thread
 				session.receiveMessage();
 				receiveAE_t.removeFromSynch( synchNodeId );
 			}
+			
+			if(node != null)
+				updateQuorum( node );
 		}
-		catch( IOException e ) {
-			//e.printStackTrace();
+		catch( IOException | JSONException e ) {
+			e.printStackTrace();
 			complete = false;
-			if(synchNodeId != null)
+			if(synchNodeId != null) {
 				receiveAE_t.removeFromSynch( synchNodeId );
+				if(node != null) {
+					try { updateQuorum( node ); }
+					catch( IOException | JSONException ex ) {}
+				}
+			}
 		}
 		
 		if(session != null)
@@ -256,12 +329,27 @@ public class FileManagerThread extends Thread
 		return complete;
 	}
 	
+	private synchronized void updateQuorum( final QuorumNode node ) throws IOException, JSONException
+	{
+		List<QuorumNode> nodes = node.getList();
+		nodes.remove( node );
+		QuorumSystem.saveDecision( nodes );
+	}
+	
 	/**
 	 * Returns the own database.
 	*/
 	public DFSDatabase getDatabase()
 	{
 		return database;
+	}
+	
+	public void shutDown()
+	{
+		threadPoolSend.shutdown();
+		threadPoolReceive.shutdown();
+		sendAE_t.close();
+		receiveAE_t.close();
 	}
 
 	/**
@@ -281,8 +369,9 @@ public class FileManagerThread extends Thread
 		{
 			try {
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+				readFiles( session, data );
 				
-				byte opType = data.get();
+				/*byte opType = data.get();
 				//LOGGER.debug( "Operation: " + ((byte) type) + ", PUT: " + ((char) Utils.PUT) );
 				switch( opType ) {
 					case( Message.PUT ):
@@ -292,7 +381,7 @@ public class FileManagerThread extends Thread
 					case( Message.DELETE ):
 						readFilesToDelete( session, data );
 						break;
-				}
+				}*/
 			}
 			catch( IOException | SQLException e ) {
 				e.printStackTrace();
@@ -308,33 +397,32 @@ public class FileManagerThread extends Thread
 	private class SendFilesThread extends Thread
 	{
 		private int port;
-		private byte opType;
+		//private byte opType;
 		private List<DistributedFile> files;
 		private String address;
-		private String hinted_handoff;
 		private byte[] synchNodeId;
-		private boolean isQuorum;
+		private QuorumNode node;
 		
 		private boolean result;
 		
-		public SendFilesThread( final int port, final byte opType,
-								final List<DistributedFile> files, final String address,
-								final String hinted_handoff, final byte[] synchNodeId,
-								final boolean isQuorum )
+		public SendFilesThread( final int port,// final byte opType,
+								final List<DistributedFile> files,
+								final String address,
+								final byte[] synchNodeId,
+								final QuorumNode node )
 		{
 			this.port = port;
-			this.opType = opType;
+			//this.opType = opType;
 			this.files = files;
 			this.address = address;
-			this.hinted_handoff = hinted_handoff;
 			this.synchNodeId = synchNodeId;
-			this.isQuorum = isQuorum;
+			this.node = node;
 		}
 		
 		@Override
 		public void run()
 		{
-			result = transmitFiles( port, opType, files, address, hinted_handoff, synchNodeId, isQuorum );
+			result = transmitFiles( port, /*opType, */files, address, synchNodeId, node );
 		}
 		
 		/** 

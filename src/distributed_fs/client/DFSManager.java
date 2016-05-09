@@ -4,6 +4,7 @@
 
 package distributed_fs.client;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -39,20 +40,22 @@ public class DFSManager
 	private static final String DISTRIBUTED_FS_CONFIG = "./Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
 	
-	public DFSManager() throws IOException, JSONException
+	public DFSManager( final List<GossipMember> members ) throws IOException, JSONException
 	{
-		setConfigure();
+		setConfigure( members );
 	}
 	
 	/** 
 	 * Sets the initial configuration.
+	 * 
+	 * @param members	list of initial members
 	*/
-	protected void setConfigure() throws IOException, JSONException
+	protected void setConfigure( final List<GossipMember> members ) throws IOException, JSONException
 	{
 		BasicConfigurator.configure();
 		LOGGER.info( "Starting the system..." );
 		
-		java.util.logging.Logger.getLogger( "udt" ).setLevel( java.util.logging.Level.WARNING );
+		//java.util.logging.Logger.getLogger( "udt" ).setLevel( java.util.logging.Level.WARNING );
 		
 		JSONObject file = Utils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
@@ -60,13 +63,17 @@ public class DFSManager
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
 		_address = this.getNetworkAddress( inet, IPversion );
 		
-		// get the load balancer nodes
-		JSONArray nodes = file.getJSONArray( "members" );
-		loadBalancers = new ArrayList<>( nodes.length() );
-		for(int i = 0; i < nodes.length(); i++) {
-			JSONObject data = nodes.getJSONObject( i );
-			loadBalancers.add( new RemoteGossipMember( data.getString( "host" ), Utils.SERVICE_PORT, "", 0, GossipMember.STORAGE ) );
-			LOGGER.info( "Added load balancer: " + data.getString( "host" ) );
+		if(members != null)
+			loadBalancers = new ArrayList<>( members );
+		else {
+			// get the load balancer nodes
+			JSONArray nodes = file.getJSONArray( "members" );
+			loadBalancers = new ArrayList<>( nodes.length() );
+			for(int i = 0; i < nodes.length(); i++) {
+				JSONObject data = nodes.getJSONObject( i );
+				loadBalancers.add( new RemoteGossipMember( data.getString( "host" ), Utils.SERVICE_PORT, "", 0, GossipMember.STORAGE ) );
+				LOGGER.info( "Added load balancer: " + data.getString( "host" ) );
+			}
 		}
 	}
 	
@@ -106,10 +113,49 @@ public class DFSManager
 		return _address;
 	}
 	
+	/**
+	 * Checks if the file has the correct format.
+	 * 
+	 * @param fileName	the input file
+	 * @param dbRoot	the database root
+	*/
+	protected String checkFile( String fileName, final String dbRoot )
+	{
+		//if(!(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )))
+			//fileName = dbRoot + fileName;
+		
+		//if(!fileName.startsWith( "./" ))
+			//fileName = "./" + fileName;
+		/*if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
+			fileName += "/";
+		if(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )) {
+			if(!fileName.startsWith( "./" ))
+				fileName = "./" + fileName;
+			fileName = fileName.substring( dbRoot.length() );
+		}*/
+		
+		String backup = fileName;
+		if(fileName.startsWith( "./" ))
+			fileName = fileName.substring( 2 );
+		
+		File f = new File( fileName );
+		fileName = f.getAbsolutePath();
+		if(f.isDirectory() && !fileName.endsWith( "/" ))
+			fileName += "/";
+		fileName = fileName.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		if(fileName.startsWith( dbRoot ))
+			fileName = fileName.substring( dbRoot.length() );
+		else
+			fileName = backup;
+		
+		return fileName;
+	}
+	
 	protected void sendPutMessage( final RemoteFile file ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
-		MessageRequest message = new MessageRequest( Message.PUT, file.getName(), Utils.serializeObject( file ) );
+		//MessageRequest message = new MessageRequest( Message.PUT, file.getName(), Utils.serializeObject( file ) );
+		MessageRequest message = new MessageRequest( Message.PUT, file.getName(), file.read() );
 		session.sendMessage( Utils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}
@@ -142,7 +188,8 @@ public class DFSManager
 		List<RemoteFile> files = new ArrayList<>();
 		if(message.getFiles() != null) {
 			for(byte[] file : message.getFiles())
-				files.add( Utils.deserializeObject( file ) );
+				//files.add( Utils.deserializeObject( file ) );
+				files.add( new RemoteFile( file ) );
 		}
 		
 		LOGGER.info( "Received " + files.size() + " files." );
@@ -153,7 +200,8 @@ public class DFSManager
 	protected void sendDeleteMessage( final DistributedFile file ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
-		MessageRequest message = new MessageRequest( Message.DELETE, file.getName(), Utils.serializeObject( file ) );
+		//MessageRequest message = new MessageRequest( Message.DELETE, file.getName(), Utils.serializeObject( file ) );
+		MessageRequest message = new MessageRequest( Message.DELETE, file.getName(), file.read() );
 		session.sendMessage( Utils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}

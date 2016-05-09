@@ -279,6 +279,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 	
 	/**
+	 * Returns the successor bucket of the given bucket id.<br>
+	 * If there is no other nodes, checks it from the first key.
+	 * 
+	 * @param id	the given bucket
+	*/
+	public ByteBuffer getNextBucket( final ByteBuffer id )
+	{
+		ByteBuffer succ = getSuccessor( id );
+		if(succ == null)
+			return getFirstKey();
+		
+		return succ;
+	}
+	
+	/**
 	 * Returns the predecessor buckets of the given bucket id.
 	 * 
 	 * @param id	the given bucket
@@ -298,6 +313,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	{
 		Preconditions.checkNotNull( id, "Id can not be null" );
 		return bucketsMap.lowerKey( id );
+	}
+	
+	/**
+	 * Returns the predecessor bucket of the given bucket id.<br>
+	 * If there is no other nodes, checks it from the last key.
+	 * 
+	 * @param id	the given bucket
+	*/
+	public ByteBuffer getPreviousBucket( final ByteBuffer id )
+	{
+		ByteBuffer prev = getPredecessor( id );
+		if(prev == null)
+			return getLastKey();
+		
+		return prev;
 	}
 	
 	@Override

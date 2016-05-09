@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.merkle_tree;
+package distributed_fs.anti_entropy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -13,18 +13,17 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
+import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.files.DFSDatabase;
 import distributed_fs.files.DistributedFile;
 import distributed_fs.files.FileManagerThread;
-import distributed_fs.merkle_tree.MerkleTree.Node;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
-import distributed_fs.net.messages.Message;
 import distributed_fs.utils.Utils;
+import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.VectorClockInconsistencyResolver;
 import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
 
@@ -61,14 +60,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		LOGGER.info( "Anti Entropy Receiver Thread launched" );
 		String srcAddress;
 		
-		while(true) {//TODO while(!shoutdown) {
+		while(!shoutDown) {
 			byte[] sourceId = null;
 			
 			try {
-				// TODO anche qui settare la porta giusta
 				//session = Net.waitForConnection( me.getHost(), MERKLE_TREE_EXCHANGE_PORT );
 				//System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
-				session = Net.waitForConnection( me.getHost(), port );
+				session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
 				
 				srcAddress = session.getSrcAddress();
 				// TODO lanciare un altro thread che gestisca la connessione??
@@ -99,17 +97,22 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				List<DistributedFile> files;
 				if(msg_type == MERKLE_FROM_MAIN) {
 					ByteBuffer destId = ByteBuffer.wrap( sourceId );
-					ByteBuffer fromId = cHasher.getPredecessor( destId );
+					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
 					files = database.getKeysInRange( fromId, destId );
+					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
 				}
 				else {
 					// get the virtual destination node identifier
 					ByteBuffer destId = ByteBuffer.wrap( Utils.getNextBytes( data ) );
-					ByteBuffer fromId = cHasher.getPredecessor( destId );
-					if(fromId == null) fromId = cHasher.getLastKey();
-					LOGGER.debug( "From: " + Utils.bytesToHex( fromId.array() ) + ", to: " + Utils.bytesToHex( destId.array() ) );
+					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
+					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
 					files = database.getKeysInRange( fromId, destId );
 				}
+				
+				// ================ TODO finiti i test, togliere sta roba ================= //
+				//System.out.println( me + " - RICEVUTA CONNESSIONE DAL NODO CHE MI INTERESSA!!!!!!!!!!!!!!!!!" );
+				LOGGER.debug( "Files: " + files );
+				// =========================================================================== //
 				
 				List<DistributedFile> filesToSend = new ArrayList<>();
 				m_tree = createMerkleTree( files );
@@ -126,13 +129,12 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				if(hasKey) {
 					// receive the vector clocks associated to the shared files
 					byte[] versions = session.receiveMessage();
-					//List<VectorClock> vClocks = getVersions( Utils.bytesToHex( versions ) );
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
 					filesToSend.addAll( checkVersions( sourceNode.getPort() + 1, files, vClocks, srcAddress, sourceId ) );
 				}
 				
 				if(filesToSend.size() > 0)
-					fMgr.sendFiles( sourceNode.getPort() + 1, Message.PUT, filesToSend, srcAddress, null, false, sourceId, false );
+					fMgr.sendFiles( sourceNode.getPort() + 1/*, Message.PUT*/, filesToSend, srcAddress, false, sourceId, null );
 				else // no differences
 					removeFromSynch( sourceId );
 				
@@ -248,7 +250,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			Node node = nodes.get( offset );
 			boolean found = false;
 			for(int j = 0; j < pTreeSize; j++) {
-				// compare each signature: if equal put 1 in the set
+				// Compare each signature: if equal put 1 in the set.
 				if(!_bitSet.get( j ) && MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
 					LOGGER.debug( "Founded 2 equal nodes!" );
 					nodes.remove( offset );
@@ -258,7 +260,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					if(!sourceHasKey)
 						sourceHasKey = true;
 					
-					// set 1 to all the leaf nodes reachable from the node
+					// Set 1 to all the leaf nodes reachable from the node.
 					LinkedList<Node> leaves = m_tree.getLeavesFrom( node );
 					LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
 					bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
@@ -269,6 +271,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			}
 			
 			if(!found) {
+				// If the current node is not found, its sons will be added.
 				if(level < height) {
 					//LOGGER.debug( "[SERVER] nodo " + offset + " rimosso" );
 					nodes.remove( offset );
@@ -358,7 +361,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		// send the files to delete
 		if(filesToRemove.size() > 0) {
 			addToSynch( sourceNodeId );
-			fMgr.sendFiles( port, Message.DELETE, filesToRemove, address, null, false, sourceNodeId, false );
+			fMgr.sendFiles( port/*, Message.DELETE*/, filesToRemove, address, false, sourceNodeId, null );
 		}
 		
 		return filesToSend;
@@ -374,8 +377,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	private <T> T resolveVersions( final List<Versioned<T>> versions )
 	{
 		// get the list of concurrent versions
-		VectorClockInconsistencyResolver<T> vecResolver = new VectorClockInconsistencyResolver<>();
-		List<Versioned<T>> inconsistency = vecResolver.resolveConflicts( versions );
+		//VectorClockInconsistencyResolver<T> vecResolver = new VectorClockInconsistencyResolver<>();
+		//List<Versioned<T>> inconsistency = vecResolver.resolveConflicts( versions );
+		List<Versioned<T>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
 		// resolve the conflicts, using a time-based resolver
 		TimeBasedInconsistencyResolver<T> resolver = new TimeBasedInconsistencyResolver<>();

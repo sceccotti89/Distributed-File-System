@@ -15,11 +15,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import distributed_fs.net.messages.Message;
+import distributed_fs.overlay.StorageNode.QuorumNode;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
 public class QuorumSystem
 {
+	public static long timeElapsed;
+	
 	/** Parameters of the quorum protocol (like Dynamo). */
 	private static final short N = 3, W = 2, R = 2;
 	/** The quorum file status location. */
@@ -36,17 +39,22 @@ public class QuorumSystem
 	 * 
 	 * @return the list of nodes to cancel the quorum
 	*/
-	public static List<GossipMember> loadDecision() throws IOException, JSONException
+	public static List<QuorumNode> loadDecision() throws IOException, JSONException
 	{
-		List<GossipMember> nodes = new ArrayList<>();
+		List<QuorumNode> nodes = new ArrayList<>();
 		
 		JSONObject file = Utils.parseJSONFile( QuorumFile );
+		
+		long timestamp = file.getLong( "timestamp" );
+		timeElapsed = System.currentTimeMillis() - timestamp;
+		
 		JSONArray members = file.getJSONArray( "members" );
 		for(int i = 0; i < members.length(); i++) {
 			JSONObject member = members.getJSONObject( i );
 			String hostname = member.getString( "host" );
 			int port = member.getInt( "port" );
-			nodes.add( new RemoteGossipMember( hostname, port, "", 0, 0 ) );
+			long id = member.getLong( "id" );
+			nodes.add( new QuorumNode( new RemoteGossipMember( hostname, port, "", 0, 0 ), id ) );
 		}
 		
 		return nodes;
@@ -55,18 +63,22 @@ public class QuorumSystem
 	/**
 	 * Save on disk the actual status of the quorum.
 	 * 
-	 * @param nodes		
+	 * @param nodes			list of nodes that have to be contacted
 	*/
-	public static void saveDecision( final List<GossipMember> nodes ) throws IOException, JSONException
+	public static void saveDecision( final List<QuorumNode> nodes ) throws IOException, JSONException
 	{
 		JSONObject file = new JSONObject();
-		JSONArray members = new JSONArray();
 		
+		file.put( "timestamp", System.currentTimeMillis() );
+		
+		JSONArray members = new JSONArray();
 		if(nodes != null && nodes.size() > 0) {
-			for(GossipMember node : nodes) {
+			for(int i = 0; i < nodes.size(); i++) {
+				GossipMember node = nodes.get( i ).getNode();
 				JSONObject member = new JSONObject();
 				member.put( "host", node.getHost() );
 				member.put( "port", node.getPort() );
+				member.put( "id", nodes.get( i ).getId() );
 				members.put( member );
 			}
 		}
@@ -75,6 +87,7 @@ public class QuorumSystem
 		
 		PrintWriter writer = new PrintWriter( QuorumFile, StandardCharsets.UTF_8.name() );
 		writer.println( file.toString() );
+		writer.flush();
 		writer.close();
 	}
 	
@@ -107,7 +120,7 @@ public class QuorumSystem
 	}
 	
 	public static boolean isQuorum( final byte opType, final int replicaNodes ) {
-		// TODO TEST (finito il test togliere i commenti)
+		// TODO TEST (finiti i test togliere i commenti)
 		return true;
 		/*if(opType == Message.PUT || opType == Message.DELETE)
 			return isWriteQuorum( replicaNodes );
@@ -124,7 +137,7 @@ public class QuorumSystem
 	
 	public static int getMinQuorum( final byte opType )
 	{
-		// TODO TEST (finito il test togliere i commenti)
+		// TODO TEST (finiti i test togliere i commenti)
 		return 0;
 		
 		/*if(opType == Message.GET)

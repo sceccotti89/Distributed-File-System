@@ -18,12 +18,15 @@ import distributed_fs.utils.Utils;
 public class VersioningDatabase
 {
 	private final Connection conn;
+	private final String root;
+	
+	public static final String DB_LOCATION = "Database/DFSdatabase";
 	
 	public VersioningDatabase( final String dbFileName ) throws SQLException, InstantiationException, IllegalAccessException, ClassNotFoundException
 	{
 		Class.forName( "org.hsqldb.jdbcDriver" ).newInstance();
 		
-		Utils.createDirectory( Utils.VERSIONS_LOCATION );
+		Utils.createDirectory( root = (dbFileName != null) ? dbFileName : DB_LOCATION );
 		
 		// Connect to the database. This will load the db files and start the
 		// database if it is not alread running.
@@ -32,7 +35,7 @@ public class VersioningDatabase
 		// It can contain directory names relative to the
 		// current working directory.
 		// The password can be changed when the database is created for the first time.
-		conn = DriverManager.getConnection( "jdbc:hsqldb:" + dbFileName, "cecco", "ste" );
+		conn = DriverManager.getConnection( "jdbc:hsqldb:" + root, "cecco", "ste" );
 		
 		try {
 			// make an empty table

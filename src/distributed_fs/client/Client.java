@@ -4,60 +4,150 @@
 
 package distributed_fs.client;
 
-import java.util.Scanner;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
 
+import org.apache.commons.cli.ParseException;
+
+import distributed_fs.files.DistributedFile;
 import distributed_fs.net.messages.Message;
+import distributed_fs.utils.CmdLineParser;
+import gossiping.GossipMember;
 
 public class Client
 {
-	private static final Scanner SCAN = new Scanner( System.in );
+	public static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
+	//private static final String PUT_REGEX	 = "put(?:\\s+\\w*)?";
+	//private static final String GET_REGEX	 = "get(?:\\s+\\w*)?";
+	//private static final String DELETE_REGEX = "delete[ ]{0,1}";
+	private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
-	public static void main( final String args[] )
+	public static void main( final String args[] ) throws ParseException
 	{
-		checkInput();
+		// TODO inserire anche il resource location e il database location tra i possibili input
+		
+		List<GossipMember> members = null;
+		CmdLineParser.parseArgs( args );
+		members = CmdLineParser.getNodes( "n" );
+		
+		//checkInput();
+		DFSService service = null;
 		
 		try {
-			DFSService service = new DFSService();
+			service = new DFSService( members, null, null );
 			if(service.start()) {
-				//service.get( "./Resources/chord_sigcomm.pdf" );
-				//service.put( "./Resources/chord_sigcomm.pdf" );
-				//service.delete( "chord_sigcomm.pdf" );
-				Operation op = checkInput();
-				switch( op.opType ) {
-					case( Message.GET ):
-						service.get( op.file );
+				while(true) {
+					Operation op = checkInput( service );
+					if(op == null)
 						break;
-					case( Message.PUT ):
-						service.put( op.file );
-						break;
-					case( Message.DELETE ):
-						service.delete( op.file );
-						break;
+					
+					switch( op.opType ) {
+						case( Message.GET ):
+							service.get( op.file );
+							break;
+						case( Message.PUT ):
+							service.put( op.file );
+							break;
+						case( Message.DELETE ):
+							service.delete( op.file );
+							break;
+					}
 				}
-				
-				service.shutDown();
 			}
 		}
 		catch( Exception e ) {
-			
+			// Ignored.
+			//e.printStackTrace();
 		}
+		
+		if(service != null)
+			service.shutDown();
+		
+		System.exit( 0 );
 	}
 	
-	private static Operation checkInput()
+	private static Operation checkInput( final DFSService service )
 	{
-		int i = 0;
-		while(i < 1) {
-			String line = SCAN.nextLine();
+		String input = null;
+		
+		while(true) {
+			System.out.print( "[CLIENT] " );
 			
-			if(line.startsWith( "GET" ))
-				;
-			else if(line.startsWith( "PUT" ))
-				;
-			else if(line.startsWith( "DELETE" ))
-				;
+			try{
+				// wait until we have data to complete a readLine()
+				while(!SCAN.ready()) {
+					if(service.isClosed())
+						return null;
+					
+					Thread.sleep( 200 );
+				}
+				
+				input = SCAN.readLine();
+			}
+			catch( IOException | InterruptedException e ){
+				break;
+			}
+			
+			// TODO inserire un comando per listare il contenuto del database
+			String command = input.toLowerCase();
+			
+			//if(command.matches( GET_REGEX )) {
+			if(command.startsWith( "get" ) || command.startsWith( "get " )) {
+				if(command.length() <= 4) {
+					System.out.println( "[CLIENT] Command error: you must specify the file." );
+					continue;
+				}
+				
+				String file = getFile( input, 4 );
+				if(file != null)
+					return new Operation( file, Message.GET );
+			}
+			//else if(command.matches( PUT_REGEX )) {
+			else if(command.startsWith( "put" ) || command.startsWith( "put " )) {
+				if(command.length() <= 4) {
+					System.out.println( "[CLIENT] Command error: you must specify the file." );
+					continue;
+				}
+				
+				String file = getFile( input, 4 );
+				if(file != null)
+					return new Operation( file, Message.PUT );
+			}
+			//else if(command.matches( DELETE_REGEX )) {
+			else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
+				if(command.length() <= 7) {
+					System.out.println( "[CLIENT] Command error: you must specify the file." );
+					continue;
+				}
+				
+				String file = getFile( input, 7 );
+				if(file != null)
+					return new Operation( file, Message.DELETE );
+			}
+			else if(command.equals( "list" )) {
+				List<DistributedFile> files = service.listFiles();
+				for(DistributedFile file : files) {
+					if(!file.isDeleted())
+						System.out.println( "[CLIENT] " + file.getName() );
+				}
+			}
 			else
-				System.out.println( "[CLIENT] Command '" + line + "' unknown." );
+				System.out.println( "[CLIENT] Command '" + input + "' unknown." );
 		}
+		
+		return null;
+	}
+	
+	private static String getFile( final String command, final int offset )
+	{
+		String file = command.substring( offset );
+		//System.out.println( "FILE: " + file );
+		if(file.matches( FILE_REGEX ))
+			return file;
+		else
+			System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
 		
 		return null;
 	}

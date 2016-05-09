@@ -19,11 +19,11 @@ import org.apache.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
-import distributed_fs.net.messages.Message;
+import distributed_fs.exception.DFSException;
 import distributed_fs.utils.Utils;
+import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.VectorClockInconsistencyResolver;
 import distributed_fs.versioning.Versioned;
 
 public class DFSDatabase
@@ -34,17 +34,24 @@ public class DFSDatabase
 	private final VersioningDatabase vDatabase;
 	private boolean shutDown = false;
 	private NavigableMap<ByteBuffer, DistributedFile> database;
+	private String root;
 	
 	public static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
 	/**
 	 * Construct a new Distributed File System database.
 	 * 
-	 * @param fileMgr	the manager used to send/receive files.
-	 * 					If {@code null} the database for the hinted handoff
-	 * 					nodes does not start.
+	 * @param resourcesLocation		location of the file. If {@code null} will be set
+	 * 								the default one ({@link Utils#RESOURCE_LOCATION}).
+	 * @param databaseLocation		location of the database. If {@code null} will be set
+	 * 								the default one ({@link VersioningDatabase#DB_LOCATION}).
+	 * @param fileMgr				the manager used to send/receive files.
+	 *								If {@code null} the database for the hinted handoff
+	 * 								nodes does not start.
 	*/
-	public DFSDatabase( final FileManagerThread fileMgr ) throws IOException
+	public DFSDatabase( final String resourcesLocation,
+						final String databaseLocation,
+						final FileManagerThread fileMgr ) throws IOException, DFSException
 	{
 		_fileMgr = fileMgr;
 		if(_fileMgr != null) {
@@ -52,14 +59,36 @@ public class DFSDatabase
 			hhThread.start();
 		}
 		
-		try{ vDatabase = new VersioningDatabase( "Database/DFSdatabase" ); }
+		try{ vDatabase = new VersioningDatabase( databaseLocation ); }
 		catch( Exception e ) {
 			e.printStackTrace();
 			throw new IOException();
 		}
 		
 		database = new TreeMap<>();
-		loadFiles( new File( Utils.RESOURCE_LOCATION ), _fileMgr != null );
+		
+		// Check if the path is written in the standard format.
+		root = (resourcesLocation != null) ? resourcesLocation : Utils.RESOURCE_LOCATION;
+		if(root.startsWith( "./" ))
+			root = root.substring( 2 );
+		
+		File f = new File( root );
+		root = f.getAbsolutePath();
+		if(f.isDirectory() && !root.endsWith( "/" ))
+			root += "/";
+		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		
+		//if(!root.startsWith( "/" ) && !root.startsWith( "./" ))
+			//root = "./" + root;
+		//root = new File( root ).getAbsolutePath();
+		//File f = new File( root = root.replace( "\\", "/" ) );
+		if(!Utils.createDirectory( root )) {
+			throw new DFSException( "Invalid database path " + root + "." +
+									"Make sure that the path is correct and that you have the permissions to create and execute it." );
+		}
+		
+		loadFiles( new File( root )/*, _fileMgr != null*/ );
+		System.out.println( "FILE: " + getFile( Utils.getId( "Images/" ) ) );
 		
 		scanDBThread = new ScanDBThread( this );
 		scanDBThread.start();
@@ -68,15 +97,17 @@ public class DFSDatabase
 	/**
 	 * Load recursively the files present in the current folder.
 	 * 
-	 * @param dir				the current directory
-	 * @param makeSignature		
+	 * @param dir	the current directory
 	*/
-	private void loadFiles( final File dir, final boolean makeSignature ) throws IOException
+	private void loadFiles( final File dir/*, final boolean makeSignature*/ ) throws IOException
 	{
 		for(File f : dir.listFiles()) {
 			String fileName = f.getPath();
-			if(f.isDirectory() && !fileName.endsWith( "/" ))
+			if(f.isDirectory()) {
+				loadFiles( f/*, makeSignature*/ );
 				fileName += "/";
+			}
+			fileName = fileName.substring( root.length() );
 			
 			ByteBuffer fileId = Utils.getId( fileName );
 			LOGGER.debug( "File: " + fileName + ", Directory: " + f.isDirectory() + ", Id: " + Utils.bytesToHex( fileId.array() ) );
@@ -87,7 +118,8 @@ public class DFSDatabase
 			
 			try{
 				// get the version from the versioning database
-				String statement = "SELECT vClock, hintedHandoff, Deleted FROM versions WHERE fileId = '" + Utils.bytesToHex( fileId.array() ) + "'";
+				String statement = "SELECT vClock, hintedHandoff, Deleted FROM versions " +
+									"WHERE fileId = '" + Utils.bytesToHex( fileId.array() ) + "'";
 				List<String> values = vDatabase.query( statement, 0 );
 				if(values.size() > 0) {
 					clock = Utils.deserializeObject( Utils.hexToBytes( values.get( 0 ) ).array() );
@@ -102,20 +134,19 @@ public class DFSDatabase
 			
 			if(clock == null) {
 				clock = new VectorClock();
-				// save the version on its database, since it's not present
+				// Save the version on its database, since it's not present.
 				try { saveVersion( Utils.bytesToHex( fileId.array() ), Utils.serializeObject( clock ), "", deleted, 0, false ); }
 				catch( SQLException e ) { e.printStackTrace(); }
 			}
 			
-			DistributedFile file = new DistributedFile( fileName, clock, makeSignature );
+			//DistributedFile file = new DistributedFile( fileName, root, clock, makeSignature );
+			DistributedFile file = new DistributedFile( fileName, root, clock );
+			System.out.println( "LOADED: " + file );
 			file.setDeleted( deleted );
 			if(hintedHandoff != null && hhThread != null)
 				hhThread.saveFile( hintedHandoff, file );
 			
 			database.put( fileId, file );
-			
-			if(f.isDirectory())
-				loadFiles( f, makeSignature );
 		}
 	}
 	
@@ -161,18 +192,19 @@ public class DFSDatabase
 	/** 
 	 * Save a file on the database.
 	 * 
-	 * @param file			name of the file to save
-	 * @param hintedHandoff	the hinted handoff address in the form {@code ipAddress:port}
-	 * @param saveOnDisk	{@code true} if the file has to be saved on disk,
-	 * 						{@code false} otherwise
+	 * @param file				name of the file to save
+	 * @param clock				the associated vector clock
+	 * @param hintedHandoff		the hinted handoff address in the form {@code ipAddress:port}
+	 * @param saveOnDisk		{@code true} if the file has to be saved on disk,
+	 * 							{@code false} otherwise
 	 * 
-	 * @return {@code true} if the file has been added to the database,
-	 * 		   {@code false} otherwise
+	 * @return the new clock, if updated, {@code null} otherwise
 	*/
-	public boolean saveFile( final RemoteFile file, final String hintedHandoff, final boolean saveOnDisk ) throws IOException, SQLException
+	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
+								 final String hintedHandoff, final boolean saveOnDisk ) throws IOException, SQLException
 	{
 		return saveFile( file.getName(), file.getContent(),
-						 file.getVersion(), hintedHandoff,
+						 clock, hintedHandoff,
 						 saveOnDisk );
 	}
 	
@@ -186,12 +218,11 @@ public class DFSDatabase
 	 * @param saveOnDisk	{@code true} if the file has to be saved on disk,
 	 * 						{@code false} otherwise
 	 * 
-	 * @return {@code true} if the file has been added to the database,
-	 * 		   {@code false} otherwise
+	 * @return the new clock, if updated, {@code null} otherwise
 	*/
-	public synchronized boolean saveFile( final String fileName, final byte[] content,
-										  final VectorClock clock, final String hintedHandoff,
-										  final boolean saveOnDisk ) throws IOException, SQLException
+	public synchronized VectorClock saveFile( final String fileName, final byte[] content,
+											  final VectorClock clock, final String hintedHandoff,
+											  final boolean saveOnDisk ) throws IOException, SQLException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
@@ -199,12 +230,13 @@ public class DFSDatabase
 		ByteBuffer fileId = Utils.getId( fileName );
 		DistributedFile file = database.get( fileId );
 		
-		System.out.println( "SAVE FILE: " + file );
+		System.out.println( "OLD FILE: " + file );
 		
-		boolean updated = false;
+		VectorClock updated = null;
 		
 		if(file != null) {
 			// Resolve the (possible) inconsistency through the versions.
+			//System.out.println( "MY_CLOCK: " + file.getVersion() + ", IN_CLOCK: " + clock );
 			if(!resolveVersions( file.getVersion(), clock )) {
 				// The input version is newer than mine, then
 				// it will override the current one.
@@ -212,13 +244,13 @@ public class DFSDatabase
 				if(file.isDeleted())
 					file.setDeleted( false );
 				
-				updated = true;
+				updated = clock;
 				
 				if(saveOnDisk) {
 					saveVersion( Utils.bytesToHex( fileId.array() ),
 								 Utils.serializeObject( file.getVersion() ),
 								 hintedHandoff, false, 0, true );
-					Utils.saveFileOnDisk( fileName, content );
+					Utils.saveFileOnDisk( root + fileName, content );
 				}
 				
 				database.put( fileId, file );
@@ -227,16 +259,17 @@ public class DFSDatabase
 			}
 		}
 		else {
-			updated = true;
+			updated = clock;
 			
 			if(saveOnDisk) {
 				saveVersion( Utils.bytesToHex( fileId.array() ),
 							 Utils.serializeObject( clock ),
 							 hintedHandoff, false, 0, false );
-				Utils.saveFileOnDisk( fileName, content );
+				Utils.saveFileOnDisk( root + fileName, content );
 			}
 			
-			file = new DistributedFile( fileName, clock, _fileMgr != null );
+			//file = new DistributedFile( fileName, root, clock, _fileMgr != null );
+			file = new DistributedFile( fileName, root, clock );
 			database.put( fileId, file );
 			if(hintedHandoff != null)
 				hhThread.saveFile( hintedHandoff, file );
@@ -248,26 +281,28 @@ public class DFSDatabase
 	/** 
 	 * Removes a file on database and on disk.
 	 * 
-	 * @param fileName	name of the file to remove
-	 * @param clock		actual version of the file
+	 * @param fileName			name of the file to remove
+	 * @param clock				actual version of the file
+	 * @param compareVersions	
 	 * 
-	 * @return {@code true} if the file has been removed from the database,
-	 * 		   {@code false} otherwise
+	 * @return the new clock, if updated, {@code null} otherwise
 	*/
-	public synchronized boolean removeFile( final String fileName, final VectorClock clock ) throws SQLException
+	public synchronized VectorClock removeFile( final String fileName,
+												final VectorClock clock,
+												final boolean compareVersions ) throws SQLException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		ByteBuffer fileId = Utils.getId( fileName );
 		DistributedFile file = database.get( fileId );
-		boolean updated = false;
+		VectorClock updated = null;
 		
-		// check whether the input version is newer than mine
+		// Check whether the input version is newer than mine.
 		if(file == null || !resolveVersions( file.getVersion(), clock )) {
 			if(file == null)
-				file = new DistributedFile( fileName, clock );
-			updated = true;
+				file = new DistributedFile( fileName, root, clock );
+			updated = clock;
 			doRemove( file, fileId, clock );
 		}
 		
@@ -283,15 +318,17 @@ public class DFSDatabase
 					 Utils.serializeObject( clock ),
 					 null, true, file.getTimeToLive(), true );
 		
-		Utils.deleteFileOnDisk( file.getName() );
+		Utils.deleteFileOnDisk( root + file.getName() );
 	}
 
 	/**
 	 * Resolve the (possible) inconsistency through the versions.
 	 * 
-	 * @param versions	list of versions
+	 * @param myClock	the current vector clock
+	 * @param vClock	the input vector clock
 	 * 
-	 * @return the value specified by the {@code T} type.
+	 * @return {@code true} if the current file is new newest one,
+	 * 		   {@code false} otherwise.
 	*/
 	private boolean resolveVersions( final VectorClock myClock, final VectorClock vClock )
 	{
@@ -300,8 +337,9 @@ public class DFSDatabase
 		versions.add( new Versioned<Integer>( 1, vClock ) );
 		
 		// get the list of concurrent versions
-		VectorClockInconsistencyResolver<Integer> vecResolver = new VectorClockInconsistencyResolver<>();
-		List<Versioned<Integer>> inconsistency = vecResolver.resolveConflicts( versions );
+		//VectorClockInconsistencyResolver<Integer> vecResolver = new VectorClockInconsistencyResolver<>();
+		//List<Versioned<Integer>> inconsistency = vecResolver.resolveConflicts( versions );
+		List<Versioned<Integer>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
 		// resolve the conflicts, using a time-based resolver
 		TimeBasedInconsistencyResolver<Integer> resolver = new TimeBasedInconsistencyResolver<>();
@@ -348,6 +386,16 @@ public class DFSDatabase
 	}
 	
 	/**
+	 * Returns the file specified by the given file name.
+	 * 
+	 * @param fileName	
+	*/
+	public DistributedFile getFile( final String fileName )
+	{
+		return getFile( Utils.getId( fileName ) );
+	}
+	
+	/**
 	 * Returns the file specified by the given id.
 	 * 
 	 * @param id	
@@ -368,6 +416,46 @@ public class DFSDatabase
 	}
 	
 	/**
+	 * Checks the existence of a file in the file system,
+	 * starting from its root.
+	 * 
+	 * @param filePath	the file to search
+	 * 
+	 * @return {@code true} if the file is present,
+	 * 		   {@code false} otherwise
+	*/
+	public boolean checkExistFile( final String filePath ) throws IOException
+	{
+		return checkInFileSystemExists( new File( root ), filePath );
+	}
+	
+	private boolean checkInFileSystemExists( final File filePath, final String fileName )
+	{
+		File[] files = filePath.listFiles();
+		if(files != null) {
+			for(File file : files) {
+				if(file.getPath().equals( fileName ))
+					return true;
+				
+				if(file.isDirectory()) {
+					if(checkInFileSystemExists( file, fileName ))
+						return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Returns the file system root location.
+	*/
+	public String getFileSystemRoot()
+	{
+		return root;
+	}
+	
+	/**
 	 * Checks if a member is a hinted handoff replica node.
 	 * 
 	 * @param nodeAddress	address of the node
@@ -381,14 +469,23 @@ public class DFSDatabase
 	{
 		vDatabase.shutdown();
 		shutDown = true;
+		
 		scanDBThread.shutDown();
+		try { scanDBThread.join(); }
+		catch( InterruptedException e ) {}
+		
+		if(hhThread != null) {
+			hhThread.shutDown();
+			try { hhThread.join(); }
+			catch( InterruptedException e ) {}
+		}
+		
 		database.clear();
 	}
 	
 	/**
 	 * Class used to periodically test
-	 * if a file has to be removed from the database,
-	 * using the LRU mechanism.
+	 * if a file has to be removed from the database.
 	*/
 	private class ScanDBThread extends Thread
 	{
@@ -408,20 +505,20 @@ public class DFSDatabase
 		{
 			while(!shutDown) {
 				try{ Thread.sleep( CHECK_TIMER ); }
-				catch( InterruptedException e ){}
+				catch( InterruptedException e ){ break; }
 				
 				List<DistributedFile> files = database.getAllFiles();
 				for(int i = files.size() - 1; i >= 0; i--) {
 					DistributedFile file = files.get( i );
 					if(file.isDeleted()) {
 						if(file.checkDelete()) {
-							try { database.removeFile( file.getName(), file.getVersion() ); }
+							try { database.removeFile( file.getName(), file.getVersion(), false ); }
 							catch( SQLException e ) {}
 						}
 						else {
-							// update the Time To Live of the file
+							// Update the Time To Live of the file.
 							try{
-								saveVersion( Utils.bytesToHex( file.getId() ),
+								saveVersion( Utils.bytesToHex( Utils.getId( file.getName() ).array() ),
 											 Utils.serializeObject( file.getVersion() ),
 											 file.getHintedHandoff(), true, file.getTimeToLive(), true );
 							}
@@ -438,6 +535,7 @@ public class DFSDatabase
 		public void shutDown()
 		{
 			shutDown = true;
+			interrupt();
 		}
 	}
 	
@@ -465,7 +563,9 @@ public class DFSDatabase
 		{
 			while(!shutDown) {
 				try{ Thread.sleep( CHECK_TIMER ); }
-				catch( InterruptedException e ){}
+				catch( InterruptedException e ){
+					break;
+				}
 				
 				//LOGGER.debug( "HH_DATABASE: " + hhDatabase.size() + ", FILES: " + hhDatabase );
 				
@@ -473,7 +573,7 @@ public class DFSDatabase
 					List<DistributedFile> files = hhDatabase.get( address );
 					for(int i = files.size() - 1; i >= 0; i --) {
 						if(files.get( i ).checkDelete()) {
-							try { removeFile( files.get( i ).getName(), files.get( i ).getVersion() ); }
+							try { removeFile( files.get( i ).getName(), files.get( i ).getVersion(), false ); }
 							catch ( SQLException e ) {}
 							files.remove( i );
 						}
@@ -484,10 +584,10 @@ public class DFSDatabase
 					String host = data[0];
 					int port = Integer.parseInt( data[1] ) + 1;
 					
-					if(_fileMgr.sendFiles( port, Message.PUT, files, host, null, true, null, false ) ) {
+					if(_fileMgr.sendFiles( port/*, Message.PUT*/, files, host, true, null, null ) ) {
 						for(DistributedFile file : files) {
 							String name = file.getName();
-							try { removeFile( name, file.getVersion() ); }
+							try { removeFile( name, file.getVersion(), false ); }
 							catch ( SQLException e ) {}
 						}
 						
@@ -522,5 +622,12 @@ public class DFSDatabase
 			if(hhDatabase.containsKey( nodeAddress ))
 				upNodes.add( nodeAddress );
 		}
+		
+		public void shutDown()
+		{
+			interrupt();
+		}
 	}
+	
+	// TODO mettere qui dentro la classe VersioningDatabase??
 }

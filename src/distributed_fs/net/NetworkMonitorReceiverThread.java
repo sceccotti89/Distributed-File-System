@@ -31,7 +31,8 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 				// save the statistics
 				NodeStatistics stats = Utils.deserializeObject( data );
 				nodes.put( net.getSrcAddress(), stats );
-			} catch( Exception e ) {
+			}
+			catch( Exception e ) {
 				//e.printStackTrace();
 			}
 		}

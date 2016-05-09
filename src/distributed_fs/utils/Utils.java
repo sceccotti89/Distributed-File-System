@@ -45,13 +45,15 @@ public class Utils
 	
 	/** Resource path location. */
 	public static final String RESOURCE_LOCATION = "./Resources/";
-	public static final String VERSIONS_LOCATION = "./Database/";
 	
 	/** The logger level. */
 	public static Level logLevel;
 	
 	/** Port used to send/receive data in the service. */
 	public static final int SERVICE_PORT = 9000;
+	
+	/** Decides whether the program is running in test mode or not. */
+	public static boolean testing = false;
 	
 	/**
 	 * Returns the identifier associated to the node.
@@ -159,7 +161,7 @@ public class Utils
 	 * 
 	 * @return the byte serialization of the object, if no error happens, null otherwise
 	*/
-	public static <T> byte[] serializeObject( final T obj )
+	public static <T extends Serializable> byte[] serializeObject( final T obj )
 	{
 		try {
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -182,7 +184,7 @@ public class Utils
 	 * @return the deserialization of the object,
 	 * 		   casted to the type specified in {@link T}
 	*/
-	public static <T> T deserializeObject( final byte data[] )
+	public static <T extends Serializable> T deserializeObject( final byte data[] )
 	{
 		try {
 			ByteArrayInputStream in = new ByteArrayInputStream( data );
@@ -203,11 +205,14 @@ public class Utils
 	 * Creates a new directory, if it doesn't exist.
 	 * 
 	 * @param dirPath	path to the directory
+	 * 
+	 * @return {@code true} if the direcotry has been created,
+	 * 		   {@code false} otherwise.
 	*/
 	public static boolean createDirectory( final String dirPath )
 	{
 		File file = new File( dirPath );
-		if(!file.exists())
+		if(file.canWrite() && !file.exists())
 			return file.mkdir();
 		
 		return true;

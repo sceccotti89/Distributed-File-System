@@ -39,9 +39,9 @@ public class VectorClock implements Version, Serializable
     private static final long MAX_NUMBER_OF_VERSIONS = 10;
 
     /** A map of versions keyed by nodeId */
-    private final TreeMap<String, Long> versionMap;
+    private TreeMap<String, Long> versionMap;
     /** A map of timestamps keyed by nodeId */
-    private final TreeMap<String, Long> timestampMap;
+    private TreeMap<String, Long> timestampMap;
 
     /** The time of the last update on the server on which the update was performed */
     private volatile long timestamp;
@@ -54,19 +54,19 @@ public class VectorClock implements Version, Serializable
     {
         this( System.currentTimeMillis() );
     }
-
-    public TreeMap<String, Long> getVersionMap() 
+    
+    /*public VectorClock( final byte[] data )
     {
-        return versionMap;
-    }
-
+    	write( data );
+    }*/
+    
     public VectorClock( final long timestamp ) 
     {
         this.versionMap = new TreeMap<String, Long>();
         this.timestampMap = new TreeMap<String, Long>();
         this.timestamp = timestamp;
     }
-
+    
     /**
      * This function is not safe because it may break the pre-condition that
      * clock entries should be sorted by nodeId 
@@ -81,7 +81,7 @@ public class VectorClock implements Version, Serializable
         	this.versionMap.put( clockEntry.getNodeId(), clockEntry.getVersion() );
         }
     }
-
+    
     /**
      * Only used for cloning
      * 
@@ -97,7 +97,12 @@ public class VectorClock implements Version, Serializable
         this.timestamp = timestamp;
     }
     
-    /**
+    /*public VectorClock( final byte[] data )
+	{
+		write( data );
+	}*/
+	
+	/**
      * Increment the version info associated with the given node
      * 
      * @param node The node
@@ -126,19 +131,19 @@ public class VectorClock implements Version, Serializable
         		timestampMap.remove( min_key );
         	}
         }
-
+        
         this.timestamp = time;
-
+        
         Long version = versionMap.get( node );
         if(version == null)
             version = 1L;
         else
             version = version + 1L;
-
+        
         timestampMap.put( node, time );
         versionMap.put( node, version );
     }
-
+    
     /**
      * Get new vector clock based on this clock but incremented on index nodeId
      * 
@@ -152,15 +157,25 @@ public class VectorClock implements Version, Serializable
     	copyClock.incrementVersion( nodeId );
         return copyClock;
     }
-
-    @Override
+    
+    /*public VectorClock( final byte[] data )
+	{
+		write( data );
+	}*/
+	
+	public TreeMap<String, Long> getVersionMap() 
+	{
+	    return versionMap;
+	}
+	
+	@Override
     public VectorClock clone() 
     {
         return new VectorClock( Maps.newTreeMap( versionMap ),
         						Maps.newTreeMap( timestampMap ),
         						this.timestamp );
     }
-
+	
     @Override
     public boolean equals( final Object object )
     {
@@ -173,13 +188,13 @@ public class VectorClock implements Version, Serializable
         VectorClock clock = (VectorClock) object;
         return versionMap.equals( clock.versionMap );
     }
-
+    
     @Override
     public int hashCode() 
     {
         return versionMap.hashCode();
     }
-
+    
     @Override
     public String toString() 
     {
@@ -199,7 +214,7 @@ public class VectorClock implements Version, Serializable
         builder.append( " ts:" + timestamp );
         return builder.toString();
     }
-
+    
     public long getMaxVersion() 
     {
         long max = -1;
@@ -207,7 +222,7 @@ public class VectorClock implements Version, Serializable
             max = Math.max( version, max );
         return max;
     }
-
+    
     public VectorClock merge( final VectorClock clock ) 
     {
         VectorClock newClock = new VectorClock();
@@ -224,10 +239,10 @@ public class VectorClock implements Version, Serializable
                 newClock.versionMap.put( entry.getKey(), Math.max( version, entry.getValue() ) );
             }
         }
-
+        
         return newClock;
     }
-
+    
     @Override
     public Occurred compare( final Version v )
     {
@@ -236,9 +251,32 @@ public class VectorClock implements Version, Serializable
 
         return VersioningUtils.compare( this, (VectorClock) v );
     }
-
+    
     public long getTimestamp()
     {
         return this.timestamp;
     }
+    
+	/*@Override
+	public byte[] read()
+	{
+		byte[] vMap = Utils.serializeObject( versionMap );
+		byte[] tMap = Utils.serializeObject( timestampMap );
+		
+		ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 2 + vMap.length + tMap.length + Long.BYTES );
+		buffer.putInt( vMap.length ).put( vMap );
+		buffer.putInt( tMap.length ).put( tMap );
+		buffer.putLong( timestamp );
+		
+		return buffer.array();
+	}
+	
+	@Override
+	public void write( byte[] data )
+	{
+		ByteBuffer buffer = ByteBuffer.wrap( data );
+		versionMap = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
+		timestampMap = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
+		timestamp = buffer.getLong();
+	}*/
 }

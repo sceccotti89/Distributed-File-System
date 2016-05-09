@@ -4,8 +4,11 @@
 
 package distributed_fs.overlay;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -19,6 +22,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -31,8 +36,8 @@ import distributed_fs.files.DistributedFile;
 import distributed_fs.files.FileManagerThread;
 import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.net.messages.Message;
 import distributed_fs.net.NodeStatistics;
+import distributed_fs.net.messages.Message;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
@@ -54,27 +59,28 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
 	protected boolean shutDown = false;
-	private static boolean testing = false;
 	
 	protected static final int WAIT_CLOSE = 2000;
 	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
 	
-	public DFSnode( final int nodeType ) throws IOException, JSONException
+	public DFSnode( final int nodeType, final List<GossipMember> startupMembers ) throws IOException, JSONException
 	{
 		setConfigure();
-		Utils.createDirectory( Utils.RESOURCE_LOCATION );
 		
 		if(nodeType == GossipMember.STORAGE)
 			QuorumSystem.init();
 		
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		// TODO
+		//if(!Utils.testing)
+			//LOGGER.setLevel( Utils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
 		_net = new TCPnet();
 		threadPool = Executors.newCachedThreadPool();
 		
-		runner = new GossipRunner( new File( Utils.DISTRIBUTED_FS_CONFIG ), this, _address, Utils.computeVirtualNodes(), nodeType );
+		if(startupMembers == null || startupMembers.size() == 0)
+			runner = new GossipRunner( new File( Utils.DISTRIBUTED_FS_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
 		
 		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
 		{
@@ -82,6 +88,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 			public void run() 
 			{
 				closeResources();
+				LOGGER.info( "Service has been shutdown..." );
 			}
 		}));
 	}
@@ -89,10 +96,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	/** Testing. */
 	public DFSnode() throws IOException, JSONException
 	{
-		testing = true;
-		
-		Utils.createDirectory( Utils.RESOURCE_LOCATION );
-		//TODO LOGGER.setLevel( Utils.logLevel );
+		Utils.testing = true;
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -112,6 +116,72 @@ public abstract class DFSnode extends Thread implements GossipListener
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
 		Utils.createDirectory( Utils.RESOURCE_LOCATION );
+	}
+	
+	/**
+	 * Returns the number of virtual nodes that you can manage,
+	 * based on the capabilities of this machine.
+	*/
+	protected short computeVirtualNodes() throws IOException
+	{
+		short virtualNodes = 2;
+		
+		Runtime runtime = Runtime.getRuntime();
+		
+		/* Total number of processors or cores available to the JVM */
+		int cores = runtime.availableProcessors();
+		LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
+		virtualNodes = (short) (virtualNodes + (cores * 4));
+		
+		/* Size of the RAM */
+		long RAMsize;
+		String OS = System.getProperty( "os.name" ).toLowerCase();
+		if(OS.startsWith( "windows" )) { // windows command
+			ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
+			Process proc = pb.start();
+            //Process proc = runtime.exec( "wmic computersystem get TotalPhysicalMemory" );
+			short count = 0;
+			
+			InputStream stream = proc.getInputStream();
+			InputStreamReader isr = new InputStreamReader( stream );
+			BufferedReader br = new BufferedReader( isr );
+			
+			String line = null;
+			while((line = br.readLine()) != null && ++count < 3);
+			
+			br.close();
+			
+			//System.out.println( line );
+			RAMsize = Long.parseLong( line.trim() );
+		}
+		else { // linux command
+			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
+			Process proc = pb.start();
+			
+			InputStream stream = proc.getInputStream();
+			InputStreamReader isr = new InputStreamReader( stream );
+			BufferedReader br = new BufferedReader( isr );
+			
+			String line = null;
+			while((line = br.readLine()) != null) {
+				if(line.startsWith( "MemTotal" ))
+					break;
+			}
+			
+			br.close();
+			
+			Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
+			matcher.find();
+			// Multiply it by 1024 because the result is in kB
+			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
+		}
+		
+		LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
+		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // divide it by 250MB
+		
+		LOGGER.debug( "Total nodes: " + virtualNodes );
+		
+		return virtualNodes;
 	}
 	
 	public String getAddress() {
@@ -214,18 +284,51 @@ public abstract class DFSnode extends Thread implements GossipListener
 	 * 
 	 * @return the file, if present, {@code null} otherwise
 	*/
-	public DistributedFile getFile( String fileName ) {
+	public DistributedFile getFile( String fileName )
+	{
 		if(fMgr == null)
 			return null;
 		
-		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
-			fileName = fileName + "/";
+		fileName = checkFile( fileName, fMgr.getDatabase().getFileSystemRoot() );
 		
 		DistributedFile file = fMgr.getDatabase().getFile( Utils.getId( fileName ) );
 		if(file == null || file.isDeleted())
 			return null;
 		
 		return file;
+	}
+	
+	/**
+	 * Checks if the file has the correct format.
+	 * 
+	 * @param fileName	the input file
+	 * @param dbRoot	the database root
+	*/
+	protected String checkFile( String fileName, final String dbRoot )
+	{
+		//if(!(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )))
+			//fileName = dbRoot + fileName;
+		
+		//if(!fileName.startsWith( "./" ))
+			//fileName = "./" + fileName;
+		/*if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
+			fileName += "/";
+		if(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )) {
+			if(!fileName.startsWith( "./" ))
+				fileName = "./" + fileName;
+			fileName = fileName.substring( dbRoot.length() );
+		}*/
+		
+		if(fileName.startsWith( "./" ))
+			fileName = fileName.substring( 2 );
+		
+		File f = new File( fileName );
+		fileName = f.getAbsolutePath();
+		if(f.isDirectory() && !fileName.endsWith( "/" ))
+			fileName += "/";
+		fileName = fileName.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		
+		return fileName;
 	}
 	
 	/**
@@ -244,26 +347,29 @@ public abstract class DFSnode extends Thread implements GossipListener
 		Set<String> filterAddress = new HashSet<>();
 		int size = 0;
 		
-		if(!testing)
+		if(!Utils.testing)
 			filterAddress.add( addressToRemove );
 		
-		// choose the nodes whose address is different than this node
-		ByteBuffer currId = id;
+		// Choose the nodes whose address is different than this node
+		ByteBuffer currId = id, succ;
 		while(size < numNodes) {
-			currId = cHasher.getSuccessor( currId );
-			if(currId == null)
+			succ = cHasher.getNextBucket( currId );
+			if(succ == null || succ.equals( id ))
 				break;
 			
-			GossipMember node = cHasher.getBucket( currId );
-			if(node != null && !filterAddress.contains( node.getHost() )) {
-				nodes.add( node );
-				if(!testing)
-					filterAddress.add( node.getHost() );
-				size++;
+			GossipMember node = cHasher.getBucket( succ );
+			if(node != null) {
+				currId = succ;
+				if(!filterAddress.contains( node.getHost() )) {
+					nodes.add( node );
+					if(!Utils.testing)
+						filterAddress.add( node.getHost() );
+					size++;
+				}
 			}
 		}
 		
-		currId = cHasher.getFirstKey();
+		/*currId = cHasher.getFirstKey();
 		if(currId != null) {
 			while(size < numNodes) {
 				currId = cHasher.getSuccessor( currId );
@@ -278,7 +384,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 					size++;
 				}
 			}
-		}
+		}*/
 		
 		return nodes;
 	}
@@ -302,15 +408,12 @@ public abstract class DFSnode extends Thread implements GossipListener
 	{
 		shutDown = true;
 		
-		try{ Thread.sleep( WAIT_CLOSE ); }
-		catch( InterruptedException e ){}
-		
 		_net.close();
 		monitor.shutDown();
-		if(!testing)
+		if(runner != null)
 			runner.getGossipService().shutdown();
 		threadPool.shutdown();
-		if(!testing && fMgr != null)
+		if(!Utils.testing && fMgr != null)
 			fMgr.getDatabase().shutdown();
 	}
 }

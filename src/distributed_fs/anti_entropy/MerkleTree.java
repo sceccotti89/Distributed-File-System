@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.merkle_tree;
+package distributed_fs.anti_entropy;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;

@@ -20,10 +20,14 @@ import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.utils.CmdLineParser;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
+import gossiping.GossipService;
+import gossiping.GossipSettings;
 import gossiping.event.GossipState;
+import gossiping.manager.GossipManager;
 
 public class LoadBalancer extends DFSnode
 {
@@ -32,23 +36,43 @@ public class LoadBalancer extends DFSnode
 	private String clientAddress;
 	// =========================================== //
 	
-	// TODO fare un costruttore in cui si specificano i nodi da contattare?
-	public LoadBalancer() throws IOException, JSONException
+	// TODO inserire anche la porta tra i parameteri??
+	/**
+	 * Constructor with the default settings.<br>
+	 * If you can't provide a configuration file,
+	 * the list of nodes should be passed as arguments.
+	 * 
+	 * @param startupMembers	list of nodes
+	*/
+	public LoadBalancer( final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
 	{
-		super( GossipMember.LOAD_BALANCER );
+		super( GossipMember.LOAD_BALANCER, startupMembers ); 
+		
+		if(startupMembers != null) {
+			// Start the gossiping from the input list.
+			String id = Utils.bytesToHex( Utils.getNodeId( 1, _address ).array() );
+			GossipSettings settings = new GossipSettings();
+			GossipService gossipService = new GossipService( _address, GossipManager.GOSSIPING_PORT, id, computeVirtualNodes(),
+															 GossipMember.LOAD_BALANCER, startupMembers, settings, this );
+			gossipService.start();
+		}
 		
 		monitor = new NetworkMonitorReceiverThread( _address );
 		monitor.start();
 		
 		this.port = Utils.SERVICE_PORT;
 		//this.port = port;
-		_net.setSoTimeout( WAIT_CLOSE );
-		while(!shutDown) {
-			//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
-			TCPSession session = _net.waitForConnection( _address, this.port );
-			if(session != null)
-				threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
+		
+		try {
+			_net.setSoTimeout( WAIT_CLOSE );
+			while(!shutDown) {
+				//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
+				TCPSession session = _net.waitForConnection( _address, this.port );
+				if(session != null)
+					threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
+			}
 		}
+		catch( IOException e ){}
 		
 		//closeResources();
 	}
@@ -62,8 +86,10 @@ public class LoadBalancer extends DFSnode
 		
 		_address = address;
 		
-		for(GossipMember member : startupMembers)
-			gossipEvent( member, GossipState.UP );
+		for(GossipMember member : startupMembers) {
+			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
+				gossipEvent( member, GossipState.UP );
+		}
 		
 		monitor = new NetworkMonitorReceiverThread( _address );
 		monitor.start();
@@ -72,15 +98,18 @@ public class LoadBalancer extends DFSnode
 	}
 	
 	@Test
-	public void launch() throws IOException, JSONException
+	public void launch() throws JSONException
 	{
-		_net.setSoTimeout( WAIT_CLOSE );
-		while(!shutDown) {
-			LOGGER.debug( "[LB] Waiting on: " + _address + ":" + this.port );
-			TCPSession session = _net.waitForConnection( _address, this.port );
-			if(session != null)
-				threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
+		try {
+			_net.setSoTimeout( WAIT_CLOSE );
+			while(!shutDown) {
+				//LOGGER.debug( "[LB] Waiting on: " + _address + ":" + this.port );
+				TCPSession session = _net.waitForConnection( _address, this.port );
+				if(session != null)
+					threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
+			}
 		}
+		catch( IOException e ) {}
 		
 		System.out.println( "[LB] Closed." );
 		
@@ -109,20 +138,22 @@ public class LoadBalancer extends DFSnode
 	{
 		LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
 		
-		TCPSession newSession;
 		while(true) {
-			newSession = null;
+			TCPSession newSession = null;
 			
 			try {
 				//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 				MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
+				// get the operation type
+				byte opType = data.getType();
+				if(opType == Message.KEEP_ALIVE)
+					continue; // Ignore the keep alive messages.
+				
 				LOGGER.info( "[LB] Received a new request." );
 				
-				// get the operation type
 				/*byte opType = data.get();
 				// get the file name
 				String fileName = new String( Utils.getNextBytes( data ) );*/
-				byte opType = data.getType();
 				
 				if(opType == Message.CLOSE) {
 					LOGGER.info( "[LB] Received CLOSE request." );
@@ -138,13 +169,15 @@ public class LoadBalancer extends DFSnode
 				LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
 				
 				// get the node associated to the file
-				ByteBuffer nodeId = cHasher.getSuccessor( Utils.getId( fileName ) );
+				/*ByteBuffer nodeId = cHasher.getSuccessor( Utils.getId( fileName ) );
 				if(nodeId == null)
-					nodeId = cHasher.getFirstKey();
-				
+					nodeId = cHasher.getFirstKey();*/
+				ByteBuffer nodeId = cHasher.getNextBucket( Utils.getId( fileName ) );
 				if(nodeId != null) {
 					GossipMember node = cHasher.getBucket( nodeId );
 					if(node != null) {
+						System.out.println( "OWNER: " + node );
+						
 						// send the request to the "best" node, based on load informations
 						String hintedHandoff = null;
 						List<GossipMember> nodes = getNodesFromPreferenceList( nodeId, node );
@@ -162,6 +195,8 @@ public class LoadBalancer extends DFSnode
 							}
 							
 							if(newSession == null) {
+								LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
+								
 								if(opType == Message.PUT && hintedHandoff == null)
 									//hintedHandoff = targetNode.getHost();
 									hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
@@ -181,7 +216,7 @@ public class LoadBalancer extends DFSnode
 								//forwardRequest( opType, targetNode.getId(), hintedHandoff, fileName, data );
 								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getFile() );
 								newSession.close();
-								LOGGER.info( "[LB] Request forwarded to: " + targetNode.getHost() );
+								LOGGER.info( "[LB] Request forwarded to: " + targetNode );
 								break;
 							}
 						}
@@ -193,7 +228,7 @@ public class LoadBalancer extends DFSnode
 					}
 				}
 				else {
-					LOGGER.info( "There is no available nodes" );
+					LOGGER.info( "There is no available nodes. The transaction will be closed." );
 					MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
 					session.sendMessage( response, true );
 				}
@@ -341,10 +376,11 @@ public class LoadBalancer extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		/*if(args.length != 1)
-			throw new Exception( "Wrong number of arguments.\nUsage: java -jar LoadBalancer <port>" );
+		List<GossipMember> members = null;
+		//String[] test = { "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
+		CmdLineParser.parseArgs( args );
+		members = CmdLineParser.getNodes( "n" );
 		
-		int port = Integer.parseInt( args[0] );*/
-		new LoadBalancer();
+		new LoadBalancer( members );
 	}
 }

@@ -30,9 +30,10 @@ public class NetworkMonitorSenderThread extends NetworkMonitor
 	public void run()
 	{
 		while(keepAlive.get()) {
+			try { Thread.sleep( SLEEP ); }
+			catch ( InterruptedException e ) { break; }
+			
 			try {
-				Thread.sleep( SLEEP );
-				
 				double loadAverage = system.getSystemLoadAverage();
 				NodeStatistics stats = node.getStatistics();
 				stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );

@@ -5,6 +5,7 @@
 package distributed_fs.client;
 
 import java.io.IOException;
+import java.util.List;
 
 import distributed_fs.exception.DFSException;
 import distributed_fs.files.DistributedFile;
@@ -37,4 +38,9 @@ public interface IDFSService
 	 * @return {@code true} if the operation has been completed successfully, {@code false} otherwise
 	*/
 	public boolean delete( String fileName ) throws DFSException, IOException;
+	
+	/**
+	 * Returns a list with all the files present in the database.
+	*/
+	public List<DistributedFile> listFiles();
 }

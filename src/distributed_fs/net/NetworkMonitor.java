@@ -78,5 +78,6 @@ public abstract class NetworkMonitor extends Thread
 	{
 		net.close();
 		keepAlive.set( false );
+		interrupt();
 	}
 }

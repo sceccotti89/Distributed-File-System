@@ -4,8 +4,6 @@
 
 package distributed_fs.client;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -15,8 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
-
-import javax.swing.Timer;
 
 import org.json.JSONException;
 
@@ -31,42 +27,47 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.utils.Utils;
-import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.VectorClockInconsistencyResolver;
-import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
 public class DFSService extends DFSManager implements IDFSService
 {
 	private boolean initialized = false;
-	private boolean shutDown = false;
+	//private boolean shutDown = false;
 	
 	private final Random random;
 	
 	private final TCPnet net;
 	private final DFSDatabase database;
-	private Timer syncClient;
+	//private Timer syncClient;
 	
+	/** Decide whether the service is closed or not. */
+	private boolean closed = false;
 	private boolean testing = false;
+	
+	private static final long KEEP_ALIVE = 1000;
+	private long timer = KEEP_ALIVE;
+	private long timestamp = System.currentTimeMillis();
 	
 	private static final Scanner SCAN = new Scanner( System.in );
 	
-	/** Time to wait before to check the database (20 seconds). */
-	private static final int CHECK_TIMER = 20000;
+	// TODO aggiungere una struttura che tenga conto dei load balancers offline
+	// TODO aggiornare ogni volta che una connessione viene fatta o rifiutata
 	
-	public DFSService() throws IOException, JSONException
+	//private static final int CHECK_TIMER = 30000; // Time to wait before to check the database (30 seconds).
+	
+	public DFSService( final List<GossipMember> members,
+					   final String resourcesLocation,
+					   final String databaseLocation ) throws IOException, JSONException, DFSException
 	{
-		super();
+		super( members );
 		
 		net = new TCPnet( _address, Utils.SERVICE_PORT );
 		net.setSoTimeout( 5000 );
 		
-		Utils.createDirectory( Utils.RESOURCE_LOCATION );
-		
 		random = new Random();
-		database = new DFSDatabase( null );
+		database = new DFSDatabase( resourcesLocation, databaseLocation, null );
 		
 		Runtime.getRuntime().addShutdownHook( new Thread()
 		{
@@ -80,9 +81,12 @@ public class DFSService extends DFSManager implements IDFSService
 	}
 	
 	/** Testing. */
-	public DFSService( final String address, final List<GossipMember> members ) throws IOException, JSONException
+	public DFSService( final String address,
+					   final List<GossipMember> members,
+					   final String resourcesLocation,
+					   final String databaseLocation ) throws IOException, JSONException, DFSException
 	{
-		//super();
+		super( null );
 		
 		testing = true;
 		this._address = address;
@@ -90,10 +94,8 @@ public class DFSService extends DFSManager implements IDFSService
 		net = new TCPnet( _address, Utils.SERVICE_PORT );
 		net.setSoTimeout( 5000 );
 		
-		Utils.createDirectory( Utils.RESOURCE_LOCATION );
-		
 		random = new Random();
-		database = new DFSDatabase( null );
+		database = new DFSDatabase( resourcesLocation, databaseLocation, null );
 		
 		loadBalancers.clear();
 		for(GossipMember member : members) {
@@ -110,7 +112,7 @@ public class DFSService extends DFSManager implements IDFSService
 	*/
 	public boolean start()
 	{
-		SynchronizeClient client = new SynchronizeClient();
+		/*SynchronizeClient client = new SynchronizeClient();
 		syncClient = new Timer( CHECK_TIMER, client );
 		
 		List<RemoteFile> files = getAllFiles();
@@ -119,7 +121,10 @@ public class DFSService extends DFSManager implements IDFSService
 			return false;
 		}
 		client.checkFiles( files );
-		//TODO syncClient.start();
+		syncClient.start();*/
+		session = contactLoadBalancerNode( false );
+		if(session == null)
+			return false;
 		
 		LOGGER.info( "System up." );
 		return (initialized = true);
@@ -132,10 +137,13 @@ public class DFSService extends DFSManager implements IDFSService
 	*/
 	public DistributedFile getFile( String fileName )
 	{
-		if(!fileName.startsWith( "./" ))
+		/*if(!fileName.startsWith( "./" ))
 			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName = fileName + "/";
+		if(fileName.startsWith( database.getFileSystemRoot() ))
+			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		DistributedFile file = database.getFile( Utils.getId( fileName ) );
 		if(file == null || file.isDeleted())
@@ -147,7 +155,7 @@ public class DFSService extends DFSManager implements IDFSService
 	/**
 	 * Retrieves all the files stored in a random node of the network.
 	*/
-	private List<RemoteFile> getAllFiles()
+	/*private List<RemoteFile> getAllFiles()
 	{
 		LOGGER.info( "Synchonizing..." );
 		
@@ -155,8 +163,10 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		if(session == null || session.isClosed()) {
 			session = contactLoadBalancerNode( false );
-			if(session == null)
+			if(session == null) {
+				closed = true;
 				return null;
+			}
 		}
 		
 		TCPSession remoteSession = null;
@@ -183,22 +193,25 @@ public class DFSService extends DFSManager implements IDFSService
 				RemoteFile file = Utils.deserializeObject( data );
 				files.add( file );
 			}*/
-			files = readGetAllResponse( remoteSession );
+			/*files = readGetAllResponse( remoteSession );
 			
 			//LOGGER.info( "Received all the files." );
 		}
 		catch( IOException e ) {
-			if(session.isClosed())
+			if(!session.isClosed())
 				session.close();
+			closed = true;
 		}
 		
 		if(remoteSession != null)
 			remoteSession.close();
 		
+		closed = false;
+		
 		//session.close();
 		
 		return files;
-	}
+	}*/
 	
 	@Override
 	public DistributedFile get( String fileName ) throws DFSException
@@ -208,10 +221,13 @@ public class DFSService extends DFSManager implements IDFSService
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
-		if(!fileName.startsWith( "./" ))
+		/*if(!fileName.startsWith( "./" ))
 			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
+		if(fileName.startsWith( database.getFileSystemRoot() ))
+			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		LOGGER.info( "starting GET operation: " + fileName );
 		RemoteFile toWrite;
@@ -258,7 +274,7 @@ public class DFSService extends DFSManager implements IDFSService
 			//session.close();
 			
 			if(files.size() == 0) {
-				LOGGER.info( "File " + fileName + " not found." );
+				LOGGER.info( "File \"" + fileName + "\" not found." );
 				return null;
 			}
 			
@@ -266,7 +282,11 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			int id = 0;
 			if(files.size() > 1) {
-				id = makeReconciliation( files );
+				List<VectorClock> versions = new ArrayList<>();
+				for(RemoteFile file : files)
+					versions.add( file.getVersion() );
+				
+				id = makeReconciliation( fileName, versions );
 				// send back the reconciled version
 				if(!put( files.get( id ).getName() )) {
 					throw new IOException();
@@ -275,16 +295,15 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			// update the database
 			toWrite = files.get( id );
-			if(!database.saveFile( toWrite, null, true ))
+			if(database.saveFile( toWrite, toWrite.getVersion(), null, true ) != null)
 				backToClient = getFile( fileName );
 			else
-				backToClient = new DistributedFile( toWrite );
+				backToClient = new DistributedFile( toWrite, database.getFileSystemRoot() );
 		}
 		catch( IOException | SQLException e ) {
 			LOGGER.info( "Operation GET not performed. Try again later." );
-			//e.printStackTrace();
-			//if(session != null) session.close();
-			if(session.isClosed())
+			e.printStackTrace();
+			if(!session.isClosed())
 				session.close();
 			
 			if(remoteSession != null)
@@ -294,7 +313,7 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		
 		//session.close();
-		LOGGER.info( "Operation GET succesfully completed." );
+		LOGGER.info( "Operation GET succesfully completed. Received: " + backToClient );
 		
 		if(remoteSession != null)
 			remoteSession.close();
@@ -305,19 +324,20 @@ public class DFSService extends DFSManager implements IDFSService
 	/**
 	 * Asks to the client which is the correct version.
 	 * 
-	 * @param files		list of files to merge
+	 * @param fileName	the name of the file
+	 * @param clocks	list of vector clocks
 	 * 
 	 * @return index of the selected file
 	*/
-	private int makeReconciliation( final List<RemoteFile> files ) // TODO metterci una lista di clock? cosi' puo' essere richiamato anche da sotto
+	private synchronized int makeReconciliation( final String fileName, final List<VectorClock> clocks )
 	{
-		int size = files.size();
+		int size = clocks.size();
 		if(size == 1)
 			return 0;
 		
-		System.out.println( "There are multiple versions of the file:" );
+		System.out.println( "There are multiple versions of the file '" + fileName + "', which are: " );
 		for(int i = 0; i < size; i++)
-			System.out.println( (i + 1) + ") " + files.get( i ).getVersion() );
+			System.out.println( (i + 1) + ") " + clocks.get( i ) );
 		
 		while(true) {
 			System.out.print( "Choose the correct version: " );
@@ -337,18 +357,31 @@ public class DFSService extends DFSManager implements IDFSService
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
-		if(!fileName.startsWith( "./" ))
+		/*if(!fileName.startsWith( "./" ))
 			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
+		if(fileName.startsWith( database.getFileSystemRoot() ))
+			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		LOGGER.info( "starting PUT operation: " + fileName );
 		
 		DistributedFile file = database.getFile( Utils.getId( fileName ) );
-		if(file == null || !Utils.existFile( fileName, false )) {
-			LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded." );
-			return false;
+		System.out.println( "FILE: " + file );
+		if(file == null || file.isDeleted()){
+			if(database.checkExistFile( database.getFileSystemRoot() + fileName )) {
+				if(file == null)
+					file = new DistributedFile( fileName, database.getFileSystemRoot(), new VectorClock() );
+			}
+			else {
+				String error = "Operation PUT not performed: file \"" + fileName + "\" not founded. ";
+				error += "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot();
+				LOGGER.error( error );
+				return false;
+			}
 		}
+		
 		file.setDeleted( false );
 		
 		if(session == null || session.isClosed()) {
@@ -364,7 +397,7 @@ public class DFSService extends DFSManager implements IDFSService
 			//LOGGER.info( "Sending file..." );
 			
 			// send the file
-			RemoteFile rFile = new RemoteFile( file );
+			RemoteFile rFile = new RemoteFile( file, database.getFileSystemRoot() );
 			sendPutMessage( rFile );
 			/*byte[] msg = net.createMessage( new byte[]{ Utils.PUT },
 											fileName.getBytes( StandardCharsets.UTF_8 ),
@@ -386,13 +419,14 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			// update its vector clock
 			//String nodeId = Utils.bytesToHex( Utils.getNodeId( 0, session.getSrcAddress() ).array() );
-			rFile.incrementVersion( remoteSession.getSrcAddress() );
-			database.saveFile( rFile, null, false );
+			//rFile.incrementVersion( remoteSession.getSrcAddress() );
+			VectorClock newClock = rFile.getVersion().incremented( remoteSession.getSrcAddress() );
+			database.saveFile( rFile, newClock, null, false );
 		}
 		catch( IOException | SQLException e ) {
 			LOGGER.info( "Operation PUT not performed. Try again later." );
 			completed = false;
-			if(session.isClosed())
+			if(!session.isClosed())
 				session.close();
 		}
 		
@@ -415,30 +449,33 @@ public class DFSService extends DFSManager implements IDFSService
 		if(!initialized)
 			throw new DFSException( "The system has not been initialized." );
 		
-		if(!fileName.startsWith( "./" ))
+		/*if(!fileName.startsWith( "./" ))
 			fileName = "./" + fileName;
 		if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
 			fileName += "/";
-		
-		LOGGER.info( "starting DELETE operation for: " + fileName );
+		if(fileName.startsWith( database.getFileSystemRoot() ))
+			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		boolean completed = true;
 		
 		ByteBuffer fileId = Utils.getId( fileName );
 		DistributedFile file = database.getFile( fileId );
-		if(file == null || !Utils.existFile( fileName, false )) {
+		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )) {
 			LOGGER.error( "File \"" + fileName + "\" not founded." );
 			return false;
 		}
 		
 		if(file.isDirectory()) {
-			for(File f: new File( fileName ).listFiles()) {
+			for(File f: new File( database.getFileSystemRoot() + fileName ).listFiles()) {
 				LOGGER.debug( "Name: " + f.getPath() + ", Directory: " + f.isDirectory() );
 				completed |= delete( f.getPath() );
 				if(!completed)
 					break;
 			}
 		}
+		
+		LOGGER.info( "starting DELETE operation for: " + fileName );
 		
 		if(session == null || session.isClosed()) {
 			session = contactLoadBalancerNode( true );
@@ -469,12 +506,12 @@ public class DFSService extends DFSManager implements IDFSService
 			// update its vector clock
 			//String nodeId = Utils.bytesToHex( Utils.getNodeId( 0, session.getSrcAddress() ).array() );
 			//file.incrementVersion( remoteSession.getSrcAddress() );
-			database.removeFile( fileName, file.getVersion().incremented( remoteSession.getSrcAddress() ) );
+			database.removeFile( fileName, file.getVersion().incremented( remoteSession.getSrcAddress() ), true );
 		}
 		catch( IOException | SQLException e ) {
 			LOGGER.info( "Operation DELETE not performed. Try again later." );
 			completed = false;
-			if(session.isClosed())
+			if(!session.isClosed())
 				session.close();
 		}
 		
@@ -488,6 +525,12 @@ public class DFSService extends DFSManager implements IDFSService
 		return completed;
 	}
 	
+	@Override
+	public List<DistributedFile> listFiles()
+	{
+		return database.getAllFiles();
+	}
+
 	/**
 	 * Try a connection with the first available load balancer node.
 	 * 
@@ -514,7 +557,7 @@ public class DFSService extends DFSManager implements IDFSService
 				System.out.println( "Contacting " + partner + "..." );
 				try{ session = net.tryConnect( partner.getHost(), partner.getPort(), 2000 ); }
 				catch( IOException e ) {
-					e.printStackTrace();
+					//e.printStackTrace();
 					nodes.remove( partner );
 					System.out.println( "Node " + partner + " unreachable" );
 				}
@@ -558,19 +601,47 @@ public class DFSService extends DFSManager implements IDFSService
 		return nodes.get( randomNeighborIndex );
 	}
 	
+	/**
+	 * Returns the state of the system
+	 * 
+	 * @return {@code true} if the system is up,
+	 * 		   {@code false} otherwise.
+	*/
+	public boolean isClosed()
+	{
+		if(!closed && session != null && !session.isClosed()) {
+			long currTime = System.currentTimeMillis();
+			timer = timer - (currTime - timestamp);
+			timestamp = currTime;
+			if(timer <= 0) {
+				try {
+					session.sendMessage( new MessageRequest( Message.KEEP_ALIVE ), true );
+					timer = KEEP_ALIVE;
+				}
+				catch( IOException e ){
+					session.close();
+					closed = true;
+				}
+			}
+		}
+		
+		return closed;
+	}
+	
 	public void shutDown()
 	{
-		shutDown = true;
-		syncClient.stop();
+		//shutDown = true;
+		//syncClient.stop();
 		
 		if(session != null && !session.isClosed()) {
 			try{ session.sendMessage( new MessageRequest( Message.CLOSE ), true ); }
 			catch( IOException e ) {}
 			session.close();
 		}
-		
 		net.close();
-		if(!testing) database.shutdown();
+		
+		if(!testing)
+			database.shutdown();
 		
 		LOGGER.info( "The service is closed." );
 	}
@@ -580,7 +651,7 @@ public class DFSService extends DFSManager implements IDFSService
 	 * with a consistent view of
 	 * the distributed file system.
 	*/
-	private class SynchronizeClient implements ActionListener
+	/*private class SynchronizeClient implements ActionListener
 	{
 		@Override
 		public void actionPerformed( final ActionEvent e )
@@ -602,26 +673,26 @@ public class DFSService extends DFSManager implements IDFSService
 		 * 
 		 * @param files	
 		*/
-		private void checkFiles( final List<RemoteFile> files )
+		/*private void checkFiles( final List<RemoteFile> files )
 		{
 			for(RemoteFile file : files) {
 				DistributedFile myFile = database.getFile( Utils.getId( file.getName() ) );
 				try {
 					if(myFile == null ||
-							!makeReconciliation( myFile.getVersion(), file.getVersion() )) {
+					   //!makeReconciliation( myFile.getName(), myFile.getVersion(), file.getVersion() )) {
+					   makeReconciliation( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 1) {
 						if(!file.isDeleted())
-							database.saveFile( file, null, true );
+							database.saveFile( file, file.getVersion(), null, true );
 						else
-							database.removeFile( file.getName(), file.getVersion() );
+							database.removeFile( file.getName(), file.getVersion(), true );
 					}
 				}
 				catch( IOException | SQLException e ) {}
 			}
 		}
 		
-		private boolean makeReconciliation( final VectorClock myClock, final VectorClock vClock )
+		/*private boolean makeReconciliation( final String fileName, final VectorClock myClock, final VectorClock vClock )
 		{
-			// TODO usare questa o quella da utente??
 			List<Versioned<Integer>> versions = new ArrayList<>();
 			versions.add( new Versioned<Integer>( 0, myClock ) );
 			versions.add( new Versioned<Integer>( 1, vClock ) );
@@ -635,6 +706,6 @@ public class DFSService extends DFSManager implements IDFSService
 			int id = resolver.resolveConflicts( inconsistency ).get( 0 ).getValue();
 			
 			return id == 0;
-		}
-	}
+		}*/
+	//}
 }

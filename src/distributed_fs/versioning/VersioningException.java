@@ -17,29 +17,29 @@
 package distributed_fs.versioning;
 
 /**
- * Base exception that all other Voldemort exceptions extend.
+ * Base exception that all other DFS exceptions extend.
  */
 public class VersioningException extends RuntimeException 
 {
     private static final long serialVersionUID = 1L;
 
-    public VersioningException() 
+    public VersioningException()
     {
         super();
     }
 
-    public VersioningException(String s, Throwable t) 
+    public VersioningException( final String s, final Throwable t )
     {
-        super(s, t);
+        super( s, t );
     }
 
-    public VersioningException(String s) 
+    public VersioningException( final String s )
     {
-        super(s);
+        super( s );
     }
 
-    public VersioningException(Throwable t) 
+    public VersioningException( final Throwable t )
     {
-        super(t);
+        super( t );
     }
 }

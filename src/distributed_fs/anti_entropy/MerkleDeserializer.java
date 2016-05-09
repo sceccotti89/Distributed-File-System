@@ -2,9 +2,9 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.merkle_tree;
+package distributed_fs.anti_entropy;
 
-import static distributed_fs.merkle_tree.MerkleTree.LEAF_SIG_TYPE;
+import static distributed_fs.anti_entropy.MerkleTree.LEAF_SIG_TYPE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 
-import distributed_fs.merkle_tree.MerkleTree.Node;
+import distributed_fs.anti_entropy.MerkleTree.Node;
 
 /**
  * The Deserialization code was separated from the MerkleTree class.

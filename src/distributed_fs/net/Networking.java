@@ -14,7 +14,6 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 
@@ -140,7 +139,7 @@ public class Networking
 				out.flush();
 			}
 			catch( IOException e ) {
-				close = true;
+				close();
 				throw e;
 			}
 		}
@@ -175,7 +174,7 @@ public class Networking
 				}
 			}
 			catch( IOException e ) {
-				close = true;
+				close();
 				throw e;
 			}
 			
@@ -221,7 +220,7 @@ public class Networking
 		 * The option must be enabled prior to entering the blocking operation to have effect.
 		 * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
 		*/
-		public void setSoTimeout( final int timeout ) throws SocketException {
+		public void setSoTimeout( final int timeout ) throws IOException {
 			soTimeout = timeout;
 			if(servSocket != null)
 				servSocket.setSoTimeout( timeout );
@@ -336,7 +335,7 @@ public class Networking
 	
 	public static class UDPnet extends Networking implements Closeable
 	{
-		private int soTimeout = 0;
+		//private int soTimeout = 0;
 		private MulticastSocket udpSocket;
 		private InetAddress mAddress;
 		private String srcAddress;
@@ -359,9 +358,10 @@ public class Networking
 			mAddress = InetAddress.getByName( multicastIP );
 		}
 		
-		public void setSoTimeout( final int timeout )
+		public void setSoTimeout( final int timeout ) throws IOException
 		{
-			soTimeout = timeout;
+			//soTimeout = timeout;
+			udpSocket.setSoTimeout( timeout );
 		}
 		
 		/** 
@@ -373,7 +373,7 @@ public class Networking
 		public void tryConnect( final String address, final int port ) throws IOException
 		{
 			udpSocket.connect( new InetSocketAddress( address, port ) );
-			udpSocket.setSoTimeout( soTimeout );
+			//udpSocket.setSoTimeout( soTimeout );
 		}
 		
 		/** 
@@ -392,7 +392,7 @@ public class Networking
 			udpSocket.setInterface( _address );
 			udpSocket.joinGroup( mAddress );
 			
-			udpSocket.setSoTimeout( soTimeout );
+			//udpSocket.setSoTimeout( soTimeout );
 		}
 		
 		public MulticastSocket getSocket(){ return udpSocket; }
@@ -440,10 +440,10 @@ public class Networking
 		{
 			byte packet[] = new byte[udpSocket.getReceiveBufferSize()];
 			DatagramPacket dPacket = new DatagramPacket( packet, packet.length );
-			udpSocket.setSoTimeout( soTimeout );
+			//udpSocket.setSoTimeout( soTimeout );
 			
 			try { udpSocket.receive( dPacket ); }
-			catch( SocketTimeoutException e ) { throw new IOException(); }
+			catch( SocketTimeoutException e ) { return null; }
 			
 			srcAddress = dPacket.getAddress().getHostAddress();
 			srcPort = dPacket.getPort();

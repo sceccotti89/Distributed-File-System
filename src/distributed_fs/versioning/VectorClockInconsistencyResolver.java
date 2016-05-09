@@ -24,9 +24,7 @@ import com.google.common.collect.Lists;
 /**
  * An inconsistency resolver that uses the object VectorClocks leaving only a
  * set of concurrent versions remaining.
- * 
- * 
- */
+*/
 public class VectorClockInconsistencyResolver<T> implements InconsistencyResolver<Versioned<T>>
 {
 	@Override
@@ -34,25 +32,28 @@ public class VectorClockInconsistencyResolver<T> implements InconsistencyResolve
 	{
         if(items.size() <= 1)
             return items;
-
+        
         List<Versioned<T>> newItems = Lists.newArrayList();
         for(Versioned<T> v1: items) {
             boolean found = false;
             for(ListIterator<Versioned<T>> it2 = newItems.listIterator(); it2.hasNext();) {
                 Versioned<T> v2 = it2.next();
-                Occurred compare = v1.getVersion().compare(v2.getVersion());
+                Occurred compare = v1.getVersion().compare( v2.getVersion() );
                 if(compare == Occurred.AFTER) {
                     if(found)
                         it2.remove();
                     else
-                        it2.set(v1);
+                        it2.set( v1 );
                 }
+                
                 if(compare != Occurred.CONCURRENTLY)
                     found = true;
             }
+            
             if(!found)
-                newItems.add(v1);
+                newItems.add( v1 );
         }
+        
         return newItems;
     }
 

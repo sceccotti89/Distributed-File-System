@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.merkle_tree;
+package distributed_fs.anti_entropy;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ public abstract class AntiEntropyThread extends Thread
 	protected final TCPnet Net;
 	protected GossipMember me;
 	private final Random random;
-	protected int port;
+	protected boolean shoutDown = false;
 	
 	/** Port used to exchange the Merkle tree */
 	//protected static final int MERKLE_TREE_EXCHANGE_PORT = 8000;
@@ -49,10 +49,10 @@ public abstract class AntiEntropyThread extends Thread
 							  final FileManagerThread fMgr,
 							  final ConsistentHasherImpl<GossipMember, String> _cHasher )
 	{
-		LOGGER.setLevel( Utils.logLevel );
+		if(!Utils.testing)
+			LOGGER.setLevel( Utils.logLevel );
 		
 		this.me = _me;
-		this.port = me.getPort() + 2;
 		this.fMgr = fMgr;
 		this.database = database;
 		Net = new TCPnet();
@@ -93,5 +93,11 @@ public abstract class AntiEntropyThread extends Thread
 		}
 		
 		return member;
+	}
+	
+	public void close()
+	{
+		shoutDown = true;
+		interrupt();
 	}
 }
