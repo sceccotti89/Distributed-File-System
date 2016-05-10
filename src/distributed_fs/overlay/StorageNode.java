@@ -8,12 +8,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
 
 import javax.swing.Timer;
 
@@ -35,8 +37,8 @@ import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.utils.CmdLineParser;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
+import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.VectorClockInconsistencyResolver;
 import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
 import gossiping.GossipService;
@@ -67,6 +69,8 @@ public class StorageNode extends DFSnode
 	 * @param databaseLocation		the root where the database is located.
 	 * 								If {@code null} the default one will be selected ({@link Utils#});
 	*/
+	// TODO inserire anche il resource location e il database location tra i possibili input
+	// TODO inserire indirizzo IP?
 	public StorageNode( final List<GossipMember> startupMembers,
 						final String resourcesLocation,
 						final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
@@ -200,24 +204,27 @@ public class StorageNode extends DFSnode
 			//byte opType = data.get();
 			//boolean isCoordinator = (data.get() == (byte) 0x1);
 			byte opType = data.getType();
+			String fileName = data.getFileName();
 			boolean isCoordinator = data.startQuorum();
 			LOGGER.debug( "[SN] Received: " + getCodeString( opType ) + ":" + isCoordinator );
 			
-			if(isCoordinator) { // PUT or DELETE operation
+			if(!isCoordinator) // GET operation
+				setBlocked( false, fileName, Utils.bytesToLong( data.getData() ), opType );
+			else {
 				// the connection with the client must be estabilished before the quorum
 				//openClientConnection( data );
 				openClientConnection( data.getClientAddress() );
 				
-				// get the destination id, since it can be a virtual node
+				// Get the destination id, since it can be a virtual node.
 				//destId = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				agreedNodes = quorum_t.checkQuorum( session, opType, destId );
+				agreedNodes = quorum_t.checkQuorum( session, opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
 				// TODO rimuovere i commenti di TEST dalla classe QuorumSystem
 				
-				// checks if the quorum has been completed successfully
+				// Check if the quorum has been completed successfully.
 				if(!QuorumSystem.isQuorum( opType, replicaNodes )) {
 					LOGGER.info( "[SN] Quorum failed: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
 					//session.sendMessage( new byte[]{ Utils.TRANSACTION_FAILED }, false );
@@ -250,7 +257,7 @@ public class StorageNode extends DFSnode
 					if(data.remaining() > 0)
 						hintedHandoff = new String( Utils.getNextBytes( data ) );*/
 					//RemoteFile file = Utils.deserializeObject( data.getFile() );
-					RemoteFile file = new RemoteFile( data.getFile() );
+					RemoteFile file = new RemoteFile( data.getData() );
 					
 					// get (if present) the hinted handoff address
 					String hintedHandoff = data.getHintedHandoff();
@@ -262,18 +269,18 @@ public class StorageNode extends DFSnode
 					
 				case( Message.GET ):
 					//handleGET( isCoordinator, new String( Utils.getNextBytes( data ) ) );
-					handleGET( isCoordinator, data.getFileName() );
+					handleGET( isCoordinator, fileName );
 					break;
 					
-				case( Message.GET_ALL ): 
+				/*case( Message.GET_ALL ): 
 					//handleGET_ALL( data );
 					handleGET_ALL( data.getClientAddress() );
-					break;
+					break;*/
 				
 				case( Message.DELETE ):
 					//handleDELETE( isCoordinator, Utils.deserializeObject( Utils.getNextBytes( data ) ) );
 					//handleDELETE( isCoordinator, Utils.deserializeObject( data.getFile() ) );
-					handleDELETE( isCoordinator, new DistributedFile( data.getFile() ) );
+					handleDELETE( isCoordinator, new DistributedFile( data.getData() ) );
 					break;
 			}
 		}
@@ -287,12 +294,14 @@ public class StorageNode extends DFSnode
 	
 	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
 	{
-		System.out.println( "OLD_VERSION: " + file.getVersion() );
+		LOGGER.debug( "GIVEN_VERSION: " + file.getVersion() + ", NEW_GIVEN_VERSION: " + file.getVersion().incremented( _address ) );
 		VectorClock newClock = file.getVersion().incremented( _address );
 		VectorClock updated = fMgr.getDatabase().saveFile( file, newClock, hintedHandoff, true );
-		System.out.println( "UPDATED: " + (updated != null) + ", NEW_VERSION: " + file.getVersion() );
+		LOGGER.debug( "UPDATED: " + (updated != null) + ", NEW_VERSION: " + file.getVersion() );
 		
-		if(updated != null) {
+		if(updated == null)
+			quorum_t.closeQuorum( agreedNodes );
+		else {
 			file.setVersion( updated );
 			
 			// Send, in parallel, the file to the replica nodes.
@@ -327,7 +336,7 @@ public class StorageNode extends DFSnode
 						
 						// Update the list of agreedNodes.
 						agreedNodes.remove( index );
-						QuorumSystem.saveDecision( agreedNodes );
+						QuorumSystem.saveState( agreedNodes );
 					}
 				}
 				catch( IOException e ) {
@@ -413,8 +422,9 @@ public class StorageNode extends DFSnode
 		for(RemoteFile file : files.keySet())
 			versions.add( new Versioned<RemoteFile>( file, file.getVersion() ) );
 		
-		VectorClockInconsistencyResolver<RemoteFile> vec_resolver = new VectorClockInconsistencyResolver<>();
-		List<Versioned<RemoteFile>> inconsistency = vec_resolver.resolveConflicts( versions );
+		//VectorClockInconsistencyResolver<RemoteFile> vec_resolver = new VectorClockInconsistencyResolver<>();
+		//List<Versioned<RemoteFile>> inconsistency = vec_resolver.resolveConflicts( versions );
+		List<Versioned<RemoteFile>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
 		// get the uncorrelated files
 		List<RemoteFile> uncorrelatedVersions = new ArrayList<>();
@@ -440,7 +450,7 @@ public class StorageNode extends DFSnode
 		}
 	}*/
 	
-	private void handleGET_ALL( final String clientAddress ) throws IOException
+	/*private void handleGET_ALL( final String clientAddress ) throws IOException
 	{
 		openClientConnection( clientAddress );
 		
@@ -458,7 +468,7 @@ public class StorageNode extends DFSnode
 			
 			session.close();
 		}
-	}
+	}*/
 	
 	private void handleDELETE( final boolean isCoordinator, final DistributedFile file ) throws IOException, SQLException
 	{
@@ -467,7 +477,9 @@ public class StorageNode extends DFSnode
 		System.out.println( "UPDATED: " + (updated != null) + ", AGREED_NODES: " + agreedNodes );
 		LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
 		
-		if(updated != null) {
+		if(updated == null)
+			quorum_t.closeQuorum( agreedNodes );
+		else {
 			file.setVersion( updated );
 			file.setDeleted( true );
 			
@@ -509,9 +521,8 @@ public class StorageNode extends DFSnode
 			} catch( IOException e ) {}
 		}*/
 		
-		// send the message to the replica nodes
+		// Send the message to the replica nodes.
 		List<TCPSession> openSessions = new ArrayList<>();
-		byte[] message = Utils.serializeObject( new MessageRequest( Message.GET, fileName ) );
 		LOGGER.info( "Send request to replica nodes..." );
 		
 		for(QuorumNode qNode : agreedNodes) {
@@ -519,6 +530,7 @@ public class StorageNode extends DFSnode
 				GossipMember node = qNode.getNode();
 				TCPSession session = _net.tryConnect( node.getHost(), node.getPort(), 2000 );
 				if(session != null) {
+					byte[] message = Utils.serializeObject( new MessageRequest( Message.GET, fileName, Utils.longToByteArray( qNode.getId() ) ) );
 					session.sendMessage( message, true );
 					openSessions.add( session );
 				}
@@ -545,23 +557,53 @@ public class StorageNode extends DFSnode
 		session.close();
 		
 		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-		session = _net.tryConnect( clientAddress, Utils.SERVICE_PORT, 5000 );
+		String[] host = clientAddress.split( ":" );
+		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
 	}
 	
-	public void setBlocked( final boolean value, final long id )
+	public void setBlocked( final boolean blocked, final String fileName, final long id, final byte opType )
 	{
-		quorum_t.blocked.set( value );
-		
-		if(getBlocked()) quorum_t.timer.start();
-		else {
-			if(id == quorum_t.getId())
-				quorum_t.timer.stop();
+		synchronized ( quorum_t.fileLock ) {
+			QuorumFile qFile = quorum_t.fileLock.get( fileName );
+			
+			if(blocked) {
+				if(qFile != null)
+					qFile.setReaders( +1 );
+				else
+					quorum_t.fileLock.put( fileName, new QuorumFile( id, opType ) );
+			}
+			else {
+				if(qFile != null && id == qFile.id) {
+					if(qFile.getOpType() == Message.GET) {
+						qFile.setReaders( -1 );
+						if(qFile.toDelete())
+							quorum_t.fileLock.remove( fileName );
+					}
+					else
+						quorum_t.fileLock.remove( fileName );
+				}
+			}
 		}
 	}
 	
-	private boolean getBlocked()
+	/**
+	 * Checks whether the file is locked or not.
+	 * 
+	 * @param fileName
+	 * @param opType
+	 * 
+	 * @return {@code true} if the file is locked,
+	 * 		   {@code false} otherwise.
+	*/
+	private boolean getBlocked( final String fileName, final byte opType )
 	{
-		return quorum_t.blocked.get();
+		synchronized ( quorum_t.fileLock ) {
+			QuorumFile qFile = quorum_t.fileLock.get( fileName );
+			if(qFile == null)
+				return false;
+			else 
+				return (opType != Message.GET || qFile.getOpType() != Message.GET);
+		}
 	}
 	
 	/**
@@ -569,13 +611,17 @@ public class StorageNode extends DFSnode
 	*/
 	public static class QuorumNode
 	{
-		private GossipMember node;
+		private final GossipMember node;
 		private List<QuorumNode> nodes;
-		private long id;
+		private final String fileName;
+		private final byte opType;
+		private final long id;
 		
-		public QuorumNode( final GossipMember node, final long id )
+		public QuorumNode( final GossipMember node, final String fileName, final byte opType, final long id )
 		{
 			this.node = node;
+			this.fileName = fileName;
+			this.opType = opType;
 			this.id = id;
 		}
 		
@@ -598,6 +644,70 @@ public class StorageNode extends DFSnode
 			return nodes;
 		}
 		
+		public String getFileName()
+		{
+			return fileName;
+		}
+		
+		public byte getOpType()
+		{
+			return opType;
+		}
+		
+		public long getId()
+		{
+			return id;
+		}
+	}
+	
+	/**
+	 * Class used to represent a file during the quorum phase.
+	 * The object remains in the Map as long as its TimeToLive
+	 * is greater than 0.
+	*/
+	public static class QuorumFile
+	{
+		/** Maximum waiting time of the file in the Map. */
+		private static final long MAX_TTL = 60000; // 1 Minute.
+		
+		private long id;
+		private long ttl = MAX_TTL;
+		private byte opType;
+		private int readers = 0;
+		
+		public QuorumFile( final long id, final byte opType )
+		{
+			this.id = id;
+			this.opType = opType;
+			if(opType == Message.GET)
+				readers = 1;
+		}
+		
+		public void updateTTL( final int delta )
+		{
+			ttl -= delta;
+		}
+		
+		public boolean toDelete()
+		{
+			return (opType == Message.GET && readers == 0) || ttl <= 0;
+		}
+		
+		/**
+		 * Changes the number of readers.
+		 * 
+		 * @param additive	+1/-1
+		*/
+		public void setReaders( final int additive )
+		{
+			readers += additive;
+		}
+		
+		public byte getOpType()
+		{
+			return opType;
+		}
+		
 		public long getId()
 		{
 			return id;
@@ -611,12 +721,11 @@ public class StorageNode extends DFSnode
 	public class QuorumThread extends Thread
 	{
 		private int port;
-		private AtomicBoolean blocked = new AtomicBoolean( false );
 		private Timer timer;
 		private Long id = (long) -1;
+		private final Map<String, QuorumFile> fileLock = new HashMap<>( 64 );
 		
-		/** Time wait for the quorum completion. */
-		private static final int BLOCKED_TIME = 60000; // 1 minute.
+		private static final int BLOCKED_TIME = 5000; // 5 seconds.
 		private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
 		private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
 		//private static final int QUORUM_PORT = 2500;
@@ -625,15 +734,26 @@ public class StorageNode extends DFSnode
 		{
 			this.port = port + 3;
 			
-			timer = new Timer( BLOCKED_TIME, new ActionListener(){
+			// Wake-up the timer every BLOCKED_TIME milliseconds,
+			// and update the TimeToLive of each locked file.
+			timer = new Timer( BLOCKED_TIME, new ActionListener() {
 				@Override
 				public void actionPerformed( final ActionEvent e )
 				{
-					setBlocked( false, id );
+					if(!shutDown) {
+						Iterator<QuorumFile> it = fileLock.values().iterator();
+						while(it.hasNext()) {
+							QuorumFile qFile = it.next();
+							qFile.updateTTL( BLOCKED_TIME );
+							if(qFile.toDelete())
+								it.remove();
+						}
+					}
 				}
 			} );
+			timer.start();
 			
-			List<QuorumNode> nodes = QuorumSystem.loadDecision();
+			List<QuorumNode> nodes = QuorumSystem.loadState();
 			if(nodes.size() > 0 && QuorumSystem.timeElapsed < BLOCKED_TIME)
 				cancelQuorum( null, nodes );
 		}
@@ -661,6 +781,7 @@ public class StorageNode extends DFSnode
 				return;
 			}
 			
+			byte[] msg;
 			while(!shutDown) {
 				try {
 					//LOGGER.info( "[QUORUM] Waiting on " + _address + ":" + port );
@@ -672,31 +793,42 @@ public class StorageNode extends DFSnode
 					//byte[] data = net.receiveMessage();
 					//LOGGER.info( "[QUORUM] Received a connection from: " + net.getSrcAddress() );
 					
-					byte[] data = session.receiveMessage();
+					ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 					LOGGER.info( "[QUORUM] Received a connection from: " + session.getSrcAddress() );
 					
-					switch( data[0] ) {
+					switch( data.get() ) {
 						case( MAKE_QUORUM ):
-							byte opType = data[1];
-							LOGGER.info( "Received a MAKE_QUORUM request. Actual status: " + getBlocked() );
-							// send the current blocked state
-							boolean blocked = getBlocked();
-							if(!blocked)
-								data = net.createMessage( new byte[]{ ACCEPT_QUORUM_REQUEST }, getNextId(), false );
-							else
-								data = new byte[]{ DECLINE_QUORUM_REQUEST };
-							session.sendMessage( data, false );
+							byte opType = data.get();
+							String fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+							LOGGER.info( "Received a MAKE_QUORUM request for '" + fileName +
+										 "'. Actual status: " + (getBlocked( fileName, opType ) ? "BLOCKED" : "FREE") );
+							
+							// Send the current blocked state.
+							boolean blocked = getBlocked( fileName, opType );
+							//boolean blocked = getBlocked();
+							if(blocked)
+								msg = new byte[]{ DECLINE_QUORUM_REQUEST };
+							else {
+								/*if(opType == Message.GET)
+									msg = new byte[]{ ACCEPT_QUORUM_REQUEST };
+								else*/
+								msg = net.createMessage( new byte[]{ ACCEPT_QUORUM_REQUEST }, getNextId( opType ), false );
+							}
+							session.sendMessage( msg, false );
 							
 							//net.sendMessage( data, InetAddress.getByName( net.getSrcAddress() ), net.getSrcPort() );
 							//LOGGER.info( "[QUORUM] Type: " + getCodeString( opType ) );
-							if(opType != Message.GET && !blocked)
-								setBlocked( true, id );
+							//if(opType != Message.GET && !blocked)
+								//setBlocked( true, id );
+							setBlocked( true, fileName, id, opType );
 							
 							break;
 						
 						case( RELEASE_QUORUM ):
 							LOGGER.info( "Received a RELEASE_QUORUM request" );
-							setBlocked( false, id );
+							long id = data.getLong();
+							fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+							setBlocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
 							break;
 					}
 				}
@@ -711,7 +843,7 @@ public class StorageNode extends DFSnode
 			LOGGER.info( "Quorum thread closed." );
 		}
 		
-		private byte[] getNextId()
+		private byte[] getNextId( final byte opType )
 		{
 			synchronized( id ) {
 				id = (id + 1) % Long.MAX_VALUE;
@@ -719,6 +851,7 @@ public class StorageNode extends DFSnode
 			}
 		}
 		
+		@Override
 		public long getId()
 		{
 			synchronized( id ) {
@@ -728,10 +861,25 @@ public class StorageNode extends DFSnode
 		
 		public void close()
 		{
+			timer.stop();
 			interrupt();
+			fileLock.clear();
 		}
-
-		private List<QuorumNode> checkQuorum( final TCPSession session, final byte opType, final String destId ) throws IOException
+		
+		/**
+		 * Starts the quorum phase.
+		 * 
+		 * @param session	the actual TCP connection
+		 * @param opType	
+		 * @param fileName	
+		 * @param destId	
+		 * 
+		 * @return list of contacted nodes, that have agreed to the quorum
+		*/
+		private List<QuorumNode> checkQuorum( final TCPSession session,
+											  final byte opType,
+											  final String fileName,
+											  final String destId ) throws IOException
 		{
 			ByteBuffer id = Utils.hexToBytes( destId );
 			
@@ -745,12 +893,12 @@ public class StorageNode extends DFSnode
 				
 				List<QuorumNode> qNodes = new ArrayList<>( nodes.size() );
 				for(GossipMember node : nodes)
-					qNodes.add( new QuorumNode( node, 0 ) );
+					qNodes.add( new QuorumNode( node, fileName, opType, 0 ) );
 				
 				return qNodes;
 			}
 			else {
-				List<QuorumNode> nodeAddress = contactNodes( session, opType, nodes );
+				List<QuorumNode> nodeAddress = contactNodes( session, opType, fileName, nodes );
 				return nodeAddress;
 			}
 		}
@@ -758,13 +906,17 @@ public class StorageNode extends DFSnode
 		/**
 		 * Contacts the nodes to complete the quorum phase.
 		 * 
-		 * @param session
-		 * @param opType
-		 * @param nodes
+		 * @param session	
+		 * @param opType	
+		 * @param fileName	
+		 * @param nodes		
 		 * 
 		 * @return list of contacted nodes, that have agreed to the quorum
 		*/
-		private List<QuorumNode> contactNodes( final TCPSession session, final byte opType, final List<GossipMember> nodes ) throws IOException
+		private List<QuorumNode> contactNodes( final TCPSession session,
+											   final byte opType,
+											   final String fileName,
+											   final List<GossipMember> nodes ) throws IOException
 		{
 			int errors = 0;
 			List<QuorumNode> agreedNodes = new ArrayList<>();
@@ -778,7 +930,9 @@ public class StorageNode extends DFSnode
 				TCPSession mySession = null;
 				try {
 					mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
-					mySession.sendMessage( new byte[]{ MAKE_QUORUM, opType }, false );
+					byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
+					mySession.sendMessage( msg, true );
+					//mySession.sendMessage( new byte[]{ MAKE_QUORUM, opType }, false );
 					
 					//net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), QUORUM_PORT );
 					//net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
@@ -789,12 +943,12 @@ public class StorageNode extends DFSnode
 					
 					if(data.get() == ACCEPT_QUORUM_REQUEST) {
 						LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
-						// not blocked => agree to the quorum
-						agreedNodes.add( new QuorumNode( node, data.getLong() ) );
-						QuorumSystem.saveDecision( agreedNodes );
+						// Not blocked => agree to the quorum.
+						agreedNodes.add( new QuorumNode( node, fileName, opType, data.getLong() ) );
+						QuorumSystem.saveState( agreedNodes );
 					}
 					else {
-						// blocked => the node doesn't agree to the quorum
+						// Blocked => the node doesn't agree to the quorum.
 						LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
 						if(QuorumSystem.unmakeQuorum( ++errors, opType )) {
 							cancelQuorum( session, agreedNodes );
@@ -847,10 +1001,17 @@ public class StorageNode extends DFSnode
 				try {
 					mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
 					//net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
-					mySession.sendMessage( new byte[]{ RELEASE_QUORUM }, false );
+					//mySession.sendMessage( new byte[]{ RELEASE_QUORUM }, false );
+					byte[] msg = net.createMessage( new byte[]{ RELEASE_QUORUM },
+													Utils.longToByteArray( agreedNodes.get( i ).getId() ),
+													false );
+					msg = net.createMessage( msg,
+											 agreedNodes.get( i ).getFileName().getBytes( StandardCharsets.UTF_8 ),
+											 true );
+					mySession.sendMessage( msg, true );
+					
 					agreedNodes.remove( i );
-					//{"members":[{"port":8101,"host":"192.168.1.101"}]}
-					QuorumSystem.saveDecision( agreedNodes );
+					QuorumSystem.saveState( agreedNodes );
 				}
 				catch( IOException | JSONException e ) {
 					//e.printStackTrace();
@@ -880,7 +1041,6 @@ public class StorageNode extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		// TODO inserire anche il resource location e il database location tra i possibili input
 		List<GossipMember> members = null;
 		CmdLineParser.parseArgs( args );
 		members = CmdLineParser.getNodes( "n" );

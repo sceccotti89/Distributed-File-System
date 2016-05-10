@@ -144,24 +144,22 @@ public class VersioningUtils {
         for(Versioned<T> value: values) {
         	ListIterator<Versioned<T>> iter = resolvedVersions.listIterator();
             boolean obsolete = false;
+            //System.out.println( "VALUE: " + value + ", RESOLVED: " + resolvedVersions );
             // Compare the current version with a set of accepted versions
             while(iter.hasNext()) {
                 Versioned<T> curr = iter.next();
                 Occurred occurred = value.getVersion().compare( curr.getVersion() );
-                if(occurred == Occurred.AFTER) {
-                	obsolete = true;
-                	resolvedVersions.remove( curr );
-                    resolvedVersions.add( value );
+                //System.out.println( "VALUE: " + value + ", CURR: " + curr + ", COMPARE: " + occurred );
+                if (occurred == Occurred.BEFORE) {
+                    obsolete = true;
                     break;
+                } else if (occurred == Occurred.AFTER) {
+                    iter.remove();
                 }
-                
-                if(occurred == Occurred.CONCURRENTLY)
-                    resolvedVersions.add( value );
             }
-            
             if (!obsolete) {
-                // else update the set of accepted versions.
-                resolvedVersions.add( value );
+                // else update the set of accepted versions
+                resolvedVersions.add(value);
             }
         }
         

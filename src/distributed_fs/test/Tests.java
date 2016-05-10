@@ -4,9 +4,7 @@
 
 package distributed_fs.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -23,6 +21,7 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 
+import org.apache.log4j.BasicConfigurator;
 import org.json.JSONException;
 import org.junit.After;
 import org.junit.Before;
@@ -31,10 +30,13 @@ import org.junit.Test;
 import distributed_fs.anti_entropy.AntiEntropySenderThread;
 import distributed_fs.client.DFSService;
 import distributed_fs.exception.DFSException;
+import distributed_fs.files.DFSDatabase;
+import distributed_fs.files.DistributedFile;
 import distributed_fs.overlay.DFSnode;
 import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;
 import distributed_fs.utils.Utils;
+import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
@@ -42,7 +44,7 @@ public class Tests
 {
 	private static String myIpAddress;
 	
-	private DFSService service;
+	private List<DFSService> services;
 	private List<GossipMember> members;
 	private List<DFSnode> nodes;
 	
@@ -70,14 +72,18 @@ public class Tests
 		//clock = new VectorClock( clock.read() );
 		System.out.println( "CLOCK: " + Utils.serializeObject( clock ).length );
 		//System.out.println( "SIZE: " + Utils.serializeObject( clock ).length );*/
+		// TODO testare la dimensione di un messaggio prima e dopo la nuova super sofisticata interfaccia
+		
 		
 		new Tests();
 	}
 	
 	public Tests() throws Exception
 	{
+		testDatabase();
+		
 		// First test when the service is down.
-		service = new DFSService( null, null, null );
+		DFSService service = new DFSService( null, null, null );
 		assertFalse( service.start() );
 		service.shutDown();
 		
@@ -85,9 +91,10 @@ public class Tests
 		
 		Thread.sleep( 2000 );
 		
-		//testClientOperations();
-		//testHintedHandoff();
+		testSingleClientOperations();
+		stressTest();
 		testAntiEntropy();
+		testHintedHandoff();
 		
 		close();
 	}
@@ -113,10 +120,10 @@ public class Tests
 		}
 		
 		runServers();
-		service = new DFSService( myIpAddress, members, null, null );
-		assertTrue( service.start() );
+		runClients( myIpAddress, 2 );
 	}
 	
+	@Before
 	private void runServers() throws IOException, JSONException, SQLException, InterruptedException, DFSException
 	{
 		// Create the gossip members and put them in a list.
@@ -162,33 +169,60 @@ public class Tests
 		}
 	}
 	
-	@Test
-	public void testClientOperations() throws IOException, JSONException, DFSException, InterruptedException
+	@Before
+	private void runClients( final String address, final int numClients ) throws IOException, JSONException, DFSException
 	{
+		int port = 9000;
+		services = new ArrayList<>( numClients );
+		for(int i = 0; i < numClients; i++) {
+			DFSService service = new DFSService( address, port + i, members, null, null );
+			services.add( service );
+			assertTrue( service.start() );
+		}
+	}
+	
+	@Test
+	public void testSingleClientOperations() throws IOException, JSONException, DFSException, InterruptedException
+	{
+		DFSService service = services.get( 0 );
+		
+		Utils.existFile( "./Resources/Images/photoshop.pdf", true );
+		
 		String file = "";
 		assertEquals( service.get( file ), service.getFile( file ) );
 		file = "./Resources/Images/photoshop.pdf";
 		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.put( file ), true );
 		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.get( file ), service.getFile( file ) );
 		System.out.println( "\n\n" );
+		
+		Thread.sleep( 1000 );
+		
+		assertEquals( service.get( file ), service.getFile( file ) );
+		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.put( file ), true );
 		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.put( "" ), false );
 		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.delete( "" ), false );
 		System.out.println( "\n\n" );
+		
 		Thread.sleep( 1000 );
 		
 		assertEquals( service.delete( file ), true );
@@ -199,20 +233,20 @@ public class Tests
 	public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
 	{
 		String file = "chord_sigcomm.pdf";
-		int index = 2 + NUMBER_OF_BALANCERS;
+		int index = 4 + NUMBER_OF_BALANCERS;
 		String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
 		nodes.get( index ).closeResources();
 		System.out.println( "Node: " + members.get( index ) + " closed." );
 		
 		Thread.sleep( 2000 );
 		
-		assertTrue( service.put( file ) );
+		assertTrue( services.get( 0 ).put( file ) );
 		System.out.println( "\n\n" );
 		Thread.sleep( 2000 );
 		
 		//assertEquals( service.get( file ), service.getFile( file ) );
-		assertEquals( nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
-		//System.out.println( "HH: " + nodes.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff() );
+		//System.out.println( "HH: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+		assertEquals( nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
 	}
 	
 	@Test
@@ -224,7 +258,7 @@ public class Tests
 		String file = "test3.txt";
 		
 		modifyTextFile( "./Resources/" + file );
-		assertTrue( service.put( file ) );
+		assertTrue( services.get( 0 ).put( file ) );
 		
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
@@ -249,21 +283,103 @@ public class Tests
 		writer.close();
 	}
 	
-	// TODO aggiungere test in cui si modifica il database e si fanno delle verifiche
+	@Test
+	public void stressTest() throws InterruptedException
+	{
+		List<Thread> clients = new ArrayList<>( services.size() );
+		
+		for(int i = 0; i < services.size(); i++) {
+			final int index = i;
+			Thread t = new Thread() {
+				@Override
+				public void run() { try { testMultipleClientOperations( index ); } catch (Exception e) {e.printStackTrace();} }
+			};
+			t.start();
+			clients.add( t );
+		}
+		
+		// Wait the termination of all the clients.
+		for(Thread t : clients)
+			t.join();
+	}
 	
 	@Test
-	public void stressTest()
+	private void testMultipleClientOperations( final int index ) throws IOException, DFSException, InterruptedException
 	{
-		// TODO lanciare diversi client e testare diverse operazioni
+		DFSService service = services.get( index );
 		
+		Utils.existFile( "./Resources/Images/photoshop.pdf", true );
+		
+		service.get( "" );
+		System.out.println( "\n\n" );
+		
+		Thread.sleep( 1000 );
+		
+		service.put( "./Resources/Images/photoshop.pdf" );
+		System.out.println( "\n\n" );
+		
+		Thread.sleep( 1000 );
+		
+		service.get( "./Resources/Test3968.pdf" );
+		System.out.println( "\n\n" );
+		
+		//Thread.sleep( 1000 );
+		
+		service.get( "./Resources/unknown.pdf" );
+		System.out.println( "\n\n" );
+		
+		//Thread.sleep( 1000 );
+		
+		service.put( "./Resources/Test2.txt" );
+		System.out.println( "\n\n" );
+		
+		service.put( "./Resources/test2.txt" );
+		System.out.println( "\n\n" );
+		
+		Thread.sleep( 1000 );
+	}
+
+	@Test
+	public void testDatabase() throws IOException, DFSException, SQLException
+	{
+		if(services == null && nodes == null)
+			BasicConfigurator.configure();
+		
+		DFSDatabase database = new DFSDatabase( null, null, null );
+		DistributedFile file;
+		
+		for(int i = 1; i <= 10; i++)
+			assertNotNull( database.saveFile( "Test" + i + ".txt", null, new VectorClock(), null, false ) );
+		assertNull( database.getFile( "Test0.txt" ) );
+		assertNotNull( file = database.getFile( "Test1.txt" ) );
+		file = new DistributedFile( file.read() );
+		file.getVersion().incrementVersion( "pippo" );
+		assertNotNull( database.saveFile( file.getName(), null, file.getVersion(), null, false ) );
+		
+		assertNotNull( file = database.getFile( "Test1.txt" ) );
+		file = new DistributedFile( file.read() );
+		file.setVersion( new VectorClock() );
+		assertNull( database.saveFile( file.getName(), null, file.getVersion(), null, false ) );
+		
+		assertNull( database.getFile( "" ) );
+		assertNull( database.getFile( "Test11.txt" ) );
+		
+		assertNull( database.removeFile( file.getName(), file.getVersion(), true ) );
+		assertNotNull( database.removeFile( file.getName(), new VectorClock().incremented( "pippo" ).incremented( "pippo" ), true ) );
+		assertTrue( database.getFile( file.getName() ).isDeleted() );
+		
+		database.shutdown();
 	}
 
 	@After
-	public void close()
+	public void close() throws InterruptedException
 	{
-		service.shutDown();
+		for(DFSService service : services)
+			service.shutDown();
 		
-		for(int i = 0; i < nodes.size(); i++)
-			nodes.get( i ).closeResources();
+		for(DFSnode node : nodes)
+			node.closeResources();
+		for(DFSnode node : nodes)
+			node.join();
 	}
 }

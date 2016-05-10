@@ -31,7 +31,7 @@ public class QuorumSystem
 	public static void init() throws JSONException, IOException
 	{
 		if(!Utils.existFile( QuorumFile, true ))
-			saveDecision( null );
+			saveState( null );
 	}
 	
 	/**
@@ -39,7 +39,7 @@ public class QuorumSystem
 	 * 
 	 * @return the list of nodes to cancel the quorum
 	*/
-	public static List<QuorumNode> loadDecision() throws IOException, JSONException
+	public static List<QuorumNode> loadState() throws IOException, JSONException
 	{
 		List<QuorumNode> nodes = new ArrayList<>();
 		
@@ -53,8 +53,10 @@ public class QuorumSystem
 			JSONObject member = members.getJSONObject( i );
 			String hostname = member.getString( "host" );
 			int port = member.getInt( "port" );
+			String fileName = member.getString( "file" );
+			byte opType = (byte) member.getInt( "opType" );
 			long id = member.getLong( "id" );
-			nodes.add( new QuorumNode( new RemoteGossipMember( hostname, port, "", 0, 0 ), id ) );
+			nodes.add( new QuorumNode( new RemoteGossipMember( hostname, port, "", 0, 0 ), fileName, opType, id ) );
 		}
 		
 		return nodes;
@@ -63,13 +65,11 @@ public class QuorumSystem
 	/**
 	 * Save on disk the actual status of the quorum.
 	 * 
-	 * @param nodes			list of nodes that have to be contacted
+	 * @param nodes		list of nodes to be contacted
 	*/
-	public static void saveDecision( final List<QuorumNode> nodes ) throws IOException, JSONException
+	public static void saveState( final List<QuorumNode> nodes ) throws IOException, JSONException
 	{
 		JSONObject file = new JSONObject();
-		
-		file.put( "timestamp", System.currentTimeMillis() );
 		
 		JSONArray members = new JSONArray();
 		if(nodes != null && nodes.size() > 0) {
@@ -78,12 +78,15 @@ public class QuorumSystem
 				JSONObject member = new JSONObject();
 				member.put( "host", node.getHost() );
 				member.put( "port", node.getPort() );
+				member.put( "file" , nodes.get( i ).getFileName() );
+				member.put( "opType", nodes.get( i ).getOpType() );
 				member.put( "id", nodes.get( i ).getId() );
 				members.put( member );
 			}
 		}
 		
 		file.put( "members", members );
+		file.put( "timestamp", System.currentTimeMillis() );
 		
 		PrintWriter writer = new PrintWriter( QuorumFile, StandardCharsets.UTF_8.name() );
 		writer.println( file.toString() );

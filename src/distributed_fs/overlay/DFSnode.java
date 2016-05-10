@@ -232,7 +232,9 @@ public abstract class DFSnode extends Thread implements GossipListener
 		String inet = inetwork.getJSONObject( 0 ).getString( "inet" );
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
 		
-		_address = this.getNetworkAddress( inet, IPversion );
+		// Load the address only if it's null.
+		//TODO if(_address == null)
+			_address = this.getNetworkAddress( inet, IPversion );
 	}
 	
 	/** 
@@ -290,6 +292,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 			return null;
 		
 		fileName = checkFile( fileName, fMgr.getDatabase().getFileSystemRoot() );
+		System.out.println( "FILE TO ASK: " + fileName );
 		
 		DistributedFile file = fMgr.getDatabase().getFile( Utils.getId( fileName ) );
 		if(file == null || file.isDeleted())
@@ -319,6 +322,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 			fileName = fileName.substring( dbRoot.length() );
 		}*/
 		
+		String backup = fileName;
 		if(fileName.startsWith( "./" ))
 			fileName = fileName.substring( 2 );
 		
@@ -327,6 +331,10 @@ public abstract class DFSnode extends Thread implements GossipListener
 		if(f.isDirectory() && !fileName.endsWith( "/" ))
 			fileName += "/";
 		fileName = fileName.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		if(fileName.startsWith( dbRoot ))
+			fileName = fileName.substring( dbRoot.length() );
+		else
+			fileName = backup;
 		
 		return fileName;
 	}
@@ -413,7 +421,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 		if(runner != null)
 			runner.getGossipService().shutdown();
 		threadPool.shutdown();
-		if(!Utils.testing && fMgr != null)
-			fMgr.getDatabase().shutdown();
+		if(fMgr != null)
+			fMgr.shutDown();
 	}
 }

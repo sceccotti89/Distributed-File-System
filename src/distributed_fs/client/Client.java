@@ -76,7 +76,7 @@ public class Client
 			System.out.print( "[CLIENT] " );
 			
 			try{
-				// wait until we have data to complete a readLine()
+				// Wait until we have data to complete a readLine()
 				while(!SCAN.ready()) {
 					if(service.isClosed())
 						return null;
@@ -90,7 +90,6 @@ public class Client
 				break;
 			}
 			
-			// TODO inserire un comando per listare il contenuto del database
 			String command = input.toLowerCase();
 			
 			//if(command.matches( GET_REGEX )) {
@@ -127,6 +126,7 @@ public class Client
 					return new Operation( file, Message.DELETE );
 			}
 			else if(command.equals( "list" )) {
+				// List all the files present in the database.
 				List<DistributedFile> files = service.listFiles();
 				for(DistributedFile file : files) {
 					if(!file.isDeleted())

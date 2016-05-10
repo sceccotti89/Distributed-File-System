@@ -24,6 +24,7 @@ import org.json.JSONObject;
 import distributed_fs.files.DistributedFile;
 import distributed_fs.files.RemoteFile;
 import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
@@ -33,12 +34,16 @@ import gossiping.RemoteGossipMember;
 
 public class DFSManager
 {
+	protected TCPnet net;
 	protected TCPSession session;
 	protected List<GossipMember> loadBalancers;
-	protected String _address;
+	protected String address;
+	protected int port;
 	
 	private static final String DISTRIBUTED_FS_CONFIG = "./Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
+	
+	protected static boolean initiConfig = false;
 	
 	public DFSManager( final List<GossipMember> members ) throws IOException, JSONException
 	{
@@ -52,7 +57,11 @@ public class DFSManager
 	*/
 	protected void setConfigure( final List<GossipMember> members ) throws IOException, JSONException
 	{
-		BasicConfigurator.configure();
+		if(!initiConfig) {
+			BasicConfigurator.configure();
+			initiConfig = true;
+		}
+		
 		LOGGER.info( "Starting the system..." );
 		
 		//java.util.logging.Logger.getLogger( "udt" ).setLevel( java.util.logging.Level.WARNING );
@@ -61,7 +70,7 @@ public class DFSManager
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
-		_address = this.getNetworkAddress( inet, IPversion );
+		address = this.getNetworkAddress( inet, IPversion );
 		
 		if(members != null)
 			loadBalancers = new ArrayList<>( members );

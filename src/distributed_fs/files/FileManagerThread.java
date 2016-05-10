@@ -6,6 +6,7 @@ package distributed_fs.files;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -104,8 +105,11 @@ public class FileManagerThread extends Thread
 		// read the synch attribute
 		boolean synch = (data.get() == (byte) 0x1);
 		// get and verify the quorum attribute
-		if(data.get() == (byte) 0x1)
-			node.setBlocked( false, data.getLong() );
+		if(data.get() == (byte) 0x1) {
+			String fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+			node.setBlocked( false, fileName, data.getLong(), (byte) 0x0 ); // Here the operation type is useless.
+		}
+		
 		// get the number of files
 		int num_files = data.getInt();
 		LOGGER.debug( "Node: " + node.getPort() + ", receiving " + num_files + " files..." );
@@ -270,8 +274,10 @@ public class FileManagerThread extends Thread
 			}*/
 			
 			byte[] msg = new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (node != null) ? (byte) 0x1 : (byte) 0x0 };
-			if(node != null)
+			if(node != null) {
+				msg = net.createMessage( msg, files.get( 0 ).getName().getBytes( StandardCharsets.UTF_8 ), true );
 				msg = net.createMessage( msg, Utils.longToByteArray( node.getId() ), false );
+			}
 			msg = net.createMessage( msg, Utils.intToByteArray( size ), false );
 			
 			/*byte[] msg = net.createMessage( new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0,
@@ -333,7 +339,7 @@ public class FileManagerThread extends Thread
 	{
 		List<QuorumNode> nodes = node.getList();
 		nodes.remove( node );
-		QuorumSystem.saveDecision( nodes );
+		QuorumSystem.saveState( nodes );
 	}
 	
 	/**
@@ -344,10 +350,14 @@ public class FileManagerThread extends Thread
 		return database;
 	}
 	
+	/**
+	 * Close all the opened resources.
+	*/
 	public void shutDown()
 	{
 		threadPoolSend.shutdown();
 		threadPoolReceive.shutdown();
+		database.shutdown();
 		sendAE_t.close();
 		receiveAE_t.close();
 	}

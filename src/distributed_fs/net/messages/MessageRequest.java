@@ -7,10 +7,10 @@ package distributed_fs.net.messages;
 public class MessageRequest extends Message
 {
 	private String fileName;
-	private byte[] file;
+	private byte[] data;
 	private boolean startQuorum;
 	private String destId;
-	private String clientAddress;//TODO decidere se mantenerlo o cambiare modello di comunicazione
+	private String clientAddress;
 	private String HintedHandoff;
 	
 	private static final long serialVersionUID = 307888610331132428L;
@@ -25,26 +25,26 @@ public class MessageRequest extends Message
 		this( opType, fileName, null );
 	}
 	
-	public MessageRequest( final byte opType, final String fileName, final byte[] file )
+	public MessageRequest( final byte opType, final String fileName, final byte[] data )
 	{
-		this( opType, fileName, file, false );
+		this( opType, fileName, data, false );
 	}
 	
 	public MessageRequest( final byte opType, final String fileName,
-						   final byte[] file, final boolean startQuorum )
+						   final byte[] data, final boolean startQuorum )
 	{
-		this( opType, fileName, file, startQuorum, null, null, null );
+		this( opType, fileName, data, startQuorum, null, null, null );
 	}
 	
 	public MessageRequest( final byte opType, final String fileName,
-			   			   final byte[] file, final boolean startQuorum,
+			   			   final byte[] data, final boolean startQuorum,
 			   			   final String destId, final String clientAddress,
 			   			   final String HintedHandoff )
 	{
 		super( opType );
 		
 		this.fileName = fileName;
-		this.file = file;
+		this.data = data;
 		this.startQuorum = startQuorum;
 		this.destId = destId;
 		this.clientAddress = clientAddress;
@@ -56,9 +56,12 @@ public class MessageRequest extends Message
 		return fileName;
 	}
 	
-	public byte[] getFile()
+	/**
+	 * Returns the payload of the message.
+	*/
+	public byte[] getData()
 	{
-		return file;
+		return data;
 	}
 	
 	public boolean startQuorum()
@@ -79,5 +82,10 @@ public class MessageRequest extends Message
 	public String getHintedHandoff()
 	{
 		return HintedHandoff;
+	}
+
+	public void setClientAddress( final String address )
+	{
+		clientAddress = address;
 	}
 }

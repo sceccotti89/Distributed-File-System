@@ -36,15 +36,18 @@ public class LoadBalancer extends DFSnode
 	private String clientAddress;
 	// =========================================== //
 	
-	// TODO inserire anche la porta tra i parameteri??
+	// TODO inserire anche un indirizzo IP?
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
 	 * the list of nodes should be passed as arguments.
 	 * 
+	 * @param port				port used to receive incoming requests.
+	 * 							If the value is less or equal than 0,
+	 * 							then the default one will be chosed ({@link Utils#SERVICE_PORT});
 	 * @param startupMembers	list of nodes
 	*/
-	public LoadBalancer( final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
+	public LoadBalancer( final int port, final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
 	{
 		super( GossipMember.LOAD_BALANCER, startupMembers ); 
 		
@@ -60,8 +63,7 @@ public class LoadBalancer extends DFSnode
 		monitor = new NetworkMonitorReceiverThread( _address );
 		monitor.start();
 		
-		this.port = Utils.SERVICE_PORT;
-		//this.port = port;
+		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
 		
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
@@ -121,7 +123,7 @@ public class LoadBalancer extends DFSnode
 	 * 
 	 * @param net			the net it is connected to
 	 * @param srcSession	the input request
-	 * @param cHasher		
+	 * @param cHasher		the consistent hashing
 	*/
 	private LoadBalancer( final TCPnet net,
 						  final TCPSession srcSession,
@@ -136,7 +138,7 @@ public class LoadBalancer extends DFSnode
 	@Override
 	public void run()
 	{
-		LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
+		//LOGGER.info( "[LB] Handling an incoming connection..." );
 		
 		while(true) {
 			TCPSession newSession = null;
@@ -148,8 +150,11 @@ public class LoadBalancer extends DFSnode
 				byte opType = data.getType();
 				if(opType == Message.KEEP_ALIVE)
 					continue; // Ignore the keep alive messages.
-				
-				LOGGER.info( "[LB] Received a new request." );
+				if(opType == Message.HELLO) {
+					clientAddress = data.getClientAddress();
+					LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
+					continue;
+				}
 				
 				/*byte opType = data.get();
 				// get the file name
@@ -214,7 +219,7 @@ public class LoadBalancer extends DFSnode
 								
 								// forward the message to the target node
 								//forwardRequest( opType, targetNode.getId(), hintedHandoff, fileName, data );
-								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getFile() );
+								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getData() );
 								newSession.close();
 								LOGGER.info( "[LB] Request forwarded to: " + targetNode );
 								break;
@@ -363,7 +368,7 @@ public class LoadBalancer extends DFSnode
 		else {
 			if(opType != Message.GET) {
 				// PUT and DELETE operations
-				message = new MessageRequest( opType, null, file, true, destId, clientAddress, hintedHandoff );
+				message = new MessageRequest( opType, fileName, file, true, destId, clientAddress, hintedHandoff );
 			}
 			else {
 				// GET operation
@@ -381,6 +386,6 @@ public class LoadBalancer extends DFSnode
 		CmdLineParser.parseArgs( args );
 		members = CmdLineParser.getNodes( "n" );
 		
-		new LoadBalancer( members );
+		new LoadBalancer( 0, members );
 	}
 }

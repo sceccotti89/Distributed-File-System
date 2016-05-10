@@ -37,8 +37,6 @@ public class DFSService extends DFSManager implements IDFSService
 	//private boolean shutDown = false;
 	
 	private final Random random;
-	
-	private final TCPnet net;
 	private final DFSDatabase database;
 	//private Timer syncClient;
 	
@@ -63,7 +61,8 @@ public class DFSService extends DFSManager implements IDFSService
 	{
 		super( members );
 		
-		net = new TCPnet( _address, Utils.SERVICE_PORT );
+		//net = new TCPnet( _address, port );
+		net = new TCPnet( address, Utils.SERVICE_PORT );
 		net.setSoTimeout( 5000 );
 		
 		random = new Random();
@@ -82,6 +81,7 @@ public class DFSService extends DFSManager implements IDFSService
 	
 	/** Testing. */
 	public DFSService( final String address,
+					   final int port,
 					   final List<GossipMember> members,
 					   final String resourcesLocation,
 					   final String databaseLocation ) throws IOException, JSONException, DFSException
@@ -89,9 +89,11 @@ public class DFSService extends DFSManager implements IDFSService
 		super( null );
 		
 		testing = true;
-		this._address = address;
+		this.address = address;
 		
-		net = new TCPnet( _address, Utils.SERVICE_PORT );
+		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
+		
+		net = new TCPnet( this.address, this.port );
 		net.setSoTimeout( 5000 );
 		
 		random = new Random();
@@ -110,7 +112,7 @@ public class DFSService extends DFSManager implements IDFSService
 	 * @return {@code true} if the service has been started,
 	 * 		   {@code false} otherwise.
 	*/
-	public boolean start()
+	public boolean start() throws IOException
 	{
 		/*SynchronizeClient client = new SynchronizeClient();
 		syncClient = new Timer( CHECK_TIMER, client );
@@ -236,6 +238,8 @@ public class DFSService extends DFSManager implements IDFSService
 		if(session == null || session.isClosed()) {
 			session = contactLoadBalancerNode( false );
 			if(session == null)
+			//System.err.println( "The service for operation GET '" + fileName + "' is closed: " + session );
+			//LOGGER.error( "The service is closed. Try again later." );
 				return null;
 		}
 		
@@ -287,22 +291,22 @@ public class DFSService extends DFSManager implements IDFSService
 					versions.add( file.getVersion() );
 				
 				id = makeReconciliation( fileName, versions );
-				// send back the reconciled version
+				// Send back the reconciled version.
 				if(!put( files.get( id ).getName() )) {
 					throw new IOException();
 				}
 			}
 			
-			// update the database
+			// Update the database.
 			toWrite = files.get( id );
 			if(database.saveFile( toWrite, toWrite.getVersion(), null, true ) != null)
-				backToClient = getFile( fileName );
-			else
 				backToClient = new DistributedFile( toWrite, database.getFileSystemRoot() );
+			else
+				backToClient = getFile( fileName );
 		}
 		catch( IOException | SQLException e ) {
 			LOGGER.info( "Operation GET not performed. Try again later." );
-			e.printStackTrace();
+			//e.printStackTrace();
 			if(!session.isClosed())
 				session.close();
 			
@@ -387,6 +391,8 @@ public class DFSService extends DFSManager implements IDFSService
 		if(session == null || session.isClosed()) {
 			session = contactLoadBalancerNode( false );
 			if(session == null)
+			//System.err.println( "The service for operation PUT '" + fileName + "' is closed: " + session );
+			//LOGGER.error( "The service is closed. Try again later." );
 				return false;
 		}
 		
@@ -424,6 +430,7 @@ public class DFSService extends DFSManager implements IDFSService
 			database.saveFile( rFile, newClock, null, false );
 		}
 		catch( IOException | SQLException e ) {
+			//e.printStackTrace();
 			LOGGER.info( "Operation PUT not performed. Try again later." );
 			completed = false;
 			if(!session.isClosed())
@@ -480,6 +487,8 @@ public class DFSService extends DFSManager implements IDFSService
 		if(session == null || session.isClosed()) {
 			session = contactLoadBalancerNode( true );
 			if(session == null)
+			//System.err.println( "The service for operation DELETE '" + fileName + "' is closed: " + session );
+			//LOGGER.error( "The service is closed. Try again later." );
 				return false;
 		}
 		
@@ -509,6 +518,7 @@ public class DFSService extends DFSManager implements IDFSService
 			database.removeFile( fileName, file.getVersion().incremented( remoteSession.getSrcAddress() ), true );
 		}
 		catch( IOException | SQLException e ) {
+			//e.printStackTrace();
 			LOGGER.info( "Operation DELETE not performed. Try again later." );
 			completed = false;
 			if(!session.isClosed())
@@ -566,6 +576,16 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		if(session == null)
 			LOGGER.error( "The service is not available. Retry later." );
+		else {
+			MessageRequest message = new MessageRequest( Message.HELLO );
+			message.setClientAddress( this.address + ":" + this.port );
+			try {
+				session.sendMessage( message, true );
+			} catch( IOException e ) {
+				e.printStackTrace();
+				return null;
+			}
+		}
 		
 		return session;
 	}
@@ -610,10 +630,13 @@ public class DFSService extends DFSManager implements IDFSService
 	public boolean isClosed()
 	{
 		if(!closed && session != null && !session.isClosed()) {
+			
 			long currTime = System.currentTimeMillis();
 			timer = timer - (currTime - timestamp);
 			timestamp = currTime;
-			if(timer <= 0) {
+			
+			// TODO se pero' sta eseguendo un'operazione non fa il controllo
+			if(/*!computing && */timer <= 0) {
 				try {
 					session.sendMessage( new MessageRequest( Message.KEEP_ALIVE ), true );
 					timer = KEEP_ALIVE;

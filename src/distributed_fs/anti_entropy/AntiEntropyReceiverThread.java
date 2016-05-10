@@ -46,12 +46,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	public AntiEntropyReceiverThread( final GossipMember _me,
 									final DFSDatabase database,
 									final FileManagerThread fMgr,
-									final ConsistentHasherImpl<GossipMember, String> cHasher )
+									final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
 	{
 		super( _me, database, fMgr, cHasher );
 		
 		//threadPool = Executors.newFixedThreadPool( QuorumSystem.getMaxNodes() );
 		addToSynch( Utils.hexToBytes( me.getId() ).array() );
+		Net.setSoTimeout( 2000 );
 	}
 	
 	@Override
@@ -67,14 +68,16 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				//session = Net.waitForConnection( me.getHost(), MERKLE_TREE_EXCHANGE_PORT );
 				//System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
 				session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
+				if(session == null)
+					continue;
 				
 				srcAddress = session.getSrcAddress();
 				// TODO lanciare un altro thread che gestisca la connessione??
 				// TODO magari usare un ThreadPool con solo QuorumSystem.getMaxNodes() connessioni
 				
-				// receive the first message from the source node
+				// Receive the first message from the source node.
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-				// get the source node identifier
+				// Get the source node identifier.
 				sourceId = Utils.getNextBytes( data );
 				GossipMember sourceNode = cHasher.getBucket( ByteBuffer.wrap( sourceId ) );
 				if(sourceNode == null) {
@@ -102,7 +105,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
 				}
 				else {
-					// get the virtual destination node identifier
+					// Get the virtual destination node identifier.
 					ByteBuffer destId = ByteBuffer.wrap( Utils.getNextBytes( data ) );
 					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
 					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
@@ -117,7 +120,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				List<DistributedFile> filesToSend = new ArrayList<>();
 				m_tree = createMerkleTree( files );
 				
-				// check the differences through the trees
+				// Check the differences through the trees.
 				boolean hasKey = checkTreeDifferences( inputTree );
 				LOGGER.debug( "FROM_ID: " + Utils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
@@ -127,7 +130,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				addToSynch( sourceId );
 				
 				if(hasKey) {
-					// receive the vector clocks associated to the shared files
+					// Receive the vector clocks associated to the shared files.
 					byte[] versions = session.receiveMessage();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
 					filesToSend.addAll( checkVersions( sourceNode.getPort() + 1, files, vClocks, srcAddress, sourceId ) );
@@ -135,7 +138,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				if(filesToSend.size() > 0)
 					fMgr.sendFiles( sourceNode.getPort() + 1/*, Message.PUT*/, filesToSend, srcAddress, false, sourceId, null );
-				else // no differences
+				else // No differences.
 					removeFromSynch( sourceId );
 				
 				session.close();
@@ -147,6 +150,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					removeFromSynch( sourceId );
 			}
 		}
+		
+		LOGGER.info( "Anti-entropy Receiver Thread closed." );
 	}
 	
 	/**

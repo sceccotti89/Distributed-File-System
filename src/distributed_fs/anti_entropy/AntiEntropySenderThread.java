@@ -89,10 +89,12 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 						catch( IOException e ){ /*e.printStackTrace();*/ }
 					}
 					
-					nodes.remove( node );
+					nodes.remove( randomPeer );
 				}
 			}
 		}
+		
+		LOGGER.info( "Anti-entropy Sender Thread closed." );
 	}
 	
 	/**
