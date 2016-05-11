@@ -209,7 +209,7 @@ public class Client implements DBListener
 	@Override
 	public void dbEvent( final String fileName, final byte code )
 	{
-		if(code == Message.PUT)
+		if(code == Message.GET)
 			dbFiles.add( fileName );
 		else	// DELETE
 			dbFiles.remove( fileName );
