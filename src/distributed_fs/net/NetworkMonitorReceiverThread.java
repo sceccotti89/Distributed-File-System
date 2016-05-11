@@ -37,6 +37,8 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 				//e.printStackTrace();
 			}
 		}
+		
+		LOGGER.info( "Network Receiver closed." );
 	}
 	
 	@Override

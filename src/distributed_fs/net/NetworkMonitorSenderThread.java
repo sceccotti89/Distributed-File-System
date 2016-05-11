@@ -50,6 +50,8 @@ public class NetworkMonitorSenderThread extends NetworkMonitor
 				//e.printStackTrace();
 			}
 		}
+		
+		LOGGER.info( "Network Sender closed." );
 	}
 
 	@Override

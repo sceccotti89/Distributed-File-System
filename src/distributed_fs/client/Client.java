@@ -47,8 +47,6 @@ public class Client implements DBListener
 	
 	public Client( String[] args ) throws ParseException
 	{
-		//args = new String[]{ "-h", "-a", "127.0.0.1", "-r", "Resources", "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
-		
 		// Parse the command options.
 		CmdLineParser.parseArgs( args, -1 );
 		

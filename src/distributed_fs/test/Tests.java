@@ -74,9 +74,9 @@ public class Tests
 		Thread.sleep( 2000 );
 		
 		testSingleClientOperations();
-		//stressTest();
-		//testAntiEntropy();
-		//testHintedHandoff();
+		stressTest();
+		testAntiEntropy();
+		testHintedHandoff();
 		
 		close();
 	}
@@ -172,11 +172,11 @@ public class Tests
 		
 		String file = "";
 		assertEquals( service.get( file ), service.getFile( file ) );
-		file = "./Resources/Images/photoshop.pdf";
 		System.out.println( "\n\n" );
 		
-		Thread.sleep( 1000 );
+		//Thread.sleep( 1000 );
 		
+		file = "./Resources/Images/photoshop.pdf";
 		assertEquals( service.put( file ), true );
 		System.out.println( "\n\n" );
 		
@@ -185,12 +185,12 @@ public class Tests
 		assertEquals( service.get( file ), service.getFile( file ) );
 		System.out.println( "\n\n" );
 		
-		Thread.sleep( 1000 );
+		//Thread.sleep( 1000 );
 		
 		assertEquals( service.get( file ), service.getFile( file ) );
 		System.out.println( "\n\n" );
 		
-		Thread.sleep( 1000 );
+		//Thread.sleep( 1000 );
 		
 		assertEquals( service.put( file ), true );
 		System.out.println( "\n\n" );
@@ -295,7 +295,7 @@ public class Tests
 		service.get( "" );
 		System.out.println( "\n\n" );
 		
-		Thread.sleep( 1000 );
+		//Thread.sleep( 1000 );
 		
 		service.put( "./Resources/Images/photoshop.pdf" );
 		System.out.println( "\n\n" );
@@ -314,6 +314,8 @@ public class Tests
 		
 		service.put( "./Resources/Test2.txt" );
 		System.out.println( "\n\n" );
+		
+		Thread.sleep( 1000 );
 		
 		service.put( "./Resources/test2.txt" );
 		System.out.println( "\n\n" );

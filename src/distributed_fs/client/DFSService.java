@@ -433,7 +433,7 @@ public class DFSService extends DFSManager implements IDFSService
 			database.saveFile( rFile, newClock, null, true );
 		}
 		catch( IOException | SQLException e ) {
-			e.printStackTrace();
+			//e.printStackTrace();
 			LOGGER.info( "Operation PUT not performed. Try again later." );
 			completed = false;
 			//if(session.isClosed())
@@ -504,24 +504,24 @@ public class DFSService extends DFSManager implements IDFSService
 		TCPSession remoteSession = null;
 		
 		try {
-			// send the request
 			/*byte[] msg = net.createMessage( new byte[]{ Utils.DELETE }, fileName.getBytes(), true );
 			msg = net.createMessage( msg, Utils.serializeObject( file ), true );
 			session.sendMessage( msg, true );*/
 			sendDeleteMessage( file );
 			
-			// checks whether the load balancer has founded an available node
+			// Checks whether the load balancer has founded an available node.
 			if(!checkResponse( session, "DELETE", false ))
 				throw new IOException();
 			
 			//session.close();
 			
-			// check whether the request has been forwarded to the storage node
+			// Check whether the request has been forwarded to the storage node.
 			if((remoteSession = waitRemoteConnection( "DELETE" )) == null ||
 			   !checkResponse( remoteSession, "DELETE", true ))
 				throw new IOException();
 			
-			// update its vector clock
+			// Update its vector clock.
+			// TODO ricevere il clock dallo storage node? forse si' cosi' almeno e' aggiornato correttamente
 			//String nodeId = Utils.bytesToHex( Utils.getNodeId( 0, session.getSrcAddress() ).array() );
 			//file.incrementVersion( remoteSession.getSrcAddress() );
 			database.removeFile( fileName, file.getVersion().incremented( remoteSession.getSrcAddress() ), true );

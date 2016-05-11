@@ -83,7 +83,6 @@ public class DFSDatabase
 		if(f.isDirectory() && !root.endsWith( "/" ))
 			root += "/";
 		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
-		System.out.println( "ROOT: " + root );
 		
 		if(!Utils.createDirectory( root )) {
 			throw new DFSException( "Invalid database path " + root + ".\n" +
@@ -285,9 +284,10 @@ public class DFSDatabase
 	/** 
 	 * Removes a file on database and on disk.
 	 * 
-	 * @param fileName			name of the file to remove
-	 * @param clock				actual version of the file
-	 * @param compareVersions	
+	 * @param fileName			name of the file to remove.
+	 * @param clock				actual version of the file.
+	 * @param compareVersions	{@code true} if the current version have to be compared
+	 * 							with the given one, {@code false} otherwise.
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
@@ -305,7 +305,7 @@ public class DFSDatabase
 		//System.out.println( "CLOCK: " + clock + ", MY_CLOCK: " + file.getVersion() );
 		
 		// Check whether the input version is newer than mine.
-		if(file == null || !resolveVersions( file.getVersion(), clock )) {
+		if(file == null || !compareVersions || !resolveVersions( file.getVersion(), clock )) {
 			if(file == null)
 				file = new DistributedFile( fileName, root, clock );
 			updated = clock;
@@ -326,7 +326,7 @@ public class DFSDatabase
 		
 		Utils.deleteFileOnDisk( root + file.getName() );
 	}
-
+	
 	/**
 	 * Resolve the (possible) inconsistency through the versions.
 	 * 
@@ -346,7 +346,6 @@ public class DFSDatabase
 		//VectorClockInconsistencyResolver<Integer> vecResolver = new VectorClockInconsistencyResolver<>();
 		//List<Versioned<Integer>> inconsistency = vecResolver.resolveConflicts( versions );
 		List<Versioned<Integer>> inconsistency = VersioningUtils.resolveVersions( versions );
-		System.out.println( "VERSIONS: " + inconsistency );
 		
 		if(inconsistency.size() == 1)
 			return inconsistency.get( 0 ).getValue() == 0;
