@@ -246,39 +246,38 @@ public class DFSDatabase
 					file.setDeleted( false );
 				
 				updated = clock;
-				
-				if(saveOnDisk) {
-					saveVersion( Utils.bytesToHex( fileId.array() ),
-								 Utils.serializeObject( file.getVersion() ),
-								 hintedHandoff, false, 0, true );
-					Utils.saveFileOnDisk( root + fileName, content );
-				}
-				
-				database.put( fileId, file );
-				if(hintedHandoff != null)
-					hhThread.saveFile( hintedHandoff, file );
+				doSave( file, content, hintedHandoff, fileId, saveOnDisk );
 			}
 		}
 		else {
 			updated = clock;
 			
-			if(saveOnDisk) {
-				saveVersion( Utils.bytesToHex( fileId.array() ),
-							 Utils.serializeObject( clock ),
-							 hintedHandoff, false, 0, false );
-				Utils.saveFileOnDisk( root + fileName, content );
-			}
-			
 			//file = new DistributedFile( fileName, root, clock, _fileMgr != null );
 			file = new DistributedFile( fileName, root, clock );
-			database.put( fileId, file );
-			if(hintedHandoff != null)
-				hhThread.saveFile( hintedHandoff, file );
+			doSave( file, content, hintedHandoff, fileId, saveOnDisk );
 		}
 		
 		System.out.println( "UPDATED: " + updated );
 		
 		return updated;
+	}
+	
+	private void doSave( final DistributedFile file,
+						 final byte[] content,
+						 final String hintedHandoff,
+						 final ByteBuffer fileId,
+						 final boolean saveOnDisk ) throws SQLException, IOException
+	{
+		if(saveOnDisk) {
+			saveVersion( Utils.bytesToHex( fileId.array() ),
+						 Utils.serializeObject( file.getVersion() ),
+						 hintedHandoff, false, 0, false );
+			Utils.saveFileOnDisk( root + file.getName(), content );
+		}
+		
+		database.put( fileId, file );
+		if(hintedHandoff != null)
+			hhThread.saveFile( hintedHandoff, file );
 	}
 	
 	/** 
