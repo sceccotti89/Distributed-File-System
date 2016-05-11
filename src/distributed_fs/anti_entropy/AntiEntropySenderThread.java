@@ -34,6 +34,7 @@ import gossiping.GossipMember;
 public class AntiEntropySenderThread extends AntiEntropyThread
 {
 	private TCPSession session;
+	private MerkleTree m_tree = null;
 	private final HashSet<String> addresses = new HashSet<>();
 	
 	/** Updating timer. */

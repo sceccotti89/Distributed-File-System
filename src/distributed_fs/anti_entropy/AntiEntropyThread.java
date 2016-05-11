@@ -29,7 +29,6 @@ public abstract class AntiEntropyThread extends Thread
 	protected final ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected final FileManagerThread fMgr;
 	protected final DFSDatabase database;
-	protected MerkleTree m_tree = null;
 	protected final BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
 	protected final TCPnet Net;
 	protected GossipMember me;
