@@ -84,10 +84,6 @@ public class DFSDatabase
 			root += "/";
 		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
 		
-		//if(!root.startsWith( "/" ) && !root.startsWith( "./" ))
-			//root = "./" + root;
-		//root = new File( root ).getAbsolutePath();
-		//File f = new File( root = root.replace( "\\", "/" ) );
 		if(!Utils.createDirectory( root )) {
 			throw new DFSException( "Invalid database path " + root + "." +
 									"Make sure that the path is correct and that you have the permissions to create and execute it." );
@@ -115,7 +111,7 @@ public class DFSDatabase
 			fileName = fileName.substring( root.length() );
 			
 			ByteBuffer fileId = Utils.getId( fileName );
-			LOGGER.debug( "File: " + fileName + ", Directory: " + f.isDirectory() + ", Id: " + Utils.bytesToHex( fileId.array() ) );
+			//LOGGER.debug( "File: " + fileName + ", Directory: " + f.isDirectory() + ", Id: " + Utils.bytesToHex( fileId.array() ) );
 			
 			VectorClock clock = null;
 			boolean deleted = false;
@@ -146,7 +142,7 @@ public class DFSDatabase
 			
 			//DistributedFile file = new DistributedFile( fileName, root, clock, makeSignature );
 			DistributedFile file = new DistributedFile( fileName, root, clock );
-			//System.out.println( "LOADED: " + file );
+			LOGGER.debug( "LOADED: " + file );
 			file.setDeleted( deleted );
 			if(hintedHandoff != null && hhThread != null)
 				hhThread.saveFile( hintedHandoff, file );
@@ -235,7 +231,7 @@ public class DFSDatabase
 		ByteBuffer fileId = Utils.getId( fileName );
 		DistributedFile file = database.get( fileId );
 		
-		//LOGGER.debug( "OLD FILE: " + file );
+		LOGGER.debug( "OLD FILE: " + file );
 		
 		VectorClock updated = null;
 		
@@ -243,7 +239,6 @@ public class DFSDatabase
 			// Resolve the (possible) inconsistency through the versions.
 			//System.out.println( "MY_CLOCK: " + file.getVersion() + ", IN_CLOCK: " + clock );
 			if(!resolveVersions( file.getVersion(), clock )) {
-				//System.out.println( "SONO QUI!!" );
 				// The input version is newer than mine, then
 				// it will override the current one.
 				file.setVersion( clock );
@@ -643,7 +638,12 @@ public class DFSDatabase
 		}
 	}
 	
-	// TODO mettere qui dentro la classe VersioningDatabase??
+	/**
+	 * Class used to manage the read/write operations
+	 * into the versioning database.<br>
+	 * Each operation is lock-free, hence each of them
+	 * must be called from a thread-safe method.
+	*/
 	private static class VersioningDatabase
 	{
 		private final Connection conn;

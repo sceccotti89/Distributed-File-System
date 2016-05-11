@@ -357,20 +357,17 @@ public class Utils
 	 * 
 	 * @return the decompressed bytes array
 	*/
-	public static byte[] decompressData( final byte[] data )
+	public static byte[] decompressData( final byte[] data ) throws IOException
 	{
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		ByteArrayInputStream bais = new ByteArrayInputStream( data );
 
-		try{
-			GZIPInputStream zis = new GZIPInputStream( bais );
-			byte[] tmpBuffer = new byte[256];
-			int n;
-			while((n = zis.read( tmpBuffer )) >= 0)
-				baos.write( tmpBuffer, 0, n );
-			zis.close();
-		}
-		catch( IOException e ){ return null; }
+		GZIPInputStream zis = new GZIPInputStream( bais );
+		byte[] tmpBuffer = new byte[256];
+		int n;
+		while((n = zis.read( tmpBuffer )) >= 0)
+			baos.write( tmpBuffer, 0, n );
+		zis.close();
 
 		return baos.toByteArray();
 	}

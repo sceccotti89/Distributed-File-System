@@ -34,6 +34,7 @@ import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.net.messages.Metadata;
 import distributed_fs.utils.CmdLineParser;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
@@ -63,19 +64,19 @@ public class StorageNode extends DFSnode
 	 * If you can't provide a configuration file,
 	 * the list of nodes should be passed as arguments.
 	 * 
+	 * @param address				the ip address. If {@code null} it will be taken using the configuration file parameters.
 	 * @param startupMembers		list of nodes
 	 * @param resourcesLocation		the root where the resources are taken from.
 	 * 								If {@code null} the default one will be selected ({@link Utils#RESOURCE_LOCATION});
 	 * @param databaseLocation		the root where the database is located.
 	 * 								If {@code null} the default one will be selected ({@link Utils#});
 	*/
-	// TODO inserire anche il resource location e il database location tra i possibili input
-	// TODO inserire indirizzo IP?
-	public StorageNode( final List<GossipMember> startupMembers,
+	public StorageNode( final String address,
+						final List<GossipMember> startupMembers,
 						final String resourcesLocation,
 						final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
 	{
-		super( GossipMember.STORAGE, startupMembers );
+		super( GossipMember.STORAGE, address, startupMembers );
 		
 		if(runner != null) {
 			me = runner.getGossipService().getGossipManager().getMyself();
@@ -206,6 +207,9 @@ public class StorageNode extends DFSnode
 			byte opType = data.getType();
 			String fileName = data.getFileName();
 			boolean isCoordinator = data.startQuorum();
+			
+			Metadata meta = data.getMetadata();
+			
 			LOGGER.debug( "[SN] Received: " + getCodeString( opType ) + ":" + isCoordinator );
 			
 			if(!isCoordinator) // GET operation
@@ -213,7 +217,7 @@ public class StorageNode extends DFSnode
 			else {
 				// the connection with the client must be estabilished before the quorum
 				//openClientConnection( data );
-				openClientConnection( data.getClientAddress() );
+				openClientConnection( meta.getClientAddress() );
 				
 				// Get the destination id, since it can be a virtual node.
 				//destId = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
@@ -236,7 +240,7 @@ public class StorageNode extends DFSnode
 				}
 				else {
 					if(opType != Message.GET) {
-						LOGGER.info( "[SN] Quorum completed succesfully: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
+						LOGGER.info( "[SN] Quorum completed successfully: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
 						quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
 						//quorum_t.closeQuorum( new ArrayList<>( agreedNodes ) );
 						
@@ -260,7 +264,7 @@ public class StorageNode extends DFSnode
 					RemoteFile file = new RemoteFile( data.getData() );
 					
 					// get (if present) the hinted handoff address
-					String hintedHandoff = data.getHintedHandoff();
+					String hintedHandoff = meta.getHintedHandoff();
 					
 					LOGGER.debug( "PUT: " + file.getName() + ":" + hintedHandoff );
 					
@@ -306,8 +310,9 @@ public class StorageNode extends DFSnode
 			
 			// Send, in parallel, the file to the replica nodes.
 			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, fMgr.getDatabase().getFileSystemRoot() ) );
-			for(QuorumNode qNode : agreedNodes) {
-				qNode.addList( agreedNodes );
+			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
+				//qNode.addList( agreedNodes );
+				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
 				fMgr.sendFiles( node.getPort() + 1/*, Message.PUT*/, files, node.getHost(), false, null, qNode );
 			}
@@ -321,7 +326,7 @@ public class StorageNode extends DFSnode
 			// to retrieve their version of the file and make the reconciliation.
 			List<TCPSession> openSessions = sendRequestToReplicaNodes( fileName );
 			
-			// the replica files can be less than the quorum
+			// The replica files can be less than the quorum.
 			LOGGER.info( "Receive the files from the replica nodes..." );
 			HashMap<RemoteFile, byte[]> filesToSend = new HashMap<>( QuorumSystem.getMaxNodes() + 1 );
 			int errors = 0;
@@ -360,7 +365,7 @@ public class StorageNode extends DFSnode
 			
 			//quorum_t.closeQuorum( agreedNodes );
 			
-			// put in the list the file present in the database of this node
+			// Put in the list the file present in the database of this node.
 			DistributedFile dFile = fMgr.getDatabase().getFile( Utils.getId( fileName ) );
 			if(dFile != null) {
 				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
@@ -373,7 +378,7 @@ public class StorageNode extends DFSnode
 			List<RemoteFile> reconciledFiles = makeReconciliation( filesToSend );
 			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
 			
-			// send the files directly to the client
+			// Send the files directly to the client.
 			/*session.sendMessage( Utils.intToByteArray( reconciledFiles.size() ), false );
 			for(int i = 0; i < reconciledFiles.size(); i++) {
 				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
@@ -485,8 +490,9 @@ public class StorageNode extends DFSnode
 			
 			// Send, in parallel, the DELETE request to all the agreed nodes.
 			List<DistributedFile> files = Collections.singletonList( file );
-			for(QuorumNode qNode : agreedNodes) {
-				qNode.addList( agreedNodes );
+			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
+				//qNode.addList( agreedNodes );
+				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
 				fMgr.sendFiles( node.getPort() + 1/*, Message.DELETE*/, files, node.getHost(), false, null, qNode );
 			}
@@ -561,6 +567,14 @@ public class StorageNode extends DFSnode
 		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
 	}
 	
+	/**
+	 * Sets the locked state for a given file.
+	 * 
+	 * @param blocked	{@code true} for locking state, {@code false} otherwise
+	 * @param fileName	name of the file
+	 * @param id		id of the quorum
+	 * @param opType	operation type
+	*/
 	public void setBlocked( final boolean blocked, final String fileName, final long id, final byte opType )
 	{
 		synchronized ( quorum_t.fileLock ) {
@@ -736,17 +750,20 @@ public class StorageNode extends DFSnode
 			
 			// Wake-up the timer every BLOCKED_TIME milliseconds,
 			// and update the TimeToLive of each locked file.
+			// If the TTL reachs 0, the file is removed from queue.
 			timer = new Timer( BLOCKED_TIME, new ActionListener() {
 				@Override
 				public void actionPerformed( final ActionEvent e )
 				{
 					if(!shutDown) {
-						Iterator<QuorumFile> it = fileLock.values().iterator();
-						while(it.hasNext()) {
-							QuorumFile qFile = it.next();
-							qFile.updateTTL( BLOCKED_TIME );
-							if(qFile.toDelete())
-								it.remove();
+						synchronized ( fileLock ) {
+							Iterator<QuorumFile> it = fileLock.values().iterator();
+							while(it.hasNext()) {
+								QuorumFile qFile = it.next();
+								qFile.updateTTL( BLOCKED_TIME );
+								if(qFile.toDelete())
+									it.remove();
+							}
 						}
 					}
 				}
@@ -944,7 +961,9 @@ public class StorageNode extends DFSnode
 					if(data.get() == ACCEPT_QUORUM_REQUEST) {
 						LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
 						// Not blocked => agree to the quorum.
-						agreedNodes.add( new QuorumNode( node, fileName, opType, data.getLong() ) );
+						QuorumNode qNode = new QuorumNode( node, fileName, opType, data.getLong() );
+						qNode.addList( agreedNodes );
+						agreedNodes.add( qNode );
 						QuorumSystem.saveState( agreedNodes );
 					}
 					else {
@@ -1041,10 +1060,12 @@ public class StorageNode extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		List<GossipMember> members = null;
+		//args = { "-a", "127.0.0.1", "-n", "-r", "./Resources", "-d", "./Database/DFSdatabase", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
 		CmdLineParser.parseArgs( args );
-		members = CmdLineParser.getNodes( "n" );
 		
-		new StorageNode( members, null, null );
+		String ipAddress = CmdLineParser.getIpAddress();
+		List<GossipMember> members = CmdLineParser.getNodes();
+		
+		new StorageNode( ipAddress, members, null, null );
 	}
 }

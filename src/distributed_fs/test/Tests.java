@@ -4,10 +4,15 @@
 
 package distributed_fs.test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -19,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import org.apache.log4j.BasicConfigurator;
 import org.json.JSONException;
@@ -39,6 +46,12 @@ import distributed_fs.utils.Utils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
+import jline.ArgumentCompletor;
+import jline.ClassNameCompletor;
+import jline.Completor;
+import jline.ConsoleReader;
+import jline.FileNameCompletor;
+import jline.SimpleCompletor;
 
 public class Tests
 {
@@ -51,29 +64,97 @@ public class Tests
 	private static final int NUMBER_OF_BALANCERS = 2;
 	private static final int NUMBER_OF_NODES = 5;
 	
-	public static void main( final String[] args ) throws Exception
+	public static void usage() {
+        System.out.println("Usage: java " + Tests.class.getName()
+                + " [none/simple/files/dictionary [trigger mask]]");
+        System.out.println("  none - no completors");
+        System.out.println("  simple - a simple completor that comples "
+                + "\"foo\", \"bar\", and \"baz\"");
+        System.out
+                .println("  files - a completor that comples " + "file names");
+        System.out.println("  dictionary - a completor that comples "
+                + "english dictionary words");
+        System.out.println("  classes - a completor that comples "
+                + "java class names");
+        System.out
+                .println("  trigger - a special word which causes it to assume "
+                        + "the next line is a password");
+        System.out.println("  mask - is the character to print in place of "
+                + "the actual password character");
+        System.out.println("\n  E.g - java Example simple su '*'\n"
+                + "will use the simple compleator with 'su' triggering\n"
+                + "the use of '*' as a password mask.");
+    }
+	
+	public static void main( String[] args ) throws Exception
 	{
-		/*VectorClock clock = new VectorClock();
-		for(int i = 0; i < 4000000; i++)
-			clock.incrementVersion( "" + i );
-		
-		/*RemoteFile file = new RemoteFile( "test2.txt", clock, false, false, "./Resources/" );
-		System.out.println( "FILE: " + file + "\nTHEN: " + new RemoteFile( file.read() ) );
-		System.out.println( "SIZE_READ: " + file.read().length );
-		System.out.println( "SIZE_SRLZ: " + Utils.serializeObject( file ).length );*/
-		/*DistributedFile file = new DistributedFile( "test2.txt", "./Resources/", clock );
-		file.setHintedHandoff( "pippo" );
-		file.setDeleted( true );
-		System.out.println( "FILE: " + file + "\nTHEN: " + new DistributedFile( file.read() ) );
-		System.out.println( "SIZE_READ: " + file.read().length );
-		System.out.println( "SIZE_SRLZ: " + Utils.serializeObject( file ).length );
-		
-		System.out.println( "CLOCK: " + clock );
-		//clock = new VectorClock( clock.read() );
-		System.out.println( "CLOCK: " + Utils.serializeObject( clock ).length );
-		//System.out.println( "SIZE: " + Utils.serializeObject( clock ).length );*/
-		// TODO testare la dimensione di un messaggio prima e dopo la nuova super sofisticata interfaccia
-		
+		Character mask = null;
+        String trigger = null;
+        
+        ConsoleReader reader = new ConsoleReader();
+        reader.setBellEnabled(false);
+        reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)));
+        	
+        args = new String[]{ "simple" };
+        
+        if ((args == null) || (args.length == 0)) {
+            usage();
+            
+            return;
+        }
+        
+        List<Completor> completors = new LinkedList<>();
+        
+        if (args.length > 0) {
+            if (args[0].equals("none")) {
+            } else if (args[0].equals("files")) {
+                completors.add(new FileNameCompletor());
+            } else if (args[0].equals("classes")) {
+                completors.add(new ClassNameCompletor());
+            } else if (args[0].equals("dictionary")) {
+                completors.add(new SimpleCompletor(new GZIPInputStream(
+                        Tests.class.getResourceAsStream("english.gz"))));
+            } else if (args[0].equals("simple")) {
+                completors.add(new SimpleCompletor( new String[] { "put", "get", "delete", "list" } ));
+                
+                DFSDatabase database = new DFSDatabase( null, null, null );
+                List<DistributedFile> files = database.getAllFiles();
+                String[] nameFiles = new String[files.size()];
+                System.out.println( "FILE: " );
+                int i = 0;
+                for(DistributedFile file : files)
+                	nameFiles[i++] = file.getName();
+                completors.add(new SimpleCompletor( nameFiles ));
+            } else {
+                usage();
+
+                return;
+            }
+        }
+        
+        if (args.length == 3) {
+            mask = new Character(args[2].charAt(0));
+            trigger = args[1];
+        }
+        
+        reader.addCompletor(new ArgumentCompletor(completors));
+        
+        String line;
+        PrintWriter out = new PrintWriter(System.out);
+        
+        while ((line = reader.readLine("prompt> ")) != null) {
+            out.println("======>\"" + line + "\"");
+            out.flush();
+            
+            // If we input the special word then we will mask
+            // the next line.
+            if ((trigger != null) && (line.compareTo(trigger) == 0)) {
+                line = reader.readLine("password> ", mask);
+            }
+            if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) {
+                break;
+            }
+        }
 		
 		new Tests();
 	}
@@ -83,7 +164,7 @@ public class Tests
 		testDatabase();
 		
 		// First test when the service is down.
-		DFSService service = new DFSService( null, null, null );
+		DFSService service = new DFSService( myIpAddress, 0, null, null, null, null );
 		assertFalse( service.start() );
 		service.shutDown();
 		
@@ -92,9 +173,9 @@ public class Tests
 		Thread.sleep( 2000 );
 		
 		testSingleClientOperations();
-		stressTest();
-		testAntiEntropy();
-		testHintedHandoff();
+		//stressTest();
+		//testAntiEntropy();
+		//testHintedHandoff();
 		
 		close();
 	}
@@ -175,7 +256,7 @@ public class Tests
 		int port = 9000;
 		services = new ArrayList<>( numClients );
 		for(int i = 0; i < numClients; i++) {
-			DFSService service = new DFSService( address, port + i, members, null, null );
+			DFSService service = new DFSService( address, port + i, members, null, null, null );
 			services.add( service );
 			assertTrue( service.start() );
 		}

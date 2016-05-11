@@ -29,7 +29,6 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.utils.Utils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
-import gossiping.RemoteGossipMember;
 
 public class DFSService extends DFSManager implements IDFSService
 {
@@ -43,27 +42,31 @@ public class DFSService extends DFSManager implements IDFSService
 	/** Decide whether the service is closed or not. */
 	private boolean closed = false;
 	private boolean testing = false;
+	private DBListener listener;
 	
-	private static final long KEEP_ALIVE = 1000;
-	private long timer = KEEP_ALIVE;
-	private long timestamp = System.currentTimeMillis();
+	//private static final long KEEP_ALIVE = 1000;
+	//private long timer = KEEP_ALIVE;
+	//private long timestamp = System.currentTimeMillis();
 	
 	private static final Scanner SCAN = new Scanner( System.in );
 	
-	// TODO aggiungere una struttura che tenga conto dei load balancers offline
-	// TODO aggiornare ogni volta che una connessione viene fatta o rifiutata
-	
 	//private static final int CHECK_TIMER = 30000; // Time to wait before to check the database (30 seconds).
 	
-	public DFSService( final List<GossipMember> members,
+	public DFSService( final String ipAddress,
+					   final int port,
+					   final List<GossipMember> members,
 					   final String resourcesLocation,
-					   final String databaseLocation ) throws IOException, JSONException, DFSException
+					   final String databaseLocation,
+					   final DBListener listener ) throws IOException, JSONException, DFSException
 	{
 		super( members );
 		
-		//net = new TCPnet( _address, port );
-		net = new TCPnet( address, Utils.SERVICE_PORT );
+		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
+		
+		net = new TCPnet( address, this.port );
 		net.setSoTimeout( 5000 );
+		
+		this.listener = listener;
 		
 		random = new Random();
 		database = new DFSDatabase( resourcesLocation, databaseLocation, null );
@@ -71,7 +74,7 @@ public class DFSService extends DFSManager implements IDFSService
 		Runtime.getRuntime().addShutdownHook( new Thread()
 		{
 			@Override
-			public void run() 
+			public void run()
 			{
 				shutDown();
 				LOGGER.info( "Service has been shutdown..." );
@@ -80,7 +83,7 @@ public class DFSService extends DFSManager implements IDFSService
 	}
 	
 	/** Testing. */
-	public DFSService( final String address,
+	/*public DFSService( final String address,
 					   final int port,
 					   final List<GossipMember> members,
 					   final String resourcesLocation,
@@ -98,13 +101,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		random = new Random();
 		database = new DFSDatabase( resourcesLocation, databaseLocation, null );
-		
-		loadBalancers.clear();
-		for(GossipMember member : members) {
-			if(member.getNodeType() == GossipMember.LOAD_BALANCER)
-				loadBalancers.add( new RemoteGossipMember( member.getHost(), member.getPort(), "", 0, GossipMember.LOAD_BALANCER ) );
-		}
-	}
+	}*/
 	
 	/**
 	 * Starts the service.
@@ -124,8 +121,8 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		client.checkFiles( files );
 		syncClient.start();*/
-		session = contactLoadBalancerNode( false );
-		if(session == null)
+		//session = contactLoadBalancerNode();
+		if(!contactLoadBalancerNode())
 			return false;
 		
 		LOGGER.info( "System up." );
@@ -235,13 +232,15 @@ public class DFSService extends DFSManager implements IDFSService
 		RemoteFile toWrite;
 		DistributedFile backToClient;
 		
-		if(session == null || session.isClosed()) {
-			session = contactLoadBalancerNode( false );
-			if(session == null)
-			//System.err.println( "The service for operation GET '" + fileName + "' is closed: " + session );
-			//LOGGER.error( "The service is closed. Try again later." );
+		/*if(!testConnection()) {
+			session = contactLoadBalancerNode();
+			if(session == null) {
+				LOGGER.info( "Sorry, but the service is down. Try again later." );
 				return null;
-		}
+			}
+		}*/
+		if(!contactLoadBalancerNode())
+			return null;
 		
 		TCPSession remoteSession = null;
 		
@@ -307,8 +306,10 @@ public class DFSService extends DFSManager implements IDFSService
 		catch( IOException | SQLException e ) {
 			LOGGER.info( "Operation GET not performed. Try again later." );
 			//e.printStackTrace();
-			if(!session.isClosed())
-				session.close();
+			//if(session.isClosed())
+				//closed = true;
+			//if(!session.isClosed())
+				//session.close();
 			
 			if(remoteSession != null)
 				remoteSession.close();
@@ -388,13 +389,15 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		file.setDeleted( false );
 		
-		if(session == null || session.isClosed()) {
-			session = contactLoadBalancerNode( false );
-			if(session == null)
-			//System.err.println( "The service for operation PUT '" + fileName + "' is closed: " + session );
-			//LOGGER.error( "The service is closed. Try again later." );
+		/*if(!testConnection()) {
+			session = contactLoadBalancerNode();
+			if(session == null) {
+				LOGGER.info( "Sorry, but the service is down. Try again later." );
 				return false;
-		}
+			}
+		}*/
+		if(!contactLoadBalancerNode())
+			return false;
 		
 		boolean completed = true;
 		TCPSession remoteSession = null;
@@ -423,22 +426,26 @@ public class DFSService extends DFSManager implements IDFSService
 			   !checkResponse( remoteSession, "PUT", true ))
 				throw new IOException();
 			
-			// update its vector clock
-			//String nodeId = Utils.bytesToHex( Utils.getNodeId( 0, session.getSrcAddress() ).array() );
-			//rFile.incrementVersion( remoteSession.getSrcAddress() );
+			// Update its vector clock.
+			// TODO ricevere il clock dallo storage node? forse si' cosi' almeno e' aggiornato correttamente
+			//VectorClock newClock = Utils.deserializeObject( session.receiveMessage() );
 			VectorClock newClock = rFile.getVersion().incremented( remoteSession.getSrcAddress() );
-			database.saveFile( rFile, newClock, null, false );
+			database.saveFile( rFile, newClock, null, true );
 		}
 		catch( IOException | SQLException e ) {
-			//e.printStackTrace();
+			e.printStackTrace();
 			LOGGER.info( "Operation PUT not performed. Try again later." );
 			completed = false;
-			if(!session.isClosed())
-				session.close();
+			//if(session.isClosed())
+				//closed = true;
+			//session.close();
 		}
 		
-		if(completed)
+		if(completed) {
 			LOGGER.info( "Operation PUT successfully completed." );
+			if(listener != null)
+				listener.dbEvent( fileName, Message.GET );
+		}
 		
 		if(remoteSession != null)
 			remoteSession.close();
@@ -484,13 +491,15 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "starting DELETE operation for: " + fileName );
 		
-		if(session == null || session.isClosed()) {
-			session = contactLoadBalancerNode( true );
-			if(session == null)
-			//System.err.println( "The service for operation DELETE '" + fileName + "' is closed: " + session );
-			//LOGGER.error( "The service is closed. Try again later." );
+		/*if(!testConnection()) {
+			session = contactLoadBalancerNode();
+			if(session == null) {
+				LOGGER.info( "Sorry, but the service is down. Try again later." );
 				return false;
-		}
+			}
+		}*/
+		if(!contactLoadBalancerNode())
+			return false;
 		
 		TCPSession remoteSession = null;
 		
@@ -521,14 +530,18 @@ public class DFSService extends DFSManager implements IDFSService
 			//e.printStackTrace();
 			LOGGER.info( "Operation DELETE not performed. Try again later." );
 			completed = false;
-			if(!session.isClosed())
-				session.close();
+			//if(session.isClosed())
+				//closed = true;
+			//if(!session.isClosed())
+				//session.close();
 		}
 		
 		if(remoteSession != null)
 			remoteSession.close();
 		
 		LOGGER.info( "DELETE operation for \"" + fileName + "\" completed successfully." );
+		if(listener != null)
+			listener.dbEvent( fileName, Message.GET );
 		
 		//session.close();
 		
@@ -540,18 +553,40 @@ public class DFSService extends DFSManager implements IDFSService
 	{
 		return database.getAllFiles();
 	}
-
+	
+	/**
+	 * Tests whether the connection
+	 * is still alive.
+	*/
+	private boolean testConnection()
+	{
+		if(session != null && !session.isClosed()) {
+			try {
+				session.setSoTimeout( 50 );
+				session.receiveMessage();
+				session.setSoTimeout( 0 );
+			} catch( IOException e ) { return false; }
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
 	/**
 	 * Try a connection with the first available load balancer node.
 	 * 
 	 * @return the remote connection if at least one remote node is available,
 	 * 		   {@code null} otherwise.
 	*/
-	private TCPSession contactLoadBalancerNode( final boolean persistent )
+	private boolean contactLoadBalancerNode()
 	{
+		if(testConnection())
+			return true;
+		
 		LOGGER.info( "Contacting a remote node..." );
 		
-		TCPSession session = null;
+		session = null;
 		HashSet<String> filterAddress = new HashSet<>();
 		List<GossipMember> nodes = new ArrayList<>( loadBalancers );
 		
@@ -575,19 +610,20 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		
 		if(session == null)
-			LOGGER.error( "The service is not available. Retry later." );
+			LOGGER.error( "Sorry, but the service is not available. Retry later." );
 		else {
 			MessageRequest message = new MessageRequest( Message.HELLO );
-			message.setClientAddress( this.address + ":" + this.port );
+			//message.setClientAddress( this.address + ":" + this.port );
+			message.putMetadata( this.address + ":" + this.port, null );
 			try {
 				session.sendMessage( message, true );
+				return true;
 			} catch( IOException e ) {
-				e.printStackTrace();
-				return null;
+				//e.printStackTrace();
 			}
 		}
 		
-		return session;
+		return false;
 	}
 	
 	/**
@@ -621,22 +657,26 @@ public class DFSService extends DFSManager implements IDFSService
 		return nodes.get( randomNeighborIndex );
 	}
 	
+	public static interface DBListener
+	{
+		public void dbEvent( final String fileName, final byte code );
+	}
+	
 	/**
 	 * Returns the state of the system
 	 * 
-	 * @return {@code true} if the system is up,
+	 * @return {@code true} if the system is down,
 	 * 		   {@code false} otherwise.
 	*/
 	public boolean isClosed()
 	{
-		if(!closed && session != null && !session.isClosed()) {
+		/*if(!closed && session != null && !session.isClosed()) {
 			
 			long currTime = System.currentTimeMillis();
 			timer = timer - (currTime - timestamp);
 			timestamp = currTime;
 			
-			// TODO se pero' sta eseguendo un'operazione non fa il controllo
-			if(/*!computing && */timer <= 0) {
+			if(!computing && timer <= 0) {
 				try {
 					session.sendMessage( new MessageRequest( Message.KEEP_ALIVE ), true );
 					timer = KEEP_ALIVE;
@@ -646,7 +686,7 @@ public class DFSService extends DFSManager implements IDFSService
 					closed = true;
 				}
 			}
-		}
+		}*/
 		
 		return closed;
 	}
@@ -665,6 +705,8 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		if(!testing)
 			database.shutdown();
+		
+		closed = true;
 		
 		LOGGER.info( "The service is closed." );
 	}

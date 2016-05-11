@@ -20,6 +20,7 @@ import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.net.messages.Metadata;
 import distributed_fs.utils.CmdLineParser;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
@@ -36,20 +37,22 @@ public class LoadBalancer extends DFSnode
 	private String clientAddress;
 	// =========================================== //
 	
-	// TODO inserire anche un indirizzo IP?
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
 	 * the list of nodes should be passed as arguments.
 	 * 
+	 * @param ipAddress			the ip address. If {@code null} it will be taken using the configuration file parameters.
 	 * @param port				port used to receive incoming requests.
 	 * 							If the value is less or equal than 0,
 	 * 							then the default one will be chosed ({@link Utils#SERVICE_PORT});
 	 * @param startupMembers	list of nodes
 	*/
-	public LoadBalancer( final int port, final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
+	public LoadBalancer( final String ipAddress,
+						 final int port,
+						 final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
 	{
-		super( GossipMember.LOAD_BALANCER, startupMembers ); 
+		super( GossipMember.LOAD_BALANCER, ipAddress, startupMembers ); 
 		
 		if(startupMembers != null) {
 			// Start the gossiping from the input list.
@@ -148,10 +151,13 @@ public class LoadBalancer extends DFSnode
 				MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
 				// get the operation type
 				byte opType = data.getType();
+				
+				// TODO i keep alive potrebbero non servire
 				if(opType == Message.KEEP_ALIVE)
 					continue; // Ignore the keep alive messages.
+				
 				if(opType == Message.HELLO) {
-					clientAddress = data.getClientAddress();
+					clientAddress = data.getMetadata().getClientAddress();
 					LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
 					continue;
 				}
@@ -362,30 +368,32 @@ public class LoadBalancer extends DFSnode
 	{
 		MessageRequest message;
 		
-		if(opType == Message.GET_ALL) {
+		/*if(opType == Message.GET_ALL) {
 			message = new MessageRequest( opType, null, null, false, null, clientAddress, null );
 		}
-		else {
+		else {*/
 			if(opType != Message.GET) {
 				// PUT and DELETE operations
-				message = new MessageRequest( opType, fileName, file, true, destId, clientAddress, hintedHandoff );
+				message = new MessageRequest( opType, fileName, file, true, destId, new Metadata( clientAddress, hintedHandoff ) );
 			}
 			else {
 				// GET operation
-				message = new MessageRequest( opType, fileName, null, true, destId, clientAddress, null );
+				message = new MessageRequest( opType, fileName, null, true, destId, new Metadata( clientAddress, null ) );
 			}
-		}
+		//}
 		
 		session.sendMessage( Utils.serializeObject( message ), true );
 	}
 	
 	public static void main( String args[] ) throws Exception
 	{
-		List<GossipMember> members = null;
-		//String[] test = { "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
+		//args = { "-a", "127.0.0.1", "-p", "4000", "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
 		CmdLineParser.parseArgs( args );
-		members = CmdLineParser.getNodes( "n" );
 		
-		new LoadBalancer( 0, members );
+		String ipAddress = CmdLineParser.getIpAddress();
+		int port = CmdLineParser.getPort();
+		List<GossipMember> members = CmdLineParser.getNodes();
+		
+		new LoadBalancer( ipAddress, port, members );
 	}
 }

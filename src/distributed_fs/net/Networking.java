@@ -16,6 +16,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import distributed_fs.net.messages.Message;
 import distributed_fs.utils.Utils;
@@ -60,7 +62,7 @@ public class Networking
 		
 		return buffer.array();
 	}
-
+	
 	public class TCPSession implements Closeable
 	{
 		private final DataInputStream in;
@@ -90,6 +92,17 @@ public class Networking
 		public Socket getSocket(){ return socket; }
 		public String getSrcAddress(){ return srcAddress; }
 		public boolean isClosed() { return close; }
+		
+		/**
+		 * Enable/disable {@code SO_TIMEOUT} with the specified timeout, in milliseconds.
+		 * With this option set to a non-zero timeout, a call to accept() for this ServerSocket will block for only this amount of time. 
+		 * If the timeout expires, a java.net.SocketTimeoutException is raised, though the ServerSocket is still valid.
+		 * The option must be enabled prior to entering the blocking operation to have effect.
+		 * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
+		*/
+		public void setSoTimeout( final int timeout ) throws IOException {
+			socket.setSoTimeout( timeout );
+		}
 		
 		/** 
 		 * Sends a new message.
@@ -139,6 +152,7 @@ public class Networking
 				out.flush();
 			}
 			catch( IOException e ) {
+				e.printStackTrace();
 				close();
 				throw e;
 			}
@@ -149,49 +163,44 @@ public class Networking
 		*/
 		public byte[] receiveMessage() throws IOException
 		{
-			int size = in.readInt();
-			//System.out.println( "Read: " + data.length + " bytes" );
-			boolean decompress = (in.read() == (byte) 0x1);
-			
-			byte[] data = doRead( size );
-			
-			if(decompress)
-				return Utils.decompressData( data );
-			else
-				return data;
-		}
-		
-		private byte[] doRead( final int size ) throws IOException
-		{
-			byte[] data = new byte[size];
-			
 			try {
+				int size = in.readInt();
+				//System.out.println( "Read: " + data.length + " bytes" );
+				boolean decompress = (in.read() == (byte) 0x1);
+			
+				byte[] data = new byte[size];
+				
 				int current = 0;
 				while(current < size) {
 					int bytesRead = in.read( data, current, (size - current) );
 					if(bytesRead >= 0)
 						current += bytesRead;
 				}
+				
+				if(decompress)
+					return Utils.decompressData( data );
+				else
+					return data;
 			}
 			catch( IOException e ) {
 				close();
 				throw e;
 			}
-			
-			return data;
 		}
 		
 		@Override
 		public void close()
 		{
-			try {
-				in.close();
-				out.close();
-				socket.close();
+			if(!close) {
+				try {
+					in.close();
+					out.close();
+					socket.close();
+				}
+				catch( IOException e ){}
+				
+				close = true;
 			}
-			catch( IOException e ){}
-			
-			close = true;
 		}
 	}
 	
@@ -199,6 +208,8 @@ public class Networking
 	{
 		private ServerSocket servSocket;
 		private int soTimeout = 0;
+		/** Keep track of all the opened TCP sessions. */ 
+		private List<TCPSession> sessions = new ArrayList<>( 32 );
 		
 		public TCPnet() {}
 		
@@ -259,7 +270,10 @@ public class Networking
 			DataInputStream in = new DataInputStream( socket.getInputStream() );
 			DataOutputStream out = new DataOutputStream( socket.getOutputStream() );
 			
-			return new TCPSession( in, out, socket, srcAddress );
+			TCPSession session = new TCPSession( in, out, socket, srcAddress );
+			sessions.add( session );
+			
+			return session;
 		}
 		
 		/**
@@ -299,39 +313,19 @@ public class Networking
 			return new TCPSession( in, out, socket );
 		}
 
-		/**
-		 * Close the whole communication.
-		*/
+		@Override
 		public void close()
 		{
 			try {
+				for(TCPSession session : sessions)
+					session.close();
+				
 				if(servSocket != null)
 					servSocket.close();
 			}
 			catch( IOException e ){}
 		}
 	}
-	
-	/*public static class UDPSession implements Closeable
-	{
-		private DatagramSocket socket;
-		
-		public UDPSession( final DatagramSocket socket )
-		{
-			this.socket = socket;
-		}
-		
-		public void sendMessage()
-		{
-			
-		}
-
-		@Override
-		public void close() throws IOException
-		{
-			
-		}
-	}*/
 	
 	public static class UDPnet extends Networking implements Closeable
 	{

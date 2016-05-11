@@ -72,10 +72,16 @@ public class DFSManager
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
 		address = this.getNetworkAddress( inet, IPversion );
 		
-		if(members != null)
-			loadBalancers = new ArrayList<>( members );
+		if(members != null) {
+			// Get the load balancer nodes from the given list.
+			loadBalancers = new ArrayList<>( members.size() );
+			for(GossipMember member : members) {
+				if(member.getNodeType() == GossipMember.LOAD_BALANCER)
+					loadBalancers.add( new RemoteGossipMember( member.getHost(), member.getPort(), "", 0, GossipMember.LOAD_BALANCER ) );
+			}
+		}
 		else {
-			// get the load balancer nodes
+			// Get the load balancer nodes from the configuration file.
 			JSONArray nodes = file.getJSONArray( "members" );
 			loadBalancers = new ArrayList<>( nodes.length() );
 			for(int i = 0; i < nodes.length(); i++) {

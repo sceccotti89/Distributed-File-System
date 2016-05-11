@@ -26,8 +26,11 @@ public class CmdLineParser
 	private static CommandLine cmd = null;
 	private static Options options = new Options();
 	
+	private static final String PORT = "p", ADDRESS = "a", NODES = "n", RESOURCES = "r", DATABASE = "d";
+	
 	public static void parseArgs( final String[] args ) throws ParseException
 	{
+		// TODO sistemare l'help.
 		options.addOption( "h", "help", false, "Show help." );
 		options.addOption( "n", "node", true, "Add a new node in the format hostname:port:nodeType." );
 		
@@ -35,18 +38,50 @@ public class CmdLineParser
 		cmd = parser.parse( options, args );
 	}
 	
-	public static List<GossipMember> getNodes( final String option ) throws ParseException
+	public static String getIpAddress()
 	{
-		if(!cmd.hasOption( option )) {
+		if(!cmd.hasOption( ADDRESS ))
+			return null;
+		
+		return cmd.getOptionValue( ADDRESS );
+	}
+	
+	public static int getPort()
+	{
+		if(!cmd.hasOption( PORT ))
+			return -1;
+		
+		return Integer.parseInt( cmd.getOptionValue( PORT ) );
+	}
+	
+	public static List<GossipMember> getNodes() throws ParseException
+	{
+		if(!cmd.hasOption( NODES )) {
 			//help();
 			//throw new ParseException( "Invalid option '-" + option + "'." );
 			return null;
 		}
 		
-		String[] nodes = cmd.getOptionValues( option );
+		String[] nodes = cmd.getOptionValues( NODES );
 		return parseNodes( nodes );
 	}
 	
+	public static String getResourceLocation()
+	{
+		if(!cmd.hasOption( RESOURCES ))
+			return null;
+		
+		return cmd.getOptionValue( RESOURCES );
+	}
+	
+	public static String getDatabaseLocation()
+	{
+		if(!cmd.hasOption( DATABASE ))
+			return null;
+		
+		return cmd.getOptionValue( DATABASE );
+	}
+
 	private static List<GossipMember> parseNodes( final String[] nodes ) throws ParseException
 	{
 		List<GossipMember> members = new ArrayList<>( nodes.length );

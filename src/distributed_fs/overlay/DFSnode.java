@@ -63,8 +63,12 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected static final int WAIT_CLOSE = 2000;
 	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
 	
-	public DFSnode( final int nodeType, final List<GossipMember> startupMembers ) throws IOException, JSONException
+	public DFSnode( final int nodeType,
+					final String address,
+					final List<GossipMember> startupMembers ) throws IOException, JSONException
 	{
+		_address = address;
+		
 		setConfigure();
 		
 		if(nodeType == GossipMember.STORAGE)
@@ -233,7 +237,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
 		
 		// Load the address only if it's null.
-		//TODO if(_address == null)
+		if(_address == null)
 			_address = this.getNetworkAddress( inet, IPversion );
 	}
 	

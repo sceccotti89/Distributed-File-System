@@ -105,7 +105,7 @@ public class RemoteFile implements IOSerializable//, Serializable
 	 * If the file has a content,
 	 * then it will be returned in decompressed form.
 	*/
-	public byte[] getContent()
+	public byte[] getContent() throws IOException
 	{
 		if(content == null)
 			return null;
