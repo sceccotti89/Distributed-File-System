@@ -60,6 +60,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected GossipRunner runner;
 	protected boolean shutDown = false;
 	
+	private static final int MAX_USERS = 64; // Maximum number of accepted connections.
 	protected static final int WAIT_CLOSE = 2000;
 	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
 	
@@ -80,7 +81,9 @@ public abstract class DFSnode extends Thread implements GossipListener
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
 		_net = new TCPnet();
-		threadPool = Executors.newCachedThreadPool();
+		
+		//threadPool = Executors.newCachedThreadPool();
+		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
 		if(startupMembers == null || startupMembers.size() == 0)
 			runner = new GossipRunner( new File( Utils.DISTRIBUTED_FS_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
@@ -419,12 +422,15 @@ public abstract class DFSnode extends Thread implements GossipListener
 	{
 		shutDown = true;
 		
-		_net.close();
 		monitor.shutDown();
+		_net.close();
 		if(runner != null)
 			runner.getGossipService().shutdown();
 		threadPool.shutdown();
 		if(fMgr != null)
 			fMgr.shutDown();
+		
+		try{ monitor.join(); }
+		catch( InterruptedException e ) {}
 	}
 }
