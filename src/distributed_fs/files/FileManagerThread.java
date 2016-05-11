@@ -42,6 +42,7 @@ public class FileManagerThread extends Thread
 	
 	private final TCPnet net;
 	
+	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
 	//public static final short DEFAULT_PORT = 7535; // Default port used to send/receive files.
 	public static final Logger LOGGER = Logger.getLogger( FileManagerThread.class );
 	
@@ -57,8 +58,9 @@ public class FileManagerThread extends Thread
 		
 		net = new TCPnet( node.getHost(), port );
 		
-		threadPoolSend = Executors.newCachedThreadPool();
-		threadPoolReceive = Executors.newFixedThreadPool( 32 );
+		//threadPoolSend = Executors.newCachedThreadPool();
+		threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
+		threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
 		
 		if(!Utils.testing)
 			LOGGER.setLevel( Utils.logLevel );
