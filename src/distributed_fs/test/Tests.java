@@ -84,11 +84,11 @@ public class Tests
 	@Before
 	public void startSystem() throws IOException, JSONException, SQLException, InterruptedException, DFSException
 	{
-		// enumerate all the network intefaces
+		// Enumerate all the network intefaces.
 		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
 		for(NetworkInterface netInt : Collections.list( nets )) {
 			if(netInt.getName().equals( "eth0" )) {
-				// enumerate all the IP address associated with it
+				// Enumerate all the IP address associated with it.
 				for(InetAddress inetAddress : Collections.list( netInt.getInetAddresses() )) {
 					if(!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
 						myIpAddress = inetAddress.getHostAddress();
@@ -244,7 +244,7 @@ public class Tests
 		
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
-		Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 );
+		Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 500 );
 		System.out.println( "NODE: " + members.get( 4 + NUMBER_OF_BALANCERS ) +
 							", FILE: " + nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
