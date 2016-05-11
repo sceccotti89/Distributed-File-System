@@ -26,10 +26,11 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 		while(keepAlive.get()) {
 			try {
 				byte[] data = net.receiveMessage();
-				//LOGGER.debug( "Received a message from " + net.getSrcAddress() );
+				LOGGER.debug( "Received a message from " + net.getSrcAddress() );
 				
 				// save the statistics
-				NodeStatistics stats = Utils.deserializeObject( data );
+				NodeStatistics stats = Utils.deserializeObject( decryptMessage( data ) );
+				LOGGER.debug( "Stats: " + stats );
 				nodes.put( net.getSrcAddress(), stats );
 			}
 			catch( Exception e ) {
