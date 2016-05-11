@@ -14,8 +14,7 @@ public abstract class Message implements Serializable
 	public static final byte TRANSACTION_FAILED = (byte) 0x5;
 	
 	public static final byte HELLO				= (byte) 0x6;
-	public static final byte KEEP_ALIVE			= (byte) 0x7;
-	public static final byte CLOSE				= (byte) 0x8;
+	public static final byte CLOSE				= (byte) 0x7;
 	
 	private static final long serialVersionUID = -145088350169009425L;
 	

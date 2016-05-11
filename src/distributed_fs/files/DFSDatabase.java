@@ -83,9 +83,10 @@ public class DFSDatabase
 		if(f.isDirectory() && !root.endsWith( "/" ))
 			root += "/";
 		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		System.out.println( "ROOT: " + root );
 		
 		if(!Utils.createDirectory( root )) {
-			throw new DFSException( "Invalid database path " + root + "." +
+			throw new DFSException( "Invalid database path " + root + ".\n" +
 									"Make sure that the path is correct and that you have the permissions to create and execute it." );
 		}
 		

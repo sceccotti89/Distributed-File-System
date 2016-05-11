@@ -45,10 +45,12 @@ public class Client implements DBListener
 		new Client( args );
 	}
 	
-	public Client( final String[] args ) throws ParseException
+	public Client( String[] args ) throws ParseException
 	{
+		//args = new String[]{ "-h", "-a", "127.0.0.1", "-r", "Resources", "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
+		
 		// Parse the command options.
-		CmdLineParser.parseArgs( args );
+		CmdLineParser.parseArgs( args, -1 );
 		
 		String ipAddress = CmdLineParser.getIpAddress();
 		int port = CmdLineParser.getPort();
@@ -183,7 +185,9 @@ public class Client implements DBListener
 						System.out.println( "[CLIENT] " + file.getName() );
 				}
 			}
-			else if(command.equals( "exit" ))
+			else if(command.trim().equals( "help" ))
+				printHelp();
+			else if(command.trim().equals( "exit" ))
 				service.shutDown();
 			else
 				System.out.println( "[CLIENT] Command '" + command + "' unknown." );
@@ -221,7 +225,20 @@ public class Client implements DBListener
 		reader.removeCompletor( completor );
 		completor = aComp;
 	}
-
+	
+	private void printHelp()
+	{
+		System.out.println( "[CLIENT] Usage:\n"
+				+ " put \"file_name\" - send a file present in the database to a remote one.\n"
+				+ " get \"file_name\" - get a file present in the remote database.\n"
+				+ " delete \"file_name\" - delete a file present in the database and in a remote one.\n"
+				+ " list - to print a list of all the files present in the database.\n"
+				+ " exit - to close the service.\n"
+				+ " help - to open this helper.\n\n"
+				+ " You can also use the autocompletion, to complete faster your commands.\n"
+				+ " Try it with the [TAB] key." );
+	}
+	
 	private static class Operation
 	{
 		String file;

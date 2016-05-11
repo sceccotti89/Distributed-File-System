@@ -212,10 +212,13 @@ public class Utils
 	public static boolean createDirectory( final String dirPath )
 	{
 		File file = new File( dirPath );
-		if(file.canWrite() && !file.exists())
+		if(file.exists())
+			return true;
+		
+		if(file.canWrite())
 			return file.mkdir();
 		
-		return true;
+		return false;
 	}
 	
 	/**

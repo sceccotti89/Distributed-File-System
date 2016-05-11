@@ -152,10 +152,6 @@ public class LoadBalancer extends DFSnode
 				// get the operation type
 				byte opType = data.getType();
 				
-				// TODO i keep alive potrebbero non servire
-				if(opType == Message.KEEP_ALIVE)
-					continue; // Ignore the keep alive messages.
-				
 				if(opType == Message.HELLO) {
 					clientAddress = data.getMetadata().getClientAddress();
 					LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
@@ -387,8 +383,7 @@ public class LoadBalancer extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		//args = { "-a", "127.0.0.1", "-p", "4000", "-n", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
-		CmdLineParser.parseArgs( args );
+		CmdLineParser.parseArgs( args, GossipMember.LOAD_BALANCER );
 		
 		String ipAddress = CmdLineParser.getIpAddress();
 		int port = CmdLineParser.getPort();

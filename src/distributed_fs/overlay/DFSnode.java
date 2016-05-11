@@ -71,12 +71,11 @@ public abstract class DFSnode extends Thread implements GossipListener
 		
 		setConfigure();
 		
+		if(!Utils.testing)
+			LOGGER.setLevel( Utils.logLevel );
+		
 		if(nodeType == GossipMember.STORAGE)
 			QuorumSystem.init();
-		
-		// TODO
-		//if(!Utils.testing)
-			//LOGGER.setLevel( Utils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();

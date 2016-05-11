@@ -1060,12 +1060,13 @@ public class StorageNode extends DFSnode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		//args = { "-a", "127.0.0.1", "-n", "-r", "./Resources", "-d", "./Database/DFSdatabase", "192.168.5.1:2000:0", "-n", "192.168.5.2:2000:0" };
-		CmdLineParser.parseArgs( args );
+		CmdLineParser.parseArgs( args, GossipMember.STORAGE );
 		
 		String ipAddress = CmdLineParser.getIpAddress();
 		List<GossipMember> members = CmdLineParser.getNodes();
+		String resourceLocation = CmdLineParser.getResourceLocation();
+		String databaseLocation = CmdLineParser.getDatabaseLocation();
 		
-		new StorageNode( ipAddress, members, null, null );
+		new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
 	}
 }

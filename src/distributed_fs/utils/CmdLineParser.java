@@ -26,16 +26,24 @@ public class CmdLineParser
 	private static CommandLine cmd = null;
 	private static Options options = new Options();
 	
-	private static final String PORT = "p", ADDRESS = "a", NODES = "n", RESOURCES = "r", DATABASE = "d";
+	private static final String PORT = "p", ADDRESS = "a", NODES = "n", RESOURCES = "r", DATABASE = "d", HELP = "h";
 	
-	public static void parseArgs( final String[] args ) throws ParseException
+	public static void parseArgs( final String[] args, final int nodeType ) throws ParseException
 	{
-		// TODO sistemare l'help.
-		options.addOption( "h", "help", false, "Show help." );
-		options.addOption( "n", "node", true, "Add a new node in the format hostname:port:nodeType." );
+		if(nodeType != GossipMember.STORAGE)
+			options.addOption( PORT, "port", true, "Set the listening port." );
+		options.addOption( ADDRESS, "addr", true, "Set the ip address of the node." );
+		if(nodeType != GossipMember.LOAD_BALANCER) {
+			options.addOption( RESOURCES, "rloc", true, "Set the location of the resources." );
+			options.addOption( DATABASE, "dloc", true, "Set the location of the database." );
+		}
+		options.addOption( NODES, "node", true, "Add a new node, where arg is in the format hostname:port:nodeType." );
+		options.addOption( HELP, "help", false, "Show help." );
 		
 		CommandLineParser parser = new DefaultParser();
 		cmd = parser.parse( options, args );
+		if(cmd.hasOption( HELP ))
+			help();
 	}
 	
 	public static String getIpAddress()
@@ -56,11 +64,8 @@ public class CmdLineParser
 	
 	public static List<GossipMember> getNodes() throws ParseException
 	{
-		if(!cmd.hasOption( NODES )) {
-			//help();
-			//throw new ParseException( "Invalid option '-" + option + "'." );
+		if(!cmd.hasOption( NODES )) 
 			return null;
-		}
 		
 		String[] nodes = cmd.getOptionValues( NODES );
 		return parseNodes( nodes );
@@ -87,8 +92,6 @@ public class CmdLineParser
 		List<GossipMember> members = new ArrayList<>( nodes.length );
 		
 		for(String node : nodes) {
-			//System.out.println( "Node: " + node );
-			
 			String[] values = node.split( ":" );
 			if(values.length != 3) {
 				help();
@@ -109,7 +112,7 @@ public class CmdLineParser
 	private static void help()
 	{
 		// This prints out some help
-		HelpFormatter formater = new HelpFormatter();
-		formater.printHelp( "Main", options );
+		HelpFormatter formatter = new HelpFormatter();
+		formatter.printHelp( " ", options );
 	 }
 }
