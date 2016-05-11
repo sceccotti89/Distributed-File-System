@@ -319,6 +319,8 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		//session.close();
 		LOGGER.info( "Operation GET succesfully completed. Received: " + backToClient );
+		if(listener != null)
+			listener.dbEvent( fileName, Message.GET );
 		
 		if(remoteSession != null)
 			remoteSession.close();
@@ -441,11 +443,8 @@ public class DFSService extends DFSManager implements IDFSService
 			//session.close();
 		}
 		
-		if(completed) {
+		if(completed)
 			LOGGER.info( "Operation PUT successfully completed." );
-			if(listener != null)
-				listener.dbEvent( fileName, Message.GET );
-		}
 		
 		if(remoteSession != null)
 			remoteSession.close();
@@ -541,7 +540,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "DELETE operation for \"" + fileName + "\" completed successfully." );
 		if(listener != null)
-			listener.dbEvent( fileName, Message.GET );
+			listener.dbEvent( fileName, Message.DELETE );
 		
 		//session.close();
 		
