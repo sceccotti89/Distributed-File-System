@@ -18,6 +18,7 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 		super( address );
 		
 		nodes = new HashMap<String, NodeStatistics>();
+		net.setSoTimeout( 2000 );
 	}
 	
 	@Override
@@ -26,6 +27,9 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 		while(keepAlive.get()) {
 			try {
 				byte[] data = net.receiveMessage();
+				if(data == null)
+					continue;
+				
 				LOGGER.debug( "Received a message from " + net.getSrcAddress() );
 				
 				// save the statistics
