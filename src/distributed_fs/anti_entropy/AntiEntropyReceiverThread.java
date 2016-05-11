@@ -83,6 +83,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	private class AntiEntropyNode extends Thread
 	{
 		private TCPSession session;
+		private BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
 		
 		public AntiEntropyNode( final TCPSession session )
 		{
@@ -162,8 +163,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					fMgr.sendFiles( sourceNode.getPort() + 1/*, Message.PUT*/, filesToSend, srcAddress, false, sourceId, null );
 				else // No differences.
 					removeFromSynch( sourceId );
-				
-				session.close();
 			}
 			catch( IOException e ) {
 				//e.printStackTrace();

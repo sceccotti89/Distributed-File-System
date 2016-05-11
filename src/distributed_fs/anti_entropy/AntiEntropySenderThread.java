@@ -35,6 +35,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 {
 	private TCPSession session;
 	private MerkleTree m_tree = null;
+	private BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
 	private final HashSet<String> addresses = new HashSet<>();
 	
 	/** Updating timer. */

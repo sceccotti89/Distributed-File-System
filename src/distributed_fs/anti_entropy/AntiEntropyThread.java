@@ -6,7 +6,6 @@ package distributed_fs.anti_entropy;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Random;
 
@@ -29,7 +28,6 @@ public abstract class AntiEntropyThread extends Thread
 	protected final ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected final FileManagerThread fMgr;
 	protected final DFSDatabase database;
-	protected final BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
 	protected final TCPnet Net;
 	protected GossipMember me;
 	private final Random random;
