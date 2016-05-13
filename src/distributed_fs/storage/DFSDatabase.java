@@ -74,7 +74,7 @@ public class DFSDatabase
 		database = new TreeMap<>();
 		
 		// Check if the path is written in the standard format.
-		root = (resourcesLocation != null) ? resourcesLocation : Utils.RESOURCE_LOCATION;
+		root = (resourcesLocation != null) ? resourcesLocation.replace( "\\", "/" ) : Utils.RESOURCE_LOCATION;
 		if(root.startsWith( "./" ))
 			root = root.substring( 2 );
 		
@@ -103,7 +103,7 @@ public class DFSDatabase
 	private void loadFiles( final File dir/*, final boolean makeSignature*/ ) throws IOException
 	{
 		for(File f : dir.listFiles()) {
-			String fileName = f.getPath();
+			String fileName = f.getPath().replace( "\\", "/" );
 			if(f.isDirectory()) {
 				loadFiles( f/*, makeSignature*/ );
 				fileName += "/";
@@ -654,7 +654,7 @@ public class DFSDatabase
 		{
 			Class.forName( "org.hsqldb.jdbcDriver" ).newInstance();
 			
-			Utils.createDirectory( root = (dbFileName != null) ? dbFileName : DB_LOCATION );
+			Utils.createDirectory( root = (dbFileName != null) ? dbFileName.replace( "\\", File.separator ) : DB_LOCATION );
 			
 			// Connect to the database. This will load the db files and start the
 			// database if it is not alread running.

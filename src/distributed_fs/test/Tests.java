@@ -64,6 +64,8 @@ public class Tests
 	{
 		testDatabase();
 		
+		myIpAddress = "192.168.1.102";
+		
 		// First test when the service is down.
 		DFSService service = new DFSService( myIpAddress, 0, null, null, null, null );
 		assertFalse( service.start() );
@@ -215,7 +217,9 @@ public class Tests
 	public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
 	{
 		String file = "chord_sigcomm.pdf";
-		int index = 4 + NUMBER_OF_BALANCERS;
+		Utils.existFile( "./Resources/" + file, true );
+		
+		int index = 0 + NUMBER_OF_BALANCERS;
 		String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
 		nodes.get( index ).closeResources();
 		System.out.println( "Node: " + members.get( index ) + " closed." );
@@ -228,7 +232,7 @@ public class Tests
 		
 		//assertEquals( service.get( file ), service.getFile( file ) );
 		//System.out.println( "HH: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
-		assertEquals( nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+		assertEquals( nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
 	}
 	
 	@Test
@@ -238,6 +242,7 @@ public class Tests
 		System.out.println( "\n\nTEST ANTI ENTROPY" );
 		
 		String file = "test3.txt";
+		Utils.existFile( "./Resources/" + file, true );
 		
 		modifyTextFile( "./Resources/" + file );
 		assertTrue( services.get( 0 ).put( file ) );

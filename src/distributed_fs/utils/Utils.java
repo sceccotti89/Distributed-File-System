@@ -230,8 +230,10 @@ public class Utils
 	{
 		File file = new File( filePath );
 		boolean exists = file.exists();
-		if(!exists && createIfNotExists)
+		if(!exists && createIfNotExists) {
+			file.getParentFile().mkdirs();
 			file.createNewFile();
+		}
 		
 		return exists;
 	}

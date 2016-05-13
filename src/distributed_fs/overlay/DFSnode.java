@@ -60,6 +60,8 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected GossipRunner runner;
 	protected boolean shutDown = false;
 	
+	protected static boolean initiConfig = false;
+	
 	private static final int MAX_USERS = 64; // Maximum number of accepted connections.
 	protected static final int WAIT_CLOSE = 2000;
 	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
@@ -228,7 +230,10 @@ public abstract class DFSnode extends Thread implements GossipListener
 	*/
 	private void setConfigure() throws IOException, JSONException
 	{
-		BasicConfigurator.configure();
+		if(!initiConfig){
+			initiConfig = true;
+			BasicConfigurator.configure();
+		}
 		
 		JSONObject file = Utils.parseJSONFile( Utils.DISTRIBUTED_FS_CONFIG );
 		int logLevel = LogLevel.fromString( file.getString( "log_level" ) );
@@ -313,7 +318,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	 * @param fileName	the input file
 	 * @param dbRoot	the database root
 	*/
-	protected String checkFile( String fileName, final String dbRoot )
+	private String checkFile( String fileName, final String dbRoot )
 	{
 		//if(!(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )))
 			//fileName = dbRoot + fileName;
@@ -336,7 +341,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 		fileName = f.getAbsolutePath();
 		if(f.isDirectory() && !fileName.endsWith( "/" ))
 			fileName += "/";
-		fileName = fileName.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		fileName = fileName.replace( "\\", "/" );
 		if(fileName.startsWith( dbRoot ))
 			fileName = fileName.substring( dbRoot.length() );
 		else
