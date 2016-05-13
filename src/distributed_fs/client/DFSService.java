@@ -59,7 +59,7 @@ public class DFSService extends DFSManager implements IDFSService
 					   final String databaseLocation,
 					   final DBListener listener ) throws IOException, JSONException, DFSException
 	{
-		super( members );
+		super( ipAddress, members );
 		
 		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
 		
@@ -226,6 +226,7 @@ public class DFSService extends DFSManager implements IDFSService
 			fileName += "/";
 		if(fileName.startsWith( database.getFileSystemRoot() ))
 			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = fileName.replace( "\\", "/" );
 		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		LOGGER.info( "starting GET operation: " + fileName );
@@ -370,13 +371,14 @@ public class DFSService extends DFSManager implements IDFSService
 			fileName += "/";
 		if(fileName.startsWith( database.getFileSystemRoot() ))
 			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = fileName.replace( "\\", "/" );
 		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		LOGGER.info( "starting PUT operation: " + fileName );
 		
 		DistributedFile file = database.getFile( Utils.getId( fileName ) );
 		System.out.println( "FILE: " + file );
-		if(file == null || file.isDeleted()){
+		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )){
 			if(database.checkExistFile( database.getFileSystemRoot() + fileName )) {
 				if(file == null)
 					file = new DistributedFile( fileName, database.getFileSystemRoot(), new VectorClock() );
@@ -468,6 +470,7 @@ public class DFSService extends DFSManager implements IDFSService
 			fileName += "/";
 		if(fileName.startsWith( database.getFileSystemRoot() ))
 			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
+		fileName = fileName.replace( "\\", "/" );
 		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
 		boolean completed = true;
