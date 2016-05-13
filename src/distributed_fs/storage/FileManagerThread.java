@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.files;
+package distributed_fs.storage;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

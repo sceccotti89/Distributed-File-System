@@ -32,12 +32,12 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.files.DistributedFile;
-import distributed_fs.files.FileManagerThread;
 import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
+import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileManagerThread;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;

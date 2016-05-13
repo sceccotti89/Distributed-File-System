@@ -19,13 +19,13 @@ import org.json.JSONException;
 import com.google.common.base.Preconditions;
 
 import distributed_fs.exception.DFSException;
-import distributed_fs.files.DFSDatabase;
-import distributed_fs.files.DistributedFile;
-import distributed_fs.files.RemoteFile;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
+import distributed_fs.storage.DFSDatabase;
+import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.Utils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;

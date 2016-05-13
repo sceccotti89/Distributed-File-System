@@ -12,10 +12,10 @@ import java.util.Random;
 import org.apache.log4j.Logger;
 
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.files.DFSDatabase;
-import distributed_fs.files.DistributedFile;
-import distributed_fs.files.FileManagerThread;
 import distributed_fs.net.Networking.TCPnet;
+import distributed_fs.storage.DFSDatabase;
+import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileManagerThread;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 

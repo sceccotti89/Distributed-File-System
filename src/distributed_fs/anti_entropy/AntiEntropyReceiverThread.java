@@ -18,11 +18,11 @@ import java.util.concurrent.Executors;
 
 import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.files.DFSDatabase;
-import distributed_fs.files.DistributedFile;
-import distributed_fs.files.FileManagerThread;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.storage.DFSDatabase;
+import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileManagerThread;
 import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import distributed_fs.utils.VersioningUtils;

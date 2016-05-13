@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.List;
 
 import distributed_fs.exception.DFSException;
-import distributed_fs.files.DistributedFile;
+import distributed_fs.storage.DistributedFile;
 
 public interface IDFSService
 {

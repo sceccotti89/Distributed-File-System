@@ -15,8 +15,8 @@ import java.util.Set;
 import org.apache.commons.cli.ParseException;
 
 import distributed_fs.client.DFSService.DBListener;
-import distributed_fs.files.DistributedFile;
 import distributed_fs.net.messages.Message;
+import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.CmdLineParser;
 import gossiping.GossipMember;
 import jline.ArgumentCompletor;
