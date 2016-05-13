@@ -45,21 +45,22 @@ public class DFSManager
 	
 	protected static boolean initiConfig = false;
 	
-	public DFSManager( final List<GossipMember> members ) throws IOException, JSONException
+	public DFSManager( final String ipAddress, final List<GossipMember> members ) throws IOException, JSONException
 	{
-		setConfigure( members );
+		setConfigure( ipAddress, members );
 	}
 	
 	/** 
 	 * Sets the initial configuration.
 	 * 
+	 * @param ipAddress	the ip address
 	 * @param members	list of initial members
 	*/
-	protected void setConfigure( final List<GossipMember> members ) throws IOException, JSONException
+	protected void setConfigure( final String ipAddress, final List<GossipMember> members ) throws IOException, JSONException
 	{
 		if(!initiConfig) {
-			BasicConfigurator.configure();
 			initiConfig = true;
+			BasicConfigurator.configure();
 		}
 		
 		LOGGER.info( "Starting the system..." );
@@ -70,7 +71,9 @@ public class DFSManager
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
-		address = this.getNetworkAddress( inet, IPversion );
+		address = ipAddress;
+		if(address == null)
+			address = this.getNetworkAddress( inet, IPversion );
 		
 		if(members != null) {
 			// Get the load balancer nodes from the given list.
