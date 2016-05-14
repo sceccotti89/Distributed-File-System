@@ -60,6 +60,12 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected GossipRunner runner;
 	protected boolean shutDown = false;
 	
+	// TODO salvarsi un hash map di thread?? forse basterebbe un vettore
+	// TODO se voglio far partire un thread al posto di un altro
+	// TODO devo trasformare ogni nodo in una macchina a stati
+	// TODO e di creare tante funzioni quante solo le azioni da lui intraprese.
+	//protected final List<> threads = new ArrayList<>( MAX_USERS );
+	
 	protected static boolean initiConfig = false;
 	
 	private static final int MAX_USERS = 64; // Maximum number of accepted connections.
