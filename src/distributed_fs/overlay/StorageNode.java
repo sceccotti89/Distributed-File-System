@@ -201,6 +201,7 @@ public class StorageNode extends DFSnode
 		
 		try {
 			//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+			// TODO dovrei salvare anche il messaggio, altrimenti non saprei piu' 
 			MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
 			//byte opType = data.get();
 			//boolean isCoordinator = (data.get() == (byte) 0x1);
@@ -219,7 +220,7 @@ public class StorageNode extends DFSnode
 				//openClientConnection( data );
 				openClientConnection( meta.getClientAddress() );
 				
-				// Get the destination id, since it can be a virtual node.
+				// Get the destination id, since it can be any virtual node.
 				//destId = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				destId = data.getDestId();
 				
@@ -331,6 +332,7 @@ public class StorageNode extends DFSnode
 			HashMap<RemoteFile, byte[]> filesToSend = new HashMap<>( QuorumSystem.getMaxNodes() + 1 );
 			int errors = 0;
 			
+			// Get the replica versions.
 			int index = 0;
 			for(TCPSession session : openSessions) {
 				try{
@@ -355,13 +357,16 @@ public class StorageNode extends DFSnode
 					}
 				}
 				
+				index++;
 				session.close();
 			}
 			
-			// send the positive notification to the client
+			// Send the positive notification to the client.
 			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSystem.getMinQuorum( Message.GET ) );
-			MessageResponse message = new MessageResponse( Message.TRANSACTION_OK );
-			session.sendMessage( message, true );
+			quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
+			
+			//MessageResponse message = new MessageResponse( Message.TRANSACTION_OK );
+			//session.sendMessage( message, true );
 			
 			//quorum_t.closeQuorum( agreedNodes );
 			
@@ -373,7 +378,7 @@ public class StorageNode extends DFSnode
 				filesToSend.put( rFile, rFile.read() );
 			}
 			
-			// try a first reconciliation
+			// Try a first reconciliation.
 			LOGGER.debug( "Files: " + filesToSend.size() );
 			List<RemoteFile> reconciledFiles = makeReconciliation( filesToSend );
 			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
@@ -387,7 +392,7 @@ public class StorageNode extends DFSnode
 			sendFilesToClient( reconciledFiles );
 			*/
 			
-			message = new MessageResponse();
+			MessageResponse message = new MessageResponse();
 			for(int i = 0; i < reconciledFiles.size(); i++) {
 				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
 				message.addFile( data );
@@ -904,10 +909,11 @@ public class StorageNode extends DFSnode
 			
 			LOGGER.debug( "Neighbours: " + nodes.size() );
 			if(nodes.size() < QuorumSystem.getMinQuorum( opType )) {
-				// if there are a number of nodes less than the quorum,
+				// If there is a number of nodes less than the quorum,
 				// we neither start the protocol.
 				sendQuorumResponse( session, Message.TRANSACTION_FAILED );
 				
+				// TODO se si puo' evitare di fare questa fase sarebbe meglio. Si potrebbe inviare un vettore vuoto.
 				List<QuorumNode> qNodes = new ArrayList<>( nodes.size() );
 				for(GossipMember node : nodes)
 					qNodes.add( new QuorumNode( node, fileName, opType, 0 ) );
