@@ -80,7 +80,7 @@ public class QuorumThread extends Thread
         } );
         timer.start();
         
-        // TODO sta parte non va bene
+        // TODO sta parte non va bene, quindi va cancellata
         List<QuorumNode> nodes = QuorumSystem.loadState();
         if(nodes.size() > 0 && QuorumSystem.timeElapsed < BLOCKED_TIME)
             cancelQuorum( null, nodes );
