@@ -58,7 +58,10 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
+	protected long id;
 	protected boolean shutDown = false;
+	
+	private static long nextThreadID;
 	
 	// TODO salvarsi un hash map di thread?? forse basterebbe un vettore
 	// TODO se voglio far partire un thread al posto di un altro
@@ -413,6 +416,19 @@ public abstract class DFSnode extends Thread implements GossipListener
 		
 		return nodes;
 	}
+	
+	protected void setId( final long id ) {
+        this.id = id;
+    }
+    
+    @Override
+    public long getId() {
+        return id;
+    }
+    
+    protected synchronized long getNextThreadID() {
+        return ++nextThreadID;
+    }
 	
 	protected String getCodeString( final byte opType )
 	{

@@ -28,6 +28,12 @@ public class QuorumSystem
 	/** The quorum file status location. */
 	public static final String QuorumFile = "./Settings/QuorumStatus.json";
 	
+	public static QuorumSession getQuorum( final int id ) throws IOException, JSONException
+	{
+	    return new QuorumSession( id );
+	}
+	
+	// TODO se uso il QuorumSession dovro' rimuovere init, loadState e saveState
 	public static void init() throws JSONException, IOException
 	{
 		if(!Utils.existFile( QuorumFile, true ))
@@ -151,9 +157,78 @@ public class QuorumSystem
 	
 	public static class QuorumSession
 	{
-		public QuorumSession()
+	    private final String quorumFile;
+	    private long timeElapsed;
+	    
+		public QuorumSession( final int id ) throws IOException, JSONException
 		{
-			
+		    quorumFile = "./Settings/QuorumStatus" + id + ".json";
+	        if(!Utils.existFile( quorumFile, true ))
+	            saveState( null );
 		}
+		
+		/**
+	     * Load from disk the quorum status.
+	     * 
+	     * @return the list of nodes to cancel the quorum
+	    */
+	    public List<QuorumNode> loadState() throws IOException, JSONException
+	    {
+	        List<QuorumNode> nodes = new ArrayList<>();
+	        
+	        JSONObject file = Utils.parseJSONFile( quorumFile );
+	        
+	        long timestamp = file.getLong( "timestamp" );
+	        timeElapsed = System.currentTimeMillis() - timestamp;
+	        
+	        JSONArray members = file.getJSONArray( "members" );
+	        for(int i = 0; i < members.length(); i++) {
+	            JSONObject member = members.getJSONObject( i );
+	            String hostname = member.getString( "host" );
+	            int port = member.getInt( "port" );
+	            String fileName = member.getString( "file" );
+	            byte opType = (byte) member.getInt( "opType" );
+	            long id = member.getLong( "id" );
+	            nodes.add( new QuorumNode( new RemoteGossipMember( hostname, port, "", 0, 0 ), fileName, opType, id ) );
+	        }
+	        
+	        return nodes;
+	    }
+	    
+	    /**
+	     * Save on disk the actual status of the quorum.
+	     * 
+	     * @param nodes     list of nodes to be contacted
+	    */
+	    public void saveState( final List<QuorumNode> nodes ) throws IOException, JSONException
+	    {
+	        JSONObject file = new JSONObject();
+	        
+	        JSONArray members = new JSONArray();
+	        if(nodes != null && nodes.size() > 0) {
+	            for(int i = 0; i < nodes.size(); i++) {
+	                GossipMember node = nodes.get( i ).getNode();
+	                JSONObject member = new JSONObject();
+	                member.put( "host", node.getHost() );
+	                member.put( "port", node.getPort() );
+	                member.put( "file" , nodes.get( i ).getFileName() );
+	                member.put( "opType", nodes.get( i ).getOpType() );
+	                member.put( "id", nodes.get( i ).getId() );
+	                members.put( member );
+	            }
+	        }
+	        
+	        file.put( "members", members );
+	        file.put( "timestamp", System.currentTimeMillis() );
+	        
+	        PrintWriter writer = new PrintWriter( quorumFile, StandardCharsets.UTF_8.name() );
+	        writer.println( file.toString() );
+	        writer.flush();
+	        writer.close();
+	    }
+	    
+	    public long getTimeElapsed() {
+	        return timeElapsed;
+	    }
 	}
 }

@@ -162,8 +162,11 @@ public class StorageNode extends DFSnode
 			while(!shutDown) {
 				//LOGGER.debug( "[SN] Waiting on: " + _address + ":" + port );
 				TCPSession session = _net.waitForConnection( _address, port );
-				if(session != null)
-					threadPool.execute( new StorageNode( fMgr, quorum_t, cHasher, _net, session ) );
+				if(session != null) {
+				    StorageNode node = new StorageNode( fMgr, quorum_t, cHasher, _net, session );
+				    node.setId( getNextThreadID() );
+					threadPool.execute( node );
+				}
 			}
 		}
 		catch( IOException e ) {}
@@ -201,7 +204,7 @@ public class StorageNode extends DFSnode
 		
 		try {
 			//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-			// TODO dovrei salvare anche il messaggio, altrimenti non saprei piu' 
+			// TODO dovrei salvare anche il messaggio, altrimenti non saprei piu' cosa devo farci
 			MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
 			//byte opType = data.get();
 			//boolean isCoordinator = (data.get() == (byte) 0x1);
