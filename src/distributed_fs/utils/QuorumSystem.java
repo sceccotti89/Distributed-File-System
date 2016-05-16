@@ -22,13 +22,21 @@ import gossiping.RemoteGossipMember;
 public class QuorumSystem
 {
 	public static long timeElapsed;
+	private String quorumFile;
 	
 	/** Parameters of the quorum protocol (like Dynamo). */
 	private static final short N = 3, W = 2, R = 2;
 	/** The quorum file status location. */
 	public static final String QuorumFile = "./Settings/QuorumStatus.json";
 	
-	public static QuorumSession getQuorum( final int id ) throws IOException, JSONException
+	public QuorumSystem( final long id ) throws IOException, JSONException
+	{
+	    quorumFile = "./Settings/QuorumStatus" + id + ".json";
+        if(!Utils.existFile( quorumFile, true ))
+            saveState( null );
+    }
+	
+	public static QuorumSession getQuorum( final long id ) throws IOException, JSONException
 	{
 	    return new QuorumSession( id );
 	}
@@ -160,7 +168,7 @@ public class QuorumSystem
 	    private final String quorumFile;
 	    private long timeElapsed;
 	    
-		public QuorumSession( final int id ) throws IOException, JSONException
+		public QuorumSession( final long id ) throws IOException, JSONException
 		{
 		    quorumFile = "./Settings/QuorumStatus" + id + ".json";
 	        if(!Utils.existFile( quorumFile, true ))

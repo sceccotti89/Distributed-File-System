@@ -30,11 +30,11 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 				if(data == null)
 					continue;
 				
-				LOGGER.debug( "Received a message from " + net.getSrcAddress() );
+				//TODO LOGGER.debug( "Received a message from " + net.getSrcAddress() );
 				
 				// save the statistics
 				NodeStatistics stats = Utils.deserializeObject( decryptMessage( data ) );
-				LOGGER.debug( "Stats: " + stats );
+				//TODO LOGGER.debug( "Stats: " + stats );
 				nodes.put( net.getSrcAddress(), stats );
 			}
 			catch( Exception e ) {

@@ -72,7 +72,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected static boolean initiConfig = false;
 	
 	private static final int MAX_USERS = 64; // Maximum number of accepted connections.
-	protected static final int WAIT_CLOSE = 2000;
+	public static final int WAIT_CLOSE = 500;
 	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
 	
 	public DFSnode( final int nodeType,
@@ -329,19 +329,6 @@ public abstract class DFSnode extends Thread implements GossipListener
 	*/
 	private String checkFile( String fileName, final String dbRoot )
 	{
-		//if(!(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )))
-			//fileName = dbRoot + fileName;
-		
-		//if(!fileName.startsWith( "./" ))
-			//fileName = "./" + fileName;
-		/*if(Utils.isDirectory( fileName ) && !fileName.endsWith( "/" ))
-			fileName += "/";
-		if(fileName.startsWith( dbRoot ) || fileName.startsWith( dbRoot.substring( 2 ) )) {
-			if(!fileName.startsWith( "./" ))
-				fileName = "./" + fileName;
-			fileName = fileName.substring( dbRoot.length() );
-		}*/
-		
 		String backup = fileName;
 		if(fileName.startsWith( "./" ))
 			fileName = fileName.substring( 2 );
@@ -369,7 +356,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	 * @return the list of successor nodes;
 	 * 		   it could contains less than {@code numNodes} elements.
 	*/
-	protected List<GossipMember> getSuccessorNodes( final ByteBuffer id, final String addressToRemove, final int numNodes )
+	public List<GossipMember> getSuccessorNodes( final ByteBuffer id, final String addressToRemove, final int numNodes )
 	{
 		List<GossipMember> nodes = new ArrayList<>( numNodes );
 		Set<String> filterAddress = new HashSet<>();
@@ -453,7 +440,9 @@ public abstract class DFSnode extends Thread implements GossipListener
 		_net.close();
 		if(runner != null)
 			runner.getGossipService().shutdown();
-		threadPool.shutdown();
+		synchronized( threadPool ) {
+		    threadPool.shutdown();
+		}
 		if(fMgr != null)
 			fMgr.shutDown();
 		

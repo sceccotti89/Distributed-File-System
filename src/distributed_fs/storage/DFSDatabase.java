@@ -75,14 +75,19 @@ public class DFSDatabase
 		
 		// Check if the path is written in the standard format.
 		root = (resourcesLocation != null) ? resourcesLocation.replace( "\\", "/" ) : Utils.RESOURCE_LOCATION;
+		if(root.substring( root.lastIndexOf( '/' ) ).contains( "." ))
+		    throw new DFSException( "Invalid Database location: " + root );
+		
+		System.out.println( "ROOT 1: " + root );
 		if(root.startsWith( "./" ))
 			root = root.substring( 2 );
 		
 		File f = new File( root );
 		root = f.getAbsolutePath();
-		if(f.isDirectory() && !root.endsWith( "/" ))
+		if(!root.endsWith( "/" ))
 			root += "/";
-		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS
+		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS.
+		System.out.println( "ROOT 2: " + root );
 		
 		if(!Utils.createDirectory( root )) {
 			throw new DFSException( "Invalid database path " + root + ".\n" +
@@ -269,6 +274,7 @@ public class DFSDatabase
 						 final boolean saveOnDisk ) throws SQLException, IOException
 	{
 		if(saveOnDisk) {
+		    System.out.println( "STO PER SALVARE: " + file.getName() + ", FROM ROOT: " + root );
 			saveVersion( Utils.bytesToHex( fileId.array() ),
 						 Utils.serializeObject( file.getVersion() ),
 						 hintedHandoff, false, 0, false );

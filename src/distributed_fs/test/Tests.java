@@ -64,7 +64,7 @@ public class Tests
 	{
 		testDatabase();
 		
-		myIpAddress = "192.168.1.102";
+		//myIpAddress = "192.168.1.105";
 		
 		// First test when the service is down.
 		DFSService service = new DFSService( myIpAddress, 0, null, null, null, null );
@@ -75,10 +75,10 @@ public class Tests
 		
 		Thread.sleep( 2000 );
 		
-		testSingleClientOperations();
-		stressTest();
+		//testSingleClientOperations();
+		//stressTest();
 		testAntiEntropy();
-		testHintedHandoff();
+		//testHintedHandoff();
 		
 		close();
 	}
@@ -102,6 +102,7 @@ public class Tests
 			if(myIpAddress != null)
 				break;
 		}
+		myIpAddress = "127.0.0.1";
 		
 		runServers();
 		runClients( myIpAddress, 2 );
@@ -214,28 +215,26 @@ public class Tests
 	}
 	
 	@Test
-	public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
-	{
-		String file = "chord_sigcomm.pdf";
-		Utils.existFile( "./Resources/" + file, true );
-		
-		int index = 0 + NUMBER_OF_BALANCERS;
-		String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
-		nodes.get( index ).closeResources();
-		System.out.println( "Node: " + members.get( index ) + " closed." );
-		
-		Thread.sleep( 2000 );
-		
-		assertTrue( services.get( 0 ).put( file ) );
-		System.out.println( "\n\n" );
-		Thread.sleep( 2000 );
-		
-		//assertEquals( service.get( file ), service.getFile( file ) );
-		//System.out.println( "HH: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
-		assertEquals( nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
-	}
-	
-	@Test
+    public void stressTest() throws InterruptedException
+    {
+    	List<Thread> clients = new ArrayList<>( services.size() );
+    	
+    	for(int i = 0; i < services.size(); i++) {
+    		final int index = i;
+    		Thread t = new Thread() {
+    			@Override
+    			public void run() { try { testMultipleClientOperations( index ); } catch (Exception e) {e.printStackTrace();} }
+    		};
+    		t.start();
+    		clients.add( t );
+    	}
+    	
+    	// Wait the termination of all the clients.
+    	for(Thread t : clients)
+    		t.join();
+    }
+
+    @Test
 	public void testAntiEntropy() throws IOException, JSONException, DFSException, InterruptedException, SQLException
 	{
 		//System.out.println( "SUCCESSOR: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getSuccessor() );
@@ -250,8 +249,8 @@ public class Tests
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
 		Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 500 );
-		System.out.println( "NODE: " + members.get( 4 + NUMBER_OF_BALANCERS ) +
-							", FILE: " + nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
+		System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
+							", FILE: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
 		readFile( "./Resources6/" + file );
 	}
@@ -271,26 +270,29 @@ public class Tests
 	}
 	
 	@Test
-	public void stressTest() throws InterruptedException
-	{
-		List<Thread> clients = new ArrayList<>( services.size() );
-		
-		for(int i = 0; i < services.size(); i++) {
-			final int index = i;
-			Thread t = new Thread() {
-				@Override
-				public void run() { try { testMultipleClientOperations( index ); } catch (Exception e) {e.printStackTrace();} }
-			};
-			t.start();
-			clients.add( t );
-		}
-		
-		// Wait the termination of all the clients.
-		for(Thread t : clients)
-			t.join();
-	}
-	
-	@Test
+    public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
+    {
+        System.out.println( "Starting Hinted Handoff test..." );
+    	String file = "chord_sigcomm.pdf";
+    	Utils.existFile( "./Resources/" + file, true );
+    	
+    	int index = 3 + NUMBER_OF_BALANCERS;
+    	String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
+    	nodes.get( index ).closeResources();
+    	System.out.println( "Node: " + members.get( index ) + " closed." );
+    	
+    	Thread.sleep( 2000 );
+    	
+    	assertTrue( services.get( 0 ).put( file ) );
+    	System.out.println( "\n\n" );
+    	Thread.sleep( 2000 );
+    	
+    	//assertEquals( service.get( file ), service.getFile( file ) );
+    	//System.out.println( "HH: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+    	assertEquals( nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+    }
+
+    @Test
 	private void testMultipleClientOperations( final int index ) throws IOException, DFSException, InterruptedException
 	{
 		DFSService service = services.get( index );

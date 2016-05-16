@@ -152,7 +152,7 @@ public class Networking
 				out.flush();
 			}
 			catch( IOException e ) {
-				e.printStackTrace();
+				//e.printStackTrace();
 				close();
 				throw e;
 			}

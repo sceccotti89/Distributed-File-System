@@ -376,7 +376,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "starting PUT operation: " + fileName );
 		
-		DistributedFile file = database.getFile( Utils.getId( fileName ) );
+		DistributedFile file = database.getFile( fileName );
 		System.out.println( "FILE: " + file );
 		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )){
 			if(database.checkExistFile( database.getFileSystemRoot() + fileName )) {
