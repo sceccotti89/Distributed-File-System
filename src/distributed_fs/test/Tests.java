@@ -64,8 +64,6 @@ public class Tests
 	{
 		testDatabase();
 		
-		//myIpAddress = "192.168.1.105";
-		
 		// First test when the service is down.
 		DFSService service = new DFSService( myIpAddress, 0, null, null, null, null );
 		assertFalse( service.start() );
@@ -75,10 +73,10 @@ public class Tests
 		
 		Thread.sleep( 2000 );
 		
-		//testSingleClientOperations();
-		//stressTest();
+		testSingleClientOperations();
+		stressTest();
 		testAntiEntropy();
-		//testHintedHandoff();
+		testHintedHandoff();
 		
 		close();
 	}
@@ -331,7 +329,7 @@ public class Tests
 	}
 
 	@Test
-	public void testDatabase() throws IOException, DFSException, SQLException
+	public void testDatabase() throws IOException, DFSException, SQLException, InterruptedException
 	{
 		if(services == null && nodes == null)
 			BasicConfigurator.configure();

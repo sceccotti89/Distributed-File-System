@@ -98,7 +98,7 @@ public class Client implements DBListener
 		}
 		catch( Exception e ) {
 			// Ignored.
-			e.printStackTrace();
+			//e.printStackTrace();
 		}
 		
 		if(service != null)

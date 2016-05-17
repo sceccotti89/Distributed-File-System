@@ -306,7 +306,7 @@ public abstract class DFSnode extends Thread implements GossipListener
 	 * 
 	 * @return the file, if present, {@code null} otherwise
 	*/
-	public DistributedFile getFile( String fileName )
+	public DistributedFile getFile( String fileName ) throws InterruptedException
 	{
 		if(fMgr == null)
 			return null;

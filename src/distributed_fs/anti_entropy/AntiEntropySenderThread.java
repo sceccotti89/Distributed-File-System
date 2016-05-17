@@ -74,7 +74,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 							if(!Utils.testing)
 								addresses.add( succNode.getHost() );
 							try{ sendMerkleTree( succNode, vNodeId.array(), vNodeId, MERKLE_FROM_MAIN ); }
-							catch( IOException e ){ /*e.printStackTrace();*/ }
+							catch( IOException | InterruptedException e ){ /*e.printStackTrace();*/ }
 						}
 					}
 				}
@@ -88,7 +88,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 							sendMerkleTree( node, vNodeId.array(), randomPeer, MERKLE_FROM_REPLICA );
 							break;
 						}
-						catch( IOException e ){ /*e.printStackTrace();*/ }
+						catch( IOException | InterruptedException e ){ /*e.printStackTrace();*/ }
 					}
 					
 					nodes.remove( randomPeer );
@@ -107,7 +107,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	 * @param destId		node identifier from which calculate the range of the files
 	 * @param msg_type		the type of the exchanged messages
 	*/
-	private void sendMerkleTree( final GossipMember node, final byte[] sourceId, final ByteBuffer destId, final byte msg_type ) throws IOException
+	private void sendMerkleTree( final GossipMember node, final byte[] sourceId, final ByteBuffer destId, final byte msg_type )
+	        throws IOException, InterruptedException
 	{
 		// ================ TODO finiti i test togliere questa parte ================= //
 		/*if(me.getPort() == 8426)

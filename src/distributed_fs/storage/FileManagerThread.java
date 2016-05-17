@@ -111,7 +111,7 @@ public class FileManagerThread extends Thread
 	 * @param session
 	 * @param data
 	*/
-	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException
+	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException, InterruptedException
 	{
 		// read the synch attribute
 		boolean synch = (data.get() == (byte) 0x1);
@@ -402,7 +402,7 @@ public class FileManagerThread extends Thread
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 				readFiles( session, data );
 			}
-			catch( IOException | SQLException e ) {
+			catch( IOException | SQLException | InterruptedException e ) {
 				e.printStackTrace();
 			}
 			

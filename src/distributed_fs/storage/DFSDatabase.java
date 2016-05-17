@@ -20,6 +20,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import org.apache.log4j.Logger;
 
@@ -41,6 +44,17 @@ public class DFSDatabase
 	private boolean shutDown = false;
 	private NavigableMap<ByteBuffer, DistributedFile> database;
 	private String root;
+	
+	private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
+	private static final ReadLock LOCK_READERS = LOCK.readLock();
+	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
+	
+	/*private long readers = 0;
+	private long writers = 0;
+	private static final Object LOCK_READERS = new Object();
+	private static final Object LOCK_WRITERS = new Object();*/
+	//private static final Object COND_READER = new Object();
+	//private static final Object COND_WRITER = new Object();
 	
 	public static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
@@ -71,6 +85,7 @@ public class DFSDatabase
 			throw new IOException();
 		}
 		
+		//database = new ConcurrentSkipListMap<>();
 		database = new TreeMap<>();
 		
 		// Check if the path is written in the standard format.
@@ -226,19 +241,28 @@ public class DFSDatabase
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
-	public synchronized VectorClock saveFile( final String fileName, final byte[] content,
+	public VectorClock saveFile( final String fileName, final byte[] content,
 											  final VectorClock clock, final String hintedHandoff,
 											  final boolean saveOnDisk ) throws IOException, SQLException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
+		VectorClock updated = null;
 		ByteBuffer fileId = Utils.getId( fileName );
+		
+		/*synchronized( LOCK_READERS ) {
+		    synchronized( LOCK_WRITERS ) {
+                while(readers > 0)
+                    LOCK_READERS.wait();
+                writers++;
+		    }
+		}*/
+		LOCK_WRITERS.lock();
+		
 		DistributedFile file = database.get( fileId );
 		
 		LOGGER.debug( "OLD FILE: " + file );
-		
-		VectorClock updated = null;
 		
 		if(file != null) {
 			// Resolve the (possible) inconsistency through the versions.
@@ -263,6 +287,12 @@ public class DFSDatabase
 		}
 		
 		System.out.println( "UPDATED: " + updated );
+    	
+		/*synchronized( LOCK_WRITERS ) {
+    		writers--;
+    		LOCK_WRITERS.notifyAll();
+		}*/
+		LOCK_WRITERS.unlock();
 		
 		return updated;
 	}
@@ -296,16 +326,26 @@ public class DFSDatabase
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
-	public synchronized VectorClock removeFile( final String fileName,
-												final VectorClock clock,
-												final boolean compareVersions ) throws SQLException
+	public VectorClock removeFile( final String fileName,
+	                               final VectorClock clock,
+	                               final boolean compareVersions ) throws SQLException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
-		ByteBuffer fileId = Utils.getId( fileName );
-		DistributedFile file = database.get( fileId );
 		VectorClock updated = null;
+		ByteBuffer fileId = Utils.getId( fileName );
+		
+		/*synchronized( LOCK_READERS ) {
+            synchronized( LOCK_WRITERS ) {
+                while(readers > 0)
+                    LOCK_READERS.wait();
+                writers++;
+            }
+        }*/
+		LOCK_WRITERS.lock();
+            
+		DistributedFile file = database.get( fileId );
 		
 		//System.out.println( "CLOCK: " + clock + ", MY_CLOCK: " + file.getVersion() );
 		
@@ -316,6 +356,12 @@ public class DFSDatabase
 			updated = clock;
 			doRemove( file, fileId, clock );
 		}
+    		
+		/*synchronized( LOCK_WRITERS ) {
+            writers--;
+            LOCK_WRITERS.notifyAll();
+        }*/
+		LOCK_WRITERS.unlock();
 		
 		return updated;
 	}
@@ -382,19 +428,32 @@ public class DFSDatabase
 	 * 
 	 * @return The list of keys. It can be null if one of the input id is null.
 	*/
-	public synchronized List<DistributedFile> getKeysInRange( final ByteBuffer fromId, final ByteBuffer destId )
+	public List<DistributedFile> getKeysInRange( final ByteBuffer fromId, final ByteBuffer destId )
 	{
 		if(fromId == null || destId == null)
 			return null;
 		
 		List<DistributedFile> result = new ArrayList<>();
 		
-		if(destId.compareTo( fromId ) >= 0)
+		/*synchronized( LOCK_READERS ) {
+            while(writers > 0)
+                LOCK_READERS.wait();
+            readers++;
+		}*/
+		LOCK_READERS.lock();
+    	
+        if(destId.compareTo( fromId ) >= 0)
 			result.addAll( database.subMap( fromId, false, destId, true ).values() );
 		else {
 			result.addAll( database.tailMap( fromId, false ).values() );
 			result.addAll( database.headMap( destId, true ).values() );
 		}
+        
+        /*synchronized( LOCK_READERS ) {
+            readers--;
+            LOCK_READERS.notifyAll();
+		}*/
+        LOCK_READERS.unlock();
 		
 		return result;
 	}
@@ -403,6 +462,7 @@ public class DFSDatabase
 	 * Returns the file specified by the given file name.
 	 * 
 	 * @param fileName	
+	 * @throws InterruptedException 
 	*/
 	public DistributedFile getFile( final String fileName )
 	{
@@ -412,11 +472,28 @@ public class DFSDatabase
 	/**
 	 * Returns the file specified by the given id.
 	 * 
-	 * @param id	
+	 * @param id	 
 	*/
-	public synchronized DistributedFile getFile( final ByteBuffer id )
+	public DistributedFile getFile( final ByteBuffer id )
 	{
-		return database.get( id );
+	    DistributedFile file;
+	    
+	    /*synchronized( LOCK_READERS ) {
+            readers++;
+            while(writers > 0)
+                LOCK_READERS.wait();
+	    }*/
+	    LOCK_READERS.lock();
+            
+        file = database.get( id );
+            
+        /*synchronized( LOCK_READERS ) {
+            readers--;
+            LOCK_READERS.notifyAll();
+	    }*/
+        LOCK_READERS.unlock();
+	    
+	    return file;
 	}
 	
 	/**
@@ -426,7 +503,24 @@ public class DFSDatabase
 	*/
 	public synchronized List<DistributedFile> getAllFiles()
 	{
-		return new ArrayList<>( database.values() );
+	    List<DistributedFile> files = new ArrayList<>();
+	    
+	    /*synchronized( LOCK_READERS ) {
+            readers++;
+            while(writers > 0)
+                LOCK_READERS.wait();
+	    }*/
+	    LOCK_READERS.lock();
+            
+        files = new ArrayList<>( database.values() );
+        
+        /*synchronized( LOCK_READERS ) {
+            readers--;
+            LOCK_READERS.notifyAll();
+	    }*/
+        LOCK_READERS.unlock();
+	    
+	    return files;
 	}
 	
 	/**
@@ -517,11 +611,15 @@ public class DFSDatabase
 		@Override
 		public void run()
 		{
+		    List<DistributedFile> files;
+		    
 			while(!shutDown) {
-				try{ Thread.sleep( CHECK_TIMER ); }
+				try{
+				    Thread.sleep( CHECK_TIMER );
+				    files = database.getAllFiles();
+				}
 				catch( InterruptedException e ){ break; }
 				
-				List<DistributedFile> files = database.getAllFiles();
 				for(int i = files.size() - 1; i >= 0; i--) {
 					DistributedFile file = files.get( i );
 					if(file.isDeleted()) {

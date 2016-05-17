@@ -66,6 +66,8 @@ public class QuorumThread extends Thread
             public void actionPerformed( final ActionEvent e )
             {
                 if(!shutDown) {
+                    // TODO non e' troppo time-consuming? volendo si potrebbero salvare in un arrayList
+                    // TODO e' anche vero pero' che se cancello un file mentre uno lo sta inserendo, non va bene
                     synchronized ( fileLock ) {
                         Iterator<QuorumFile> it = fileLock.values().iterator();
                         while(it.hasNext()) {
