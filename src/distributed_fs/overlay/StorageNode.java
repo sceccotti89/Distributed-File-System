@@ -296,7 +296,7 @@ public class StorageNode extends DFSnode
 					break;
 			}
 		}
-		catch( IOException | SQLException | JSONException | InterruptedException e ) {
+		catch( IOException | SQLException | JSONException e ) {
 			e.printStackTrace();
 		}
 		
@@ -304,7 +304,7 @@ public class StorageNode extends DFSnode
 		stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
 	}
 	
-	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException, InterruptedException
+	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
 	{
 		LOGGER.debug( "GIVEN_VERSION: " + file.getVersion() + ", NEW_GIVEN_VERSION: " + file.getVersion().incremented( _address ) );
 		VectorClock newClock = file.getVersion().incremented( _address );
@@ -327,7 +327,7 @@ public class StorageNode extends DFSnode
 		}
 	}
 	
-	private void handleGET( final boolean isCoordinator, final String fileName ) throws IOException, JSONException, InterruptedException
+	private void handleGET( final boolean isCoordinator, final String fileName ) throws IOException, JSONException
 	{
 		if(isCoordinator) {
 			// Send the GET request to all the agreed nodes,
@@ -487,7 +487,7 @@ public class StorageNode extends DFSnode
 		}
 	}*/
 	
-	private void handleDELETE( final boolean isCoordinator, final DistributedFile file ) throws IOException, SQLException, InterruptedException
+	private void handleDELETE( final boolean isCoordinator, final DistributedFile file ) throws IOException, SQLException
 	{
 		VectorClock newClock = file.getVersion().incremented( _address );
 		VectorClock updated = fMgr.getDatabase().removeFile( file.getName(), newClock, true );
