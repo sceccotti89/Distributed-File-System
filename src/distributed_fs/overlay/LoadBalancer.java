@@ -368,14 +368,14 @@ public class LoadBalancer extends DFSnode
 			message = new MessageRequest( opType, null, null, false, null, clientAddress, null );
 		}
 		else {*/
-			if(opType != Message.GET) {
-				// PUT and DELETE operations
-				message = new MessageRequest( opType, fileName, file, true, destId, new Metadata( clientAddress, hintedHandoff ) );
-			}
-			else {
-				// GET operation
-				message = new MessageRequest( opType, fileName, null, true, destId, new Metadata( clientAddress, null ) );
-			}
+		if(opType != Message.GET) {
+			// PUT and DELETE operations
+			message = new MessageRequest( opType, fileName, file, true, destId, new Metadata( clientAddress, hintedHandoff ) );
+		}
+		else {
+			// GET operation
+			message = new MessageRequest( opType, fileName, null, true, destId, new Metadata( clientAddress, null ) );
+		}
 		//}
 		
 		session.sendMessage( Utils.serializeObject( message ), true );
