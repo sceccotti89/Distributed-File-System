@@ -257,7 +257,7 @@ public class LoadBalancer extends DFSnode
 	}
 	
 	/**
-	 * Gets the first N nodes from the node's preference list,
+	 * Gets the first N-1 nodes from the node's preference list,
 	 * represented by its identifier.<br>
 	 * For simplicity, its preference list is made by nodes
 	 * encountered while walking the DHT.
@@ -269,7 +269,7 @@ public class LoadBalancer extends DFSnode
 	*/
 	private List<GossipMember> getNodesFromPreferenceList( final ByteBuffer id, final GossipMember sourceNode )
 	{
-		final int PREFERENCE_LIST = QuorumSystem.getMaxNodes();
+		final int PREFERENCE_LIST = QuorumSystem.getMaxNodes() - 1;
 		List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
 		nodes.add( sourceNode );
 		return nodes;
@@ -360,7 +360,7 @@ public class LoadBalancer extends DFSnode
 	}*/
 	
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
-								 final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
+	                             final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
 	{
 		MessageRequest message;
 		
@@ -368,14 +368,15 @@ public class LoadBalancer extends DFSnode
 			message = new MessageRequest( opType, null, null, false, null, clientAddress, null );
 		}
 		else {*/
-			if(opType != Message.GET) {
-				// PUT and DELETE operations
-				message = new MessageRequest( opType, fileName, file, true, destId, new Metadata( clientAddress, hintedHandoff ) );
-			}
-			else {
-				// GET operation
-				message = new MessageRequest( opType, fileName, null, true, destId, new Metadata( clientAddress, null ) );
-			}
+		Metadata meta = new Metadata( clientAddress, hintedHandoff );
+		if(opType != Message.GET) {
+			// PUT and DELETE operations
+		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
+		}
+		else {
+			// GET operation
+		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
+		}
 		//}
 		
 		session.sendMessage( Utils.serializeObject( message ), true );

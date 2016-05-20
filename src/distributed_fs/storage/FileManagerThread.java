@@ -40,6 +40,8 @@ public class FileManagerThread extends Thread
 	private final AntiEntropySenderThread sendAE_t;
 	private final AntiEntropyReceiverThread receiveAE_t;
 	
+	private boolean shutDown = false;
+	
 	private final TCPnet net;
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
@@ -82,10 +84,15 @@ public class FileManagerThread extends Thread
 		try {
 			LOGGER.info( "File Manager Thread launched" );
 			
-			while(true) {
+			while(!shutDown) {
 				TCPSession session = net.waitForConnection();
 				LOGGER.info( "Received a new connection from \"" + session.getSrcAddress() + "\"" );
-				threadPoolReceive.execute( new ReceiveFilesThread( session ) );
+				synchronized( threadPoolReceive ) {
+				    if(threadPoolReceive.isShutdown())
+				        break;
+				    
+				    threadPoolReceive.execute( new ReceiveFilesThread( session ) );
+				}
 			}
 		}
 		catch( IOException e ) {
@@ -93,6 +100,8 @@ public class FileManagerThread extends Thread
 		}
 		
 		net.close();
+		
+		LOGGER.info( "Thread Manager Thread closed." );
 	}
 	
 	/** 
@@ -102,7 +111,7 @@ public class FileManagerThread extends Thread
 	 * @param session
 	 * @param data
 	*/
-	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException
+	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException, InterruptedException
 	{
 		// read the synch attribute
 		boolean synch = (data.get() == (byte) 0x1);
@@ -218,7 +227,12 @@ public class FileManagerThread extends Thread
 							  final QuorumNode node )
 	{
 		SendFilesThread t = new SendFilesThread( port, /*opType, */files, address, synchNodeId, node );
-		threadPoolSend.execute( t );
+		synchronized( threadPoolSend ) {
+		    if(!threadPoolSend.isShutdown())
+		        threadPoolSend.execute( t );
+		    else
+		        return false;
+		}
 		
 		if(!wait_response)
 			return true;
@@ -320,7 +334,7 @@ public class FileManagerThread extends Thread
 				updateQuorum( node );
 		}
 		catch( IOException | JSONException e ) {
-			e.printStackTrace();
+			//e.printStackTrace();
 			complete = false;
 			if(synchNodeId != null) {
 				receiveAE_t.removeFromSynch( synchNodeId );
@@ -357,15 +371,20 @@ public class FileManagerThread extends Thread
 	*/
 	public void shutDown()
 	{
-		threadPoolSend.shutdown();
-		threadPoolReceive.shutdown();
+	    shutDown = true;
+	    synchronized( threadPoolSend ) {
+	        threadPoolSend.shutdown();
+	    }
+		synchronized( threadPoolReceive ) {
+		    threadPoolReceive.shutdown();
+		}
 		database.shutdown();
 		sendAE_t.close();
 		receiveAE_t.close();
 	}
 
 	/**
-	 * Thread used to read incoming files, in an asynchronously way.
+	 * Thread used to read incoming files, in an asynchronous way.
 	*/
 	private class ReceiveFilesThread extends Thread
 	{
@@ -382,20 +401,8 @@ public class FileManagerThread extends Thread
 			try {
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 				readFiles( session, data );
-				
-				/*byte opType = data.get();
-				//LOGGER.debug( "Operation: " + ((byte) type) + ", PUT: " + ((char) Utils.PUT) );
-				switch( opType ) {
-					case( Message.PUT ):
-						readFilesToSave( session, data );
-						break;
-					
-					case( Message.DELETE ):
-						readFilesToDelete( session, data );
-						break;
-				}*/
 			}
-			catch( IOException | SQLException e ) {
+			catch( IOException | SQLException | InterruptedException e ) {
 				e.printStackTrace();
 			}
 			

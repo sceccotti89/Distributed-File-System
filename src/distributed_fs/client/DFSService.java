@@ -133,8 +133,9 @@ public class DFSService extends DFSManager implements IDFSService
 	 * Returns the requested file, from the internal database.
 	 * 
 	 * @return the file, if present, {@code null} otherwise
+	 * @throws InterruptedException 
 	*/
-	public DistributedFile getFile( String fileName )
+	public DistributedFile getFile( String fileName ) throws InterruptedException
 	{
 		/*if(!fileName.startsWith( "./" ))
 			fileName = "./" + fileName;
@@ -304,7 +305,7 @@ public class DFSService extends DFSManager implements IDFSService
 			else
 				backToClient = getFile( fileName );
 		}
-		catch( IOException | SQLException e ) {
+		catch( IOException | SQLException | InterruptedException e ) {
 			LOGGER.info( "Operation GET not performed. Try again later." );
 			//e.printStackTrace();
 			//if(session.isClosed())
@@ -376,7 +377,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "starting PUT operation: " + fileName );
 		
-		DistributedFile file = database.getFile( Utils.getId( fileName ) );
+		DistributedFile file = database.getFile( fileName );
 		System.out.println( "FILE: " + file );
 		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )){
 			if(database.checkExistFile( database.getFileSystemRoot() + fileName )) {
