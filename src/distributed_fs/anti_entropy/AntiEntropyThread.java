@@ -11,6 +11,7 @@ import java.util.Random;
 
 import org.apache.log4j.Logger;
 
+import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.storage.DFSDatabase;
@@ -72,6 +73,24 @@ public abstract class AntiEntropyThread extends Thread
 			bytes.add( file.getSignature() );
 		
 		return new MerkleTree( bytes );
+	}
+	
+	/**
+	 * Reduce the level of the tree until the other level is reached.
+	 * 
+	 * @param levels	number of levels to reduce
+	 * @param nodes		list of nodes
+	*/
+	protected void reduceTree( final int levels, final List<Node> nodes )
+	{
+		for(int i = 0; i < levels; i++) {
+			int size = nodes.size();
+			for(int j = 0; j < size; j++) {
+				Node n = nodes.remove( 0 );
+				if(n.left != null) nodes.add( n.left );
+				if(n.right != null) nodes.add( n.right );
+			}
+		}
 	}
 	
 	/**

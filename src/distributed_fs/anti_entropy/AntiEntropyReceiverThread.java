@@ -117,7 +117,11 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				byte msg_type = data.get();
+				
+				// Get the input tree status and height.
 				byte inputTree = data.get();
+				int inputHeight = (inputTree == (byte) 0x0) ?
+								  0 : Utils.byteArrayToInt( Utils.getNextBytes( data ) );
 				
 				LOGGER.debug( "TYPE: " + msg_type );
 				List<DistributedFile> files;
@@ -141,10 +145,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				// =========================================================================== //
 				
 				List<DistributedFile> filesToSend = new ArrayList<>();
+				// TODO si potrebbe usare una variabile che determina fino a che altezza creare l'albero
+				// TODO per esempio il min tra le le due altezze
+				// TODO per adesso non usarlo, poi vediamo
 				m_tree = createMerkleTree( files );
 				
 				// Check the differences through the trees.
-				boolean hasKey = checkTreeDifferences( inputTree );
+				boolean hasKey = checkTreeDifferences( inputTree, inputHeight );
 				LOGGER.debug( "FROM_ID: " + Utils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)
@@ -177,74 +184,71 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		/**
 		 * Computes the difference between the input and the own tree.
 		 * 
-		 * @param mTree		the input tree status (empty or not)
+		 * @param inputTree		the input tree status (empty or not)
+		 * @param inputHeight	the height of the input tree
 		 * 
 		 * @return {@code true} if the soure node owns at least one of the keys,
 		 * 		   {@code false} otherwise
 		*/
-		private boolean checkTreeDifferences( final byte mTree ) throws IOException
+		private boolean checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
 		{
 			boolean sourceHasKey = false;
 			
-			LOGGER.debug( "My tree: " + m_tree + ", other: " + mTree );
+			LOGGER.debug( "My tree: " + m_tree + ", other: " + inputTree );
 			bitSet.clear();
 			
-			if(mTree == (byte) 0x0) {
-				if(m_tree == null) // they are equals, also the "root"
+			if(inputTree == (byte) 0x0) {
+				if(m_tree == null) // they are equals because both empty
 					session.sendMessage( Networking.TRUE, false );
 			}
 			else {
-				// tree not empty
+				// Tree not empty.
 				List<Node> nodes = new LinkedList<>();
+				int treeHeight = 0;
 				BitSet _bitSet = null;
-				boolean clientOnLeaf = false;
-				int height = 0;
 				
 				if(m_tree != null) {
 					nodes.add( m_tree.getRoot() );
-					height = m_tree.getHeight();
+					treeHeight = m_tree.getHeight();
 				}
 				else {
-					clientOnLeaf = true;
 					_bitSet = new BitSet();
 					_bitSet.set( 0 );
 				}
 				
+				// Send the own tree height to the sender node.
+				byte[] msg = Net.createMessage( null, Utils.intToByteArray( treeHeight ), true );
+				session.sendMessage( msg, false );
+				
+				// Reduce the level of the tree if it is greater.
+				if(treeHeight > inputHeight)
+					reduceTree( treeHeight - inputHeight, nodes );
+				
 				List<Node> pTree = null;
 				
-				int level = 0, size;
-				LOGGER.debug( "Height: " + height );
+				int level = 0;
+				LOGGER.debug( "Height: " + treeHeight );
 				
-				while((size = nodes.size()) > 0) {
-					LOGGER.debug( "Level: " + level + ", NODES: " + size );
+				while(nodes.size() > 0) {
+					LOGGER.debug( "Level: " + level + ", NODES: " + nodes.size() );
 					
-					if(!clientOnLeaf)
-						_bitSet = new BitSet();
+					_bitSet = new BitSet();
 					
-					if(!clientOnLeaf) {
-						// receive a new level
-						ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-						clientOnLeaf = (data.get() == (byte) 0x1);
-						pTree = MerkleDeserializer.deserializeNodes( data );
-						LOGGER.debug( "Received tree: " + pTree.size() );
-					}
+					// Receive a new level.
+					ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+					pTree = MerkleDeserializer.deserializeNodes( data );
+					LOGGER.debug( "Received tree: " + pTree.size() );
 					
-					LOGGER.debug( "On leaf: " + clientOnLeaf );
+					sourceHasKey |= compareLevel( nodes, _bitSet, pTree );
 					
-					sourceHasKey |= compareLevel( size, clientOnLeaf, level, height, nodes, _bitSet, pTree );
-					
-					if(!clientOnLeaf) {
-						LOGGER.debug( "Sending not leaf: " + _bitSet + "..." );
-						session.sendMessage( _bitSet.toByteArray(), true );
-					}
+					LOGGER.debug( "Sending not leaf: " + _bitSet + "..." );
+					session.sendMessage( _bitSet.toByteArray(), true );
 					
 					level++;
 				}
 				
-				if(clientOnLeaf) {
-					LOGGER.debug( "Sending on leaf: " + _bitSet + "..." );
-					session.sendMessage( _bitSet.toByteArray(), true );
-				}
+				LOGGER.debug( "Sending on leaf: " + _bitSet + "..." );
+				session.sendMessage( _bitSet.toByteArray(), true );
 			}
 			
 			return sourceHasKey;
@@ -253,39 +257,33 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		/**
 		 * Compares the current level with the input one.
 		 * 
-		 * @param size
-		 * @param clientOnLeaf
-		 * @param level
-		 * @param height
-		 * @param nodes
-		 * @param _bitSet
-		 * @param pTree
+		 * @param nodes			list of own nodes
+		 * @param _bitSet		the current set
+		 * @param pTree			the input tree level
 		 * 
-		 * @return 
+		 * @return {@code true} if at least one key is shared, {@code false} otherwise.
 		*/
-		private boolean compareLevel( int size, final boolean clientOnLeaf, final int level, final int height,
-									  final List<Node> nodes, final BitSet _bitSet, final List<Node> pTree )
+		private boolean compareLevel( final List<Node> nodes,
+									  final BitSet _bitSet,
+									  final List<Node> pTree )
 		{
 			int pTreeSize = pTree.size();
-			int offset = 0;
 			boolean sourceHasKey = false;
 			
-			while(offset < size) {
-				LOGGER.debug( "[SERVER] OFFSET: " + offset + ", SIZE: " + size );
-				Node node = nodes.get( offset );
+			for(int i = nodes.size() - 1; i >= 0; i --) {
+				Node node = nodes.get( i );
 				boolean found = false;
 				for(int j = 0; j < pTreeSize; j++) {
-					// Compare each signature: if equal put 1 in the set.
+					// Compare the current node with each input signature: if equals put 1 in the set.
 					if(!_bitSet.get( j ) && MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
 						LOGGER.debug( "Founded 2 equal nodes!" );
-						nodes.remove( offset );
-						size--;
+						nodes.remove( i );
 						_bitSet.set( j );
 						
 						if(!sourceHasKey)
 							sourceHasKey = true;
 						
-						// Set 1 to all the leaf nodes reachable from the node.
+						// Set 1 all the range reachable from the node.
 						LinkedList<Node> leaves = m_tree.getLeavesFrom( node );
 						LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
 						bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
@@ -297,22 +295,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				if(!found) {
 					// If the current node is not found, its sons will be added.
-					if(level < height) {
-						//LOGGER.debug( "[SERVER] nodo " + offset + " rimosso" );
-						nodes.remove( offset );
-						size--;
-						// adds the child nodes
-						if(node.left != null) nodes.add( node.left );
-						if(node.right != null) nodes.add( node.right );
-					}
-					else {
-						if(clientOnLeaf) { // both are on the leaves level
-							nodes.remove( offset );
-							size--;
-						}
-						else
-							offset++;
-					}
+					nodes.remove( i );
+					if(node.left != null) nodes.add( node.left );
+					if(node.right != null) nodes.add( node.right );
 				}
 			}
 			
@@ -320,7 +305,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		}
 		
 		/**
-		 * Gets all the files that the source doesn't have
+		 * Gets all the files that the source doesn't have.
 		 * 
 		 * @param files		list of files in the range
 		*/

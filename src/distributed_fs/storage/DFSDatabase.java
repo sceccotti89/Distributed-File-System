@@ -534,7 +534,7 @@ public class DFSDatabase
 	*/
 	public boolean checkExistFile( final String filePath ) throws IOException
 	{
-		return checkInFileSystemExists( new File( root ), filePath );
+		return checkInFileSystemExists( new File( root ), root + filePath );
 	}
 	
 	private boolean checkInFileSystemExists( final File filePath, final String fileName )

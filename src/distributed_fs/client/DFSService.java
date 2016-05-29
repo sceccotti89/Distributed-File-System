@@ -380,7 +380,7 @@ public class DFSService extends DFSManager implements IDFSService
 		DistributedFile file = database.getFile( fileName );
 		System.out.println( "FILE: " + file );
 		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )){
-			if(database.checkExistFile( database.getFileSystemRoot() + fileName )) {
+			if(database.checkExistFile( fileName )) {
 				if(file == null)
 					file = new DistributedFile( fileName, database.getFileSystemRoot(), new VectorClock() );
 			}

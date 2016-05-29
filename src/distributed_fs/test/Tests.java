@@ -14,15 +14,10 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
-import java.util.Enumeration;
 import java.util.List;
 
 import org.apache.log4j.BasicConfigurator;
@@ -46,7 +41,7 @@ import gossiping.RemoteGossipMember;
 
 public class Tests
 {
-	private static String myIpAddress;
+	private static final String myIpAddress = "127.0.0.1";
 	
 	private List<DFSService> services;
 	private List<GossipMember> members;
@@ -84,24 +79,6 @@ public class Tests
 	@Before
 	public void startSystem() throws IOException, JSONException, SQLException, InterruptedException, DFSException
 	{
-		// Enumerate all the network intefaces.
-		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-		for(NetworkInterface netInt : Collections.list( nets )) {
-			if(netInt.getName().equals( "eth0" )) {
-				// Enumerate all the IP address associated with it.
-				for(InetAddress inetAddress : Collections.list( netInt.getInetAddresses() )) {
-					if(!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
-						myIpAddress = inetAddress.getHostAddress();
-						break;
-					}
-				}
-			}
-			
-			if(myIpAddress != null)
-				break;
-		}
-		myIpAddress = "127.0.0.1";
-		
 		runServers();
 		runClients( myIpAddress, 2 );
 	}
@@ -270,7 +247,7 @@ public class Tests
 	@Test
     public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
     {
-        System.out.println( "Starting Hinted Handoff test..." );
+		System.out.println( "Starting Hinted Handoff test..." );
     	String file = "chord_sigcomm.pdf";
     	Utils.existFile( "./Resources/" + file, true );
     	

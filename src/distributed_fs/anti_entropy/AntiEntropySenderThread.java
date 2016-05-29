@@ -132,7 +132,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		//session = Net.tryConnect( address, MERKLE_TREE_EXCHANGE_PORT, 2000 );
 		session = Net.tryConnect( node.getHost(), node.getPort() + 2, 2000 );
 		
-		// check the differences among the trees
+		// Check the differences among the trees.
 		checkTreeDifferences( msg_type, sourceId, destId );
 		
 		if(m_tree != null && bitSet.cardinality() > 0) {
@@ -156,6 +156,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 		byte[] data = Net.createMessage( null, sourceId, true );
 		data = Net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
+		if(m_tree != null)
+			data = Net.createMessage( data, Utils.intToByteArray( m_tree.getHeight() ), true );
 		if(msg_type == MERKLE_FROM_REPLICA)
 			data = Net.createMessage( data, destId.array(), true );
 		session.sendMessage( data, true );
@@ -163,31 +165,23 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		bitSet.clear();
 		
 		if(m_tree != null) {
+			// Receive the height of the receiver tree.
+			int inputHeight = Utils.byteArrayToInt( session.receiveMessage() );
+			if(inputHeight == 0)
+				return;
+			
 			List<Node> nodes = new LinkedList<>();
 			nodes.add( m_tree.getRoot() );
 			
-			int sigLength = m_tree.getRoot().sig.length;
-			int nNodes, level = 0, treeHeight = m_tree.getHeight();
-			LOGGER.debug( "[CLIENT] HEIGHT: " + treeHeight );
+			int sigLength = m_tree.getRoot().sig.length; // TODO volendo la lunghezza puo' essere una costante (usandola sulla stringa vuota)
+			int nNodes;
+			
+			// Reduce the level of the tree if it is greater.
+			if(m_tree.getHeight() > inputHeight)
+				reduceTree( m_tree.getHeight() - inputHeight, nodes );
 			
 			while((nNodes = nodes.size()) > 0) {
-				if(level <= treeHeight) {
-					// if the leaf level is reached we stop to send the current level
-					LOGGER.debug( "[CLIENT] level: " + level );
-					int maxSize = Integer.BYTES + (Integer.BYTES + sigLength) * nNodes;
-					ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES + maxSize );
-					// put the leaf status 
-					buffer.put( (level == treeHeight) ? (byte) 0x1 : (byte) 0x0 );
-					
-					// put the number of nodes
-					buffer.putInt( nNodes );
-					// put the length and signature of each node
-					for(Node node : nodes)
-						buffer.putInt( node.sig.length ).put( node.sig );
-					
-					LOGGER.debug( "Sending the current level.." );
-					session.sendMessage( buffer.array(), true );
-				}
+				sendCurrentLevel( sigLength, nodes );
 				
 				// receive the response set
 				LOGGER.debug( "Waiting the answer..." );
@@ -210,7 +204,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					}
 				}
 				
-				// insert the right and left child of each node
+				// insert the right and left child of each different node
 				for(int j = 0; j < nNodes; j++) {
 					Node n = nodes.remove( 0 );
 					if(set.get( j ) == false){
@@ -220,14 +214,37 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				}
 					
 				LOGGER.debug( "Nodes: " + nodes.size() );
-				
-				level++;
 			}
 		}
 	}
 	
 	/**
-	 * Gets the list of versions associated to each input file when the bit is 1.
+	 * Send the current level to the other peer.
+	 * 
+	 * @param sigLength	
+	 * @param nodes		
+	*/
+	private void sendCurrentLevel( final int sigLength,
+								   final List<Node> nodes ) throws IOException
+	{
+		int nNodes = nodes.size();
+		
+		// if the leaf level is reached we stop to send the current level
+		int maxSize = Integer.BYTES + (Integer.BYTES + sigLength) * nNodes;
+		ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES + maxSize );
+		
+		// put the number of nodes
+		buffer.putInt( nNodes );
+		// put the length and signature of each node
+		for(Node node : nodes)
+			buffer.putInt( node.sig.length ).put( node.sig );
+		
+		LOGGER.debug( "Sending the current level.." );
+		session.sendMessage( buffer.array(), true );
+	}
+	
+	/**
+	 * Gets the list of versions associated to each equal files (the bit is set to 1).
 	 * 
 	 * @param files		list of files
 	 * 
