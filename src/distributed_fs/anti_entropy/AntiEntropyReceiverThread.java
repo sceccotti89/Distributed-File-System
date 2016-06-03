@@ -19,10 +19,10 @@ import java.util.concurrent.Executors;
 import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
@@ -52,7 +52,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	{
 		super( _me, database, fMgr, cHasher );
 		
-		threadPool = Executors.newFixedThreadPool( QuorumSystem.getMaxNodes() );
+		threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
 		addToSynch( Utils.hexToBytes( me.getId() ).array() );
 		Net.setSoTimeout( 2000 );
 	}
@@ -97,14 +97,14 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			try {
 				String srcAddress = session.getSrcAddress();
 				
-				ByteBuffer data = handShake();
+				ByteBuffer data = handshake();
 				if(data == null)
 					return;
 				
 				byte msg_type = data.get();
 				
 				// Get the input tree status and height.
-				byte inputTree = data.get();// TODO per risparmiare byte questo messaggio potrebbe contenere gia' la root dell'albero (la signature)
+				byte inputTree = data.get();
 				int inputHeight = (inputTree == (byte) 0x0) ?
 								  0 : Utils.byteArrayToInt( Utils.getNextBytes( data ) );
 				
@@ -168,7 +168,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		/**
 		 * Start the handshake phase.
 		*/
-		private ByteBuffer handShake() throws IOException
+		private ByteBuffer handshake() throws IOException
 		{
 			ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 			// Get the source node identifier.

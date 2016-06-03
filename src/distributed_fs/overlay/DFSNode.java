@@ -37,6 +37,7 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.ThreadState;
+import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
 import distributed_fs.utils.Utils;
@@ -133,7 +134,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		this._net = net;
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
-		Utils.createDirectory( Utils.RESOURCE_LOCATION );
+		Utils.createDirectory( DFSDatabase.RESOURCE_LOCATION );
 	}
 	
 	/**

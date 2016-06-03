@@ -16,10 +16,10 @@ import java.util.List;
 import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 
@@ -79,7 +79,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					}
 				}
 				
-				List<ByteBuffer> nodes = getPredecessorNodes( vNodeId, QuorumSystem.getMaxNodes() );
+				List<ByteBuffer> nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
 				while(nodes.size() > 0) {
 					ByteBuffer randomPeer = selectPartner( nodes );
 					GossipMember node = cHasher.getBucket( randomPeer );

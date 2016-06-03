@@ -26,6 +26,7 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
+import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.overlay.manager.ThreadMonitor;
@@ -34,7 +35,6 @@ import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
 import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.CmdLineParser;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
@@ -55,7 +55,7 @@ public class StorageNode extends DFSNode
 	private TCPSession session;
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
-	private QuorumSystem quorum;
+	private QuorumSession quorum;
 	// =========================================== //
 	
 	//private static final List<DFSNode> threads = new ArrayList<>( DFSNode.MAX_USERS );
@@ -122,8 +122,7 @@ public class StorageNode extends DFSNode
     				    if(threadPool.isShutdown())
                             break;
     				    
-    				    StorageNode node = new StorageNode( fMgr, quorum_t, cHasher, _net, session );
-    				    node.setId( getNextThreadID() );
+    				    StorageNode node = new StorageNode( getNextThreadID(), fMgr, quorum_t, cHasher, _net, session );
     				    monitor_t.addThread( node );
     				    
     				    threadPool.execute( node );
@@ -181,8 +180,7 @@ public class StorageNode extends DFSNode
 				        if(threadPool.isShutdown())
 				            break;
 				        
-				        StorageNode node = new StorageNode( fMgr, quorum_t, cHasher, _net, session );
-				        node.setId( getNextThreadID() );
+				        StorageNode node = new StorageNode( getNextThreadID(), fMgr, quorum_t, cHasher, _net, session );
 				        monitor_t.addThread( node );
 				        
 				        threadPool.execute( node );
@@ -199,13 +197,15 @@ public class StorageNode extends DFSNode
 	/**
 	 * Constructor used to handle the incoming request.
 	 * 
+	 * @param id		the associated identifier
 	 * @param fMgr		the file manager thread
 	 * @param quorum_t	the quorum thread
 	 * @param cHasher	the consistent hashing structure
 	 * @param net		the current TCP channel
 	 * @param session	the TCP session
 	*/
-	private StorageNode( final FileManagerThread fMgr,
+	private StorageNode( final long id,
+						 final FileManagerThread fMgr,
 						 final QuorumThread quorum_t,
 						 final ConsistentHasherImpl<GossipMember, String> cHasher,
 						 final TCPnet net,
@@ -213,7 +213,7 @@ public class StorageNode extends DFSNode
 	{
 		super( net, fMgr, cHasher );
 		
-		quorum = new QuorumSystem( id );
+		quorum = new QuorumSession( id );
 		this.quorum_t = quorum_t;
 		this.session = session;
 	}
@@ -255,17 +255,16 @@ public class StorageNode extends DFSNode
 				// TODO rimuovere i commenti di TEST dalla classe QuorumSystem
 				
 				// Check if the quorum has been completed successfully.
-				if(!QuorumSystem.isQuorum( opType, replicaNodes )) {
+				if(!QuorumSession.isQuorum( opType, replicaNodes )) {
 					//session.sendMessage( new byte[]{ Utils.TRANSACTION_FAILED }, false );
 					//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
 					//session.sendMessage( message, true );
-					session.close();
-					stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
+					closeWorker();
 					return;
 				}
 				else {
 					if(opType != Message.GET) {
-						LOGGER.info( "[SN] Quorum completed successfully: " + replicaNodes + "/" + QuorumSystem.getMinQuorum( opType ) );
+						LOGGER.info( "[SN] Quorum completed successfully: " + replicaNodes + "/" + QuorumSession.getMinQuorum( opType ) );
 						quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
 						//quorum_t.closeQuorum( new ArrayList<>( agreedNodes ) );
 						
@@ -317,10 +316,7 @@ public class StorageNode extends DFSNode
 			e.printStackTrace();
 		}
 		
-		session.close();
-		stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
-		
-		completed = true;
+		closeWorker();
 	}
 	
 	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
@@ -355,7 +351,7 @@ public class StorageNode extends DFSNode
 			
 			// The replica files can be less than the quorum.
 			LOGGER.info( "Receive the files from the replica nodes..." );
-			HashMap<RemoteFile, byte[]> filesToSend = new HashMap<>( QuorumSystem.getMaxNodes() + 1 );
+			HashMap<RemoteFile, byte[]> filesToSend = new HashMap<>( QuorumSession.getMaxNodes() + 1 );
 			int errors = 0;
 			
 			// Get the replica versions.
@@ -373,8 +369,8 @@ public class StorageNode extends DFSNode
 					}
 				}
 				catch( IOException e ) {
-					if(QuorumSystem.unmakeQuorum( ++errors, Message.GET )) {
-						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSystem.getMinQuorum( Message.GET ) );
+					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
+						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
 						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
 						//this.session.sendMessage( message, true );
 						
@@ -388,7 +384,7 @@ public class StorageNode extends DFSNode
 			}
 			
 			// Send the positive notification to the client.
-			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSystem.getMinQuorum( Message.GET ) );
+			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
 			quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
 			
 			//MessageResponse message = new MessageResponse( Message.TRANSACTION_OK );
@@ -654,12 +650,27 @@ public class StorageNode extends DFSNode
 	}
 	
 	/**
-	 * Start a thread, replacing an inactive one
-	 * due to some error.
+	 * Close the resources opened by the instance node.
+	*/
+	public void closeWorker()
+	{
+		quorum.closeQuorum();
+		session.close();
+		stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
+		
+		completed = true;
+	}
+	
+	/**
+	 * Start a thread, replacing an inactive one.
+	 * 
+	 * @param threadPool
+	 * @param state
 	*/
 	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
 	{
-		StorageNode node = new StorageNode( state.getFileManager(),
+		StorageNode node = new StorageNode( state.getId(),
+											state.getFileManager(),
 											state.getQuorumThread(),
 											state.getHasing(), state.getNet(), state.getSession() );
 		

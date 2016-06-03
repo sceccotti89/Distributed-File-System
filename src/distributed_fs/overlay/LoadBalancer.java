@@ -21,8 +21,8 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
+import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.utils.CmdLineParser;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 import gossiping.GossipService;
@@ -269,7 +269,7 @@ public class LoadBalancer extends DFSNode
 	*/
 	private List<GossipMember> getNodesFromPreferenceList( final ByteBuffer id, final GossipMember sourceNode )
 	{
-		final int PREFERENCE_LIST = QuorumSystem.getMaxNodes() - 1;
+		final int PREFERENCE_LIST = QuorumSession.getMaxNodes() - 1;
 		List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
 		nodes.add( sourceNode );
 		return nodes;

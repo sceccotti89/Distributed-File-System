@@ -43,9 +43,6 @@ public class Utils
 	/** Configuration path. */
 	public static final String DISTRIBUTED_FS_CONFIG = "./Settings/Settings.json";
 	
-	/** Resource path location. */
-	public static final String RESOURCE_LOCATION = "./Resources/";
-	
 	/** The logger level. */
 	public static Level logLevel;
 	

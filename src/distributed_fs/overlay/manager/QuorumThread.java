@@ -28,7 +28,6 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.StorageNode;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 
@@ -212,18 +211,18 @@ public class QuorumThread extends Thread
      * @return list of contacted nodes, that have agreed to the quorum
     */
     public List<QuorumNode> checkQuorum( final TCPSession session,
-    									 final QuorumSystem quorum,
+    									 final QuorumSession quorum,
                                          final byte opType,
                                          final String fileName,
                                          final String destId ) throws IOException
     {
         ByteBuffer id = Utils.hexToBytes( destId );
         
-        List<GossipMember> nodes = node.getSuccessorNodes( id, address, QuorumSystem.getMaxNodes() );
+        List<GossipMember> nodes = node.getSuccessorNodes( id, address, QuorumSession.getMaxNodes() );
         
         DFSNode.LOGGER.debug( "Neighbours: " + nodes.size() );
-        if(nodes.size() < QuorumSystem.getMinQuorum( opType )) {
-            DFSNode.LOGGER.info( "[SN] Quorum failed: " + nodes.size() + "/" + QuorumSystem.getMinQuorum( opType ) );
+        if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
+            DFSNode.LOGGER.info( "[SN] Quorum failed: " + nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
             
             // If there is a number of nodes less than the quorum,
             // we neither start the protocol.
@@ -247,7 +246,7 @@ public class QuorumThread extends Thread
      * @return list of contacted nodes, that have agreed to the quorum
     */
     private List<QuorumNode> contactNodes( final TCPSession session,
-    									   final QuorumSystem quorum,
+    									   final QuorumSession quorum,
                                            final byte opType,
                                            final String fileName,
                                            final List<GossipMember> nodes ) throws IOException
@@ -286,7 +285,7 @@ public class QuorumThread extends Thread
                 else {
                     // Blocked => the node doesn't agree to the quorum.
                     DFSNode.LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
-                    if(QuorumSystem.unmakeQuorum( ++errors, opType )) {
+                    if(QuorumSession.unmakeQuorum( ++errors, opType )) {
                         cancelQuorum( session, quorum, agreedNodes );
                         break;
                     }
@@ -297,7 +296,7 @@ public class QuorumThread extends Thread
                     mySession.close();
                 
                 DFSNode.LOGGER.info( "[SN] Node " + node + " is not reachable." );
-                if(QuorumSystem.unmakeQuorum( ++errors, opType )) {
+                if(QuorumSession.unmakeQuorum( ++errors, opType )) {
                     cancelQuorum( session, quorum, agreedNodes );
                     break;
                 }
@@ -315,7 +314,7 @@ public class QuorumThread extends Thread
      * @param session       network channel with the client
      * @param agreedNodes   list of contacted nodes
     */
-    public void cancelQuorum( final TCPSession session, final QuorumSystem quorum, final List<QuorumNode> agreedNodes ) throws IOException
+    public void cancelQuorum( final TCPSession session, final QuorumSession quorum, final List<QuorumNode> agreedNodes ) throws IOException
     {
         if(session != null)
             DFSNode.LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
@@ -325,7 +324,7 @@ public class QuorumThread extends Thread
         sendQuorumResponse( session, Message.TRANSACTION_FAILED );
     }
     
-    public void closeQuorum( final QuorumSystem quorum, final List<QuorumNode> agreedNodes )
+    public void closeQuorum( final QuorumSession quorum, final List<QuorumNode> agreedNodes )
     {
         //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
@@ -435,14 +434,14 @@ public class QuorumThread extends Thread
 	*/
 	public static class QuorumNode
 	{
-		private final QuorumSystem quorum;
+		private final QuorumSession quorum;
 		private final GossipMember node;
 		private List<QuorumNode> nodes;
 		private final String fileName;
 		private final byte opType;
 		private final long id;
 		
-		public QuorumNode( final QuorumSystem quorum, final GossipMember node,
+		public QuorumNode( final QuorumSession quorum, final GossipMember node,
 						   final String fileName, final byte opType, final long id )
 		{
 			this.quorum = quorum;
@@ -452,7 +451,7 @@ public class QuorumThread extends Thread
 			this.id = id;
 		}
 		
-		public QuorumSystem getQuorum() {
+		public QuorumSession getQuorum() {
 			return quorum;
 		}
 		

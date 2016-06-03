@@ -64,7 +64,6 @@ public class MerkleTree
 	 * The Merkle tree is built from the bottom up.
 	 * 
 	 * @param leafKeys		byte representation of the files
-	 * @param hash			hash function used to get a digest from a key
 	*/
 	public MerkleTree( final List<byte[]> leafKeys )
 	{

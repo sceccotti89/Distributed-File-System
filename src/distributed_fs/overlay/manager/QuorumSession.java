@@ -2,8 +2,9 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.utils;
+package distributed_fs.overlay.manager;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -16,22 +17,23 @@ import org.json.JSONObject;
 
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
+import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
-public class QuorumSystem
+public class QuorumSession
 {
-	public long timeElapsed;
+	private long timeElapsed;
 	private String quorumFile;
 	
 	/** Parameters of the quorum protocol (like Dynamo). */
 	private static final short N = 3, W = 2, R = 2;
 	/** The quorum file status location. */
-	public static final String QuorumFile = "./Settings/QuorumStatus.json";
+	public static final String QUORUM_FILE = "./Settings/QuorumStatus";
 	
-	public QuorumSystem( final long id ) throws IOException, JSONException
+	public QuorumSession( final long id ) throws IOException, JSONException
 	{
-	    quorumFile = "./Settings/QuorumStatus" + id + ".json";
+	    quorumFile = QUORUM_FILE + id + ".json";
         if(!Utils.existFile( quorumFile, true ))
             saveState( null );
     }
@@ -45,7 +47,7 @@ public class QuorumSystem
 	{
 		List<QuorumNode> nodes = new ArrayList<>();
 		
-		JSONObject file = Utils.parseJSONFile( QuorumFile );
+		JSONObject file = Utils.parseJSONFile( quorumFile );
 		
 		long timestamp = file.getLong( "timestamp" );
 		timeElapsed = System.currentTimeMillis() - timestamp;
@@ -90,10 +92,22 @@ public class QuorumSystem
 		file.put( "members", members );
 		file.put( "timestamp", System.currentTimeMillis() );
 		
-		PrintWriter writer = new PrintWriter( QuorumFile, StandardCharsets.UTF_8.name() );
+		PrintWriter writer = new PrintWriter( quorumFile, StandardCharsets.UTF_8.name() );
 		writer.println( file.toString() );
 		writer.flush();
 		writer.close();
+	}
+	
+	public long getTimeElapsed() {
+		return timeElapsed;
+	}
+	
+	/**
+	 * Close the quorum session.
+	*/
+	public void closeQuorum()
+	{
+		new File( quorumFile ).delete();
 	}
 	
 	/**

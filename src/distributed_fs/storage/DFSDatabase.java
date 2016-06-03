@@ -54,6 +54,9 @@ public class DFSDatabase
 	private static final Object LOCK_READERS = new Object();
 	private static final Object LOCK_WRITERS = new Object();*/
 	
+	/** Resource path location. */
+	public static final String RESOURCE_LOCATION = "./Resources/";
+	
 	public static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
 	/**
@@ -87,7 +90,7 @@ public class DFSDatabase
 		database = new TreeMap<>();
 		
 		// Check if the path is written in the standard format.
-		root = (resourcesLocation != null) ? resourcesLocation.replace( "\\", "/" ) : Utils.RESOURCE_LOCATION;
+		root = (resourcesLocation != null) ? resourcesLocation.replace( "\\", "/" ) : RESOURCE_LOCATION;
 		if(root.substring( root.lastIndexOf( '/' ) ).contains( "." ))
 		    throw new DFSException( "Invalid Database location: " + root );
 		
@@ -532,7 +535,7 @@ public class DFSDatabase
 	*/
 	public boolean checkExistFile( final String filePath ) throws IOException
 	{
-		return checkInFileSystemExists( new File( root ), filePath );
+		return checkInFileSystemExists( new File( root ), root + filePath );
 	}
 	
 	private boolean checkInFileSystemExists( final File filePath, final String fileName )

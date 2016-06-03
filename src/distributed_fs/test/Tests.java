@@ -247,7 +247,7 @@ public class Tests
 	@Test
     public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
     {
-        System.out.println( "Starting Hinted Handoff test..." );
+		System.out.println( "Starting Hinted Handoff test..." );
     	String file = "chord_sigcomm.pdf";
     	Utils.existFile( "./Resources/" + file, true );
     	
