@@ -14,15 +14,10 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
-import java.util.Enumeration;
 import java.util.List;
 
 import org.apache.log4j.BasicConfigurator;
@@ -34,7 +29,7 @@ import org.junit.Test;
 import distributed_fs.anti_entropy.AntiEntropySenderThread;
 import distributed_fs.client.DFSService;
 import distributed_fs.exception.DFSException;
-import distributed_fs.overlay.DFSnode;
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;
 import distributed_fs.storage.DFSDatabase;
@@ -46,11 +41,11 @@ import gossiping.RemoteGossipMember;
 
 public class Tests
 {
-	private static String myIpAddress;
+	private static final String myIpAddress = "127.0.0.1";
 	
 	private List<DFSService> services;
 	private List<GossipMember> members;
-	private List<DFSnode> nodes;
+	private List<DFSNode> nodes;
 	
 	private static final int NUMBER_OF_BALANCERS = 2;
 	private static final int NUMBER_OF_NODES = 5;
@@ -84,24 +79,6 @@ public class Tests
 	@Before
 	public void startSystem() throws IOException, JSONException, SQLException, InterruptedException, DFSException
 	{
-		// Enumerate all the network intefaces.
-		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-		for(NetworkInterface netInt : Collections.list( nets )) {
-			if(netInt.getName().equals( "eth0" )) {
-				// Enumerate all the IP address associated with it.
-				for(InetAddress inetAddress : Collections.list( netInt.getInetAddresses() )) {
-					if(!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
-						myIpAddress = inetAddress.getHostAddress();
-						break;
-					}
-				}
-			}
-			
-			if(myIpAddress != null)
-				break;
-		}
-		myIpAddress = "127.0.0.1";
-		
 		runServers();
 		runClients( myIpAddress, 2 );
 	}
@@ -322,6 +299,7 @@ public class Tests
 		
 		Thread.sleep( 1000 );
 		
+		Utils.existFile( "./Resources/test2.txt", true );
 		service.put( "./Resources/test2.txt" );
 		System.out.println( "\n\n" );
 		
@@ -366,9 +344,9 @@ public class Tests
 		for(DFSService service : services)
 			service.shutDown();
 		
-		for(DFSnode node : nodes)
+		for(DFSNode node : nodes)
 			node.closeResources();
-		for(DFSnode node : nodes)
+		for(DFSNode node : nodes)
 			node.join();
 	}
 }

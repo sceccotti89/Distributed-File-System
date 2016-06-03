@@ -8,17 +8,17 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 
-import distributed_fs.overlay.DFSnode;
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.Utils;
 
 public class NetworkMonitorSenderThread extends NetworkMonitor
 {
-	private final DFSnode node;
+	private final DFSNode node;
 	private final OperatingSystemMXBean system;
 	
 	private static final int SLEEP = 5000;
 	
-	public NetworkMonitorSenderThread( final String address, final DFSnode node ) throws IOException
+	public NetworkMonitorSenderThread( final String address, final DFSNode node ) throws IOException
 	{
 		super( address );
 		

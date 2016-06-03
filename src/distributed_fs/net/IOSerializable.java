@@ -8,9 +8,9 @@ package distributed_fs.net;
  * Interface used to serialize/deserialize an object
  * in a more efficient manner compared to the default
  * {@link java.io.Serializable} interface.<br>
- * The time and space improvements can be obtained simply considering that
- * this interface doesn't waste the time to serialize/deserialize
- * all the methods, and the serial id, present in the class.
+ * The time and space improvements can be obtained considering that
+ * this interface doesn't waste time to serialize/deserialize
+ * all the methods and the serial id, present in the class.
 */
 public interface IOSerializable
 {

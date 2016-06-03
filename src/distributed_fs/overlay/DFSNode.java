@@ -36,9 +36,9 @@ import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
+import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.QuorumSystem;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 import gossiping.GossipRunner;
@@ -46,7 +46,7 @@ import gossiping.LogLevel;
 import gossiping.event.GossipListener;
 import gossiping.event.GossipState;
 
-public abstract class DFSnode extends Thread implements GossipListener
+public abstract class DFSNode extends Thread implements GossipListener
 {
 	protected static String _address;
 	protected int port;
@@ -58,36 +58,36 @@ public abstract class DFSnode extends Thread implements GossipListener
 	protected ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
-	protected long id;
+	protected int nodeType;
+	
 	protected boolean shutDown = false;
 	
-	private static long nextThreadID;
+	protected ThreadState state;
+	protected List<Integer> actionsList; // Actions performed by the thread, during the request processing.
+	protected long id;
+	protected boolean completed = false; // Used to check if the thread has completed the job.
+	private static long nextThreadID; // Next unique identifier associated to the Thread.
 	
-	// TODO salvarsi un hash map di thread?? forse basterebbe un vettore
-	// TODO se voglio far partire un thread al posto di un altro
-	// TODO devo trasformare ogni nodo in una macchina a stati
-	// TODO e di creare tante funzioni quante solo le azioni da lui intraprese.
-	//protected final List<> threads = new ArrayList<>( MAX_USERS );
+	protected static boolean initConfig = false;
 	
-	protected static boolean initiConfig = false;
-	
-	private static final int MAX_USERS = 64; // Maximum number of accepted connections.
+	public static final int MAX_USERS = 64; // Maximum number of accepted connections.
 	public static final int WAIT_CLOSE = 500;
-	public static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
+	public static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
 	
-	public DFSnode( final int nodeType,
+	public DFSNode( final int nodeType,
 					final String address,
 					final List<GossipMember> startupMembers ) throws IOException, JSONException
 	{
 		_address = address;
+		this.nodeType = nodeType;
 		
 		setConfigure();
 		
 		if(!Utils.testing)
 			LOGGER.setLevel( Utils.logLevel );
 		
-		if(nodeType == GossipMember.STORAGE)
-			QuorumSystem.init();
+		//if(nodeType == GossipMember.STORAGE)
+			//QuorumSystem.init();
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -111,21 +111,22 @@ public abstract class DFSnode extends Thread implements GossipListener
 	}
 	
 	/** Testing. */
-	public DFSnode() throws IOException, JSONException
+	public DFSNode() throws IOException, JSONException
 	{
 		Utils.testing = true;
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
 		_net = new TCPnet();
-		threadPool = Executors.newCachedThreadPool();
+		//threadPool = Executors.newCachedThreadPool();
+		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 	}
 	
 	/**
 	 * Constructor used to handle an instance of the Distributed node,
 	 * due to an incoming request.
 	*/
-	public DFSnode( final TCPnet net,
+	public DFSNode( final TCPnet net,
 					final FileManagerThread fMgr,
 					final ConsistentHasherImpl<GossipMember, String> cHasher )
 	{
@@ -239,8 +240,8 @@ public abstract class DFSnode extends Thread implements GossipListener
 	*/
 	private void setConfigure() throws IOException, JSONException
 	{
-		if(!initiConfig){
-			initiConfig = true;
+		if(!initConfig){
+			initConfig = true;
 			BasicConfigurator.configure();
 		}
 		
@@ -404,16 +405,29 @@ public abstract class DFSnode extends Thread implements GossipListener
 		return nodes;
 	}
 	
-	protected void setId( final long id ) {
-        this.id = id;
-    }
+	public int getNodeType() {
+		return nodeType;
+	}
+	
+	public ThreadState getJobState() {
+		return state;
+	}
+	
+	public boolean isCompleted()
+	{
+		return completed;
+	}
     
     @Override
     public long getId() {
         return id;
     }
     
-    protected synchronized long getNextThreadID() {
+    public void setId( final long id ) {
+    	this.id = id;
+    }
+    
+    protected static synchronized long getNextThreadID() {
         return ++nextThreadID;
     }
 	

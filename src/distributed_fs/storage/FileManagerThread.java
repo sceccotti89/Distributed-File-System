@@ -24,8 +24,7 @@ import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.StorageNode;
-import distributed_fs.overlay.StorageNode.QuorumNode;
-import distributed_fs.utils.QuorumSystem;
+import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 
@@ -355,7 +354,7 @@ public class FileManagerThread extends Thread
 	{
 		List<QuorumNode> nodes = node.getList();
 		nodes.remove( node );
-		QuorumSystem.saveState( nodes );
+		node.getQuorum().saveState( nodes );
 	}
 	
 	/**

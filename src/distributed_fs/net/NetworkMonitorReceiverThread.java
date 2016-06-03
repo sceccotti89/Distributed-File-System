@@ -17,6 +17,8 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 	{
 		super( address );
 		
+		setDaemon( true );
+		
 		nodes = new HashMap<String, NodeStatistics>();
 		net.setSoTimeout( 2000 );
 	}

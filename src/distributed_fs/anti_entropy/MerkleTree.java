@@ -5,6 +5,7 @@
 package distributed_fs.anti_entropy;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -50,6 +51,8 @@ public class MerkleTree
 	private static final byte INTERNAL_SIG_TYPE = 0x01;
 	
 	public static final HashFunction _hash = Hashing.md5();
+	public static final int sigLength = _hash.hashBytes( "".getBytes( StandardCharsets.UTF_8 ) ).asBytes().length;
+	
 	private List<byte[]> leafSigs;
 	private Node root;
 	private int depth;
@@ -321,7 +324,7 @@ public class MerkleTree
 		//System.out.println( "LEFT: " + leftSig );
 		//System.out.println( "RIGHT: " + rightSig );
 		//System.out.println( "RESULT: " + Utils.bytesToHex( _hash.hashBytes( (leftSig + rightSig).getBytes() ).asBytes() ) );
-		return _hash.hashBytes( (leftSig + rightSig).getBytes() ).asBytes();
+		return _hash.hashBytes( (leftSig + rightSig).getBytes( StandardCharsets.UTF_8 ) ).asBytes();
 	}
 	
 	private byte[] leaveHash( final byte[] leaveSig )

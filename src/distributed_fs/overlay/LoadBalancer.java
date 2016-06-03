@@ -30,7 +30,7 @@ import gossiping.GossipSettings;
 import gossiping.event.GossipState;
 import gossiping.manager.GossipManager;
 
-public class LoadBalancer extends DFSnode
+public class LoadBalancer extends DFSNode
 {
 	// ===== used by the private constructor ===== //
 	private TCPSession session;

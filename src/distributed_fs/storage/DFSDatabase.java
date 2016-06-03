@@ -53,8 +53,6 @@ public class DFSDatabase
 	private long writers = 0;
 	private static final Object LOCK_READERS = new Object();
 	private static final Object LOCK_WRITERS = new Object();*/
-	//private static final Object COND_READER = new Object();
-	//private static final Object COND_WRITER = new Object();
 	
 	public static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
@@ -174,13 +172,13 @@ public class DFSDatabase
 	/**
 	 * Save the version of a file in the versioning database.
 	 * 
-	 * @param fileId		the file identifier
-	 * @param clock			the associated clock
-	 * @param hintedHandoff	the hinted handoff address in the form {@code ipAddress:port}
-	 * @param deleted		decide whether the file has been deleted
-	 * @param TTL			Time To Live of the file
-	 * @param update		{@code true} if the clock replace an old value,
-	 * 						{@code false} otherwise
+	 * @param fileId			the file identifier
+	 * @param clock				the associated clock
+	 * @param hintedHandoff		the hinted handoff address in the form {@code ipAddress:port}
+	 * @param deleted			decide whether the file has been deleted
+	 * @param TTL				Time To Live of the file
+	 * @param update			{@code true} if the clock replace an old value,
+	 * 							{@code false} otherwise
 	*/
 	private void saveVersion( final String fileId, final byte[] clock,
 							  String hintedHandoff, final boolean deleted,
@@ -242,8 +240,8 @@ public class DFSDatabase
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
 	public VectorClock saveFile( final String fileName, final byte[] content,
-											  final VectorClock clock, final String hintedHandoff,
-											  final boolean saveOnDisk ) throws IOException, SQLException
+								 final VectorClock clock, final String hintedHandoff,
+								 final boolean saveOnDisk ) throws IOException, SQLException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
@@ -262,7 +260,7 @@ public class DFSDatabase
 		
 		DistributedFile file = database.get( fileId );
 		
-		LOGGER.debug( "OLD FILE: " + file );
+		//LOGGER.debug( "OLD FILE: " + file );
 		
 		if(file != null) {
 			// Resolve the (possible) inconsistency through the versions.
@@ -501,7 +499,7 @@ public class DFSDatabase
 	 * 
 	 * @return list containing all the files stored in the database
 	*/
-	public synchronized List<DistributedFile> getAllFiles()
+	public List<DistributedFile> getAllFiles()
 	{
 	    List<DistributedFile> files = new ArrayList<>();
 	    
@@ -524,7 +522,7 @@ public class DFSDatabase
 	}
 	
 	/**
-	 * Checks the existence of a file in the file system,
+	 * Checks the existence of a file in the application file system,
 	 * starting from its root.
 	 * 
 	 * @param filePath	the file to search
@@ -542,7 +540,7 @@ public class DFSDatabase
 		File[] files = filePath.listFiles();
 		if(files != null) {
 			for(File file : files) {
-				if(file.getPath().equals( fileName ))
+				if(file.getPath().replace( "\\", "/" ).equals( fileName ))
 					return true;
 				
 				if(file.isDirectory()) {

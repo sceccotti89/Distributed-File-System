@@ -73,7 +73,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 						if(!addresses.contains( succNode.getHost() )) {
 							if(!Utils.testing)
 								addresses.add( succNode.getHost() );
-							try{ sendMerkleTree( succNode, vNodeId.array(), vNodeId, MERKLE_FROM_MAIN ); }
+							try{ startAntiEntropy( succNode, vNodeId.array(), vNodeId, MERKLE_FROM_MAIN ); }
 							catch( IOException | InterruptedException e ){ /*e.printStackTrace();*/ }
 						}
 					}
@@ -85,7 +85,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					GossipMember node = cHasher.getBucket( randomPeer );
 					if(node != null) {
 						try {
-							sendMerkleTree( node, vNodeId.array(), randomPeer, MERKLE_FROM_REPLICA );
+							startAntiEntropy( node, vNodeId.array(), randomPeer, MERKLE_FROM_REPLICA );
 							break;
 						}
 						catch( IOException | InterruptedException e ){ /*e.printStackTrace();*/ }
@@ -107,7 +107,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	 * @param destId		node identifier from which calculate the range of the files
 	 * @param msg_type		the type of the exchanged messages
 	*/
-	private void sendMerkleTree( final GossipMember node, final byte[] sourceId, final ByteBuffer destId, final byte msg_type )
+	private void startAntiEntropy( final GossipMember node, final byte[] sourceId, final ByteBuffer destId, final byte msg_type )
 	        throws IOException, InterruptedException
 	{
 		// ================ TODO finiti i test togliere questa parte ================= //
@@ -132,8 +132,9 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		//session = Net.tryConnect( address, MERKLE_TREE_EXCHANGE_PORT, 2000 );
 		session = Net.tryConnect( node.getHost(), node.getPort() + 2, 2000 );
 		
-		// check the differences among the trees
-		checkTreeDifferences( msg_type, sourceId, destId );
+		handShake( msg_type, sourceId, destId );
+		// Check the differences among the trees.
+		checkTreeDifferences();
 		
 		if(m_tree != null && bitSet.cardinality() > 0) {
 			LOGGER.debug( "ID: " + Utils.bytesToHex( sourceId ) + ", BIT_SET: " + bitSet );
@@ -145,54 +146,53 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	}
 	
 	/**
-	 * Checks the differences,
-	 * sending the tree to the destination node.
+	 * Start the handshake phase.
 	 * 
 	 * @param msg_type		one of {@code MERKLE_FROM_MAIN} and {@code MERKLE_FROM_REPLICA}
-	 * @param sourceId		
+	 * @param sourceId		source node identifier
 	 * @param destId		destination node identifier
 	*/
-	private void checkTreeDifferences( final byte msg_type, final byte[] sourceId, final ByteBuffer destId ) throws IOException
+	private void handShake( final byte msg_type, final byte[] sourceId, final ByteBuffer destId ) throws IOException
 	{
 		byte[] data = Net.createMessage( null, sourceId, true );
 		data = Net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
+		if(m_tree != null)
+			data = Net.createMessage( data, Utils.intToByteArray( m_tree.getHeight() ), true );
 		if(msg_type == MERKLE_FROM_REPLICA)
 			data = Net.createMessage( data, destId.array(), true );
 		session.sendMessage( data, true );
-		
+	}
+	
+	/**
+	 * Checks the differences,
+	 * sending the tree to the destination node.
+	*/
+	private void checkTreeDifferences() throws IOException
+	{
 		bitSet.clear();
 		
 		if(m_tree != null) {
+			// Receive the height of the receiver tree.
+			int inputHeight = Utils.byteArrayToInt( session.receiveMessage() );
+			if(inputHeight == 0)
+				return;
+			
 			List<Node> nodes = new LinkedList<>();
 			nodes.add( m_tree.getRoot() );
 			
-			int sigLength = m_tree.getRoot().sig.length;
-			int nNodes, level = 0, treeHeight = m_tree.getHeight();
-			LOGGER.debug( "[CLIENT] HEIGHT: " + treeHeight );
+			// Reduce the level of the tree if it is greater.
+			if(m_tree.getHeight() > inputHeight)
+				reduceTree( m_tree.getHeight() - inputHeight, nodes );
 			
-			while((nNodes = nodes.size()) > 0) {
-				if(level <= treeHeight) {
-					// if the leaf level is reached we stop to send the current level
-					LOGGER.debug( "[CLIENT] level: " + level );
-					int maxSize = Integer.BYTES + (Integer.BYTES + sigLength) * nNodes;
-					ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES + maxSize );
-					// put the leaf status 
-					buffer.put( (level == treeHeight) ? (byte) 0x1 : (byte) 0x0 );
-					
-					// put the number of nodes
-					buffer.putInt( nNodes );
-					// put the length and signature of each node
-					for(Node node : nodes)
-						buffer.putInt( node.sig.length ).put( node.sig );
-					
-					LOGGER.debug( "Sending the current level.." );
-					session.sendMessage( buffer.array(), true );
-				}
+			int nNodes;
+			for(int levels = Math.min( m_tree.getHeight(), inputHeight ); levels > 0 && (nNodes = nodes.size()) > 0; levels--) {
+				sendCurrentLevel( nodes );
 				
-				// receive the response set
-				LOGGER.debug( "Waiting the answer..." );
+				// Receive the response set.
+				LOGGER.debug( "Waiting the response..." );
 				BitSet set = BitSet.valueOf( session.receiveMessage() );
-				LOGGER.debug( "[CLIENT] RICEVUTA LA RISPOSTA: " + set + ", nNodes: " + nNodes );
+				LOGGER.debug( "Received the response" );
+				
 				if(set.cardinality() == nNodes) {
 					LOGGER.debug( "End procedure: cardinality == nodes" );
 					bitSet.set( 0, m_tree.getNumLeaves() );
@@ -200,7 +200,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				}
 				else {
 					for(int i = set.nextSetBit( 0 ); i >= 0; i = set.nextSetBit( i+1 )) {
-						LOGGER.debug( "[CLIENT] index: " + i );
+						LOGGER.debug( "Index: " + i );
 						if(i == Integer.MAX_VALUE)
 							break; // or (i+1) would overflow
 						else {
@@ -210,24 +210,45 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					}
 				}
 				
-				// insert the right and left child of each node
-				for(int j = 0; j < nNodes; j++) {
+				for(int i = 0; i < nNodes; i++) {
 					Node n = nodes.remove( 0 );
-					if(set.get( j ) == false){
+					if(set.get( i ) == false){
+						// Insert the right and left child of this node.
 						if(n.left != null) nodes.add( n.left );
 						if(n.right != null) nodes.add( n.right );
 					}
 				}
 					
 				LOGGER.debug( "Nodes: " + nodes.size() );
-				
-				level++;
 			}
 		}
 	}
 	
 	/**
-	 * Gets the list of versions associated to each input file when the bit is 1.
+	 * Send the current level to the other peer.
+	 * 
+	 * @param nodes		current nodes in the tree
+	*/
+	private void sendCurrentLevel( final List<Node> nodes ) throws IOException
+	{
+		int nNodes = nodes.size();
+		
+		// If the leaves level is reached we stop to send the current level.
+		int maxSize = Integer.BYTES + (Integer.BYTES + MerkleTree.sigLength) * nNodes;
+		ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES + maxSize );
+		
+		// Put the number of nodes.
+		buffer.putInt( nNodes );
+		// Put the length and signature of each node.
+		for(Node node : nodes)
+			buffer.put( node.sig );
+		
+		LOGGER.debug( "Sending the current level.." );
+		session.sendMessage( buffer.array(), true );
+	}
+	
+	/**
+	 * Gets the list of versions associated to each equal files (the bit is set to 1).
 	 * 
 	 * @param files		list of files
 	 * 

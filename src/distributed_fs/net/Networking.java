@@ -319,6 +319,7 @@ public class Networking
 			try {
 				for(TCPSession session : sessions)
 					session.close();
+				sessions.clear();
 				
 				if(servSocket != null)
 					servSocket.close();

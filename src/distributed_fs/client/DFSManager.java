@@ -43,7 +43,7 @@ public class DFSManager
 	private static final String DISTRIBUTED_FS_CONFIG = "./Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
 	
-	protected static boolean initiConfig = false;
+	protected static boolean initConfig = false;
 	
 	public DFSManager( final String ipAddress, final List<GossipMember> members ) throws IOException, JSONException
 	{
@@ -58,8 +58,8 @@ public class DFSManager
 	*/
 	protected void setConfigure( final String ipAddress, final List<GossipMember> members ) throws IOException, JSONException
 	{
-		if(!initiConfig) {
-			initiConfig = true;
+		if(!initConfig) {
+			initConfig = true;
 			BasicConfigurator.configure();
 		}
 		

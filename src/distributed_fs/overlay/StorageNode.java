@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import org.json.JSONException;
 import org.junit.Test;
@@ -26,6 +27,9 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
 import distributed_fs.overlay.manager.QuorumThread;
+import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
+import distributed_fs.overlay.manager.ThreadMonitor;
+import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileManagerThread;
 import distributed_fs.storage.RemoteFile;
@@ -42,7 +46,7 @@ import gossiping.RemoteGossipMember;
 import gossiping.event.GossipState;
 import gossiping.manager.GossipManager;
 
-public class StorageNode extends DFSnode
+public class StorageNode extends DFSNode
 {
 	private static GossipMember me;
 	private QuorumThread quorum_t;
@@ -51,7 +55,11 @@ public class StorageNode extends DFSnode
 	private TCPSession session;
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
+	private QuorumSystem quorum;
 	// =========================================== //
+	
+	//private static final List<DFSNode> threads = new ArrayList<>( DFSNode.MAX_USERS );
+	private static ThreadMonitor monitor_t;
 	
 	/**
 	 * Constructor with the default settings.<br>
@@ -104,6 +112,7 @@ public class StorageNode extends DFSnode
 		//this.port = port;
 		
 		try {
+			monitor_t = new ThreadMonitor( threadPool );
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
 				//System.out.println( "[SN] Waiting on: " + _address + ":" + this.port );
@@ -113,7 +122,11 @@ public class StorageNode extends DFSnode
     				    if(threadPool.isShutdown())
                             break;
     				    
-    				    threadPool.execute( new StorageNode( fMgr, quorum_t, cHasher, _net, session ) );
+    				    StorageNode node = new StorageNode( fMgr, quorum_t, cHasher, _net, session );
+    				    node.setId( getNextThreadID() );
+    				    monitor_t.addThread( node );
+    				    
+    				    threadPool.execute( node );
 				    }
 				}
 			}
@@ -130,7 +143,7 @@ public class StorageNode extends DFSnode
 						final String address,
 						final int port,
 						final String resourcesLocation,
-						final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
+						final String databaseLocation ) throws IOException, JSONException, DFSException
 	{
 		super();
 		
@@ -156,6 +169,7 @@ public class StorageNode extends DFSnode
 		
 		monitor.start();
 		try {
+			monitor_t = new ThreadMonitor( threadPool );
 			threadPool.execute( quorum_t = new QuorumThread( port, _address, this ) );
 			
 			_net.setSoTimeout( WAIT_CLOSE );
@@ -169,6 +183,8 @@ public class StorageNode extends DFSnode
 				        
 				        StorageNode node = new StorageNode( fMgr, quorum_t, cHasher, _net, session );
 				        node.setId( getNextThreadID() );
+				        monitor_t.addThread( node );
+				        
 				        threadPool.execute( node );
 				    }
 				}
@@ -197,6 +213,7 @@ public class StorageNode extends DFSnode
 	{
 		super( net, fMgr, cHasher );
 		
+		quorum = new QuorumSystem( id );
 		this.quorum_t = quorum_t;
 		this.session = session;
 	}
@@ -233,7 +250,7 @@ public class StorageNode extends DFSnode
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				agreedNodes = quorum_t.checkQuorum( session, opType, fileName, destId );
+				agreedNodes = quorum_t.checkQuorum( session, quorum, opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
 				// TODO rimuovere i commenti di TEST dalla classe QuorumSystem
 				
@@ -302,6 +319,8 @@ public class StorageNode extends DFSnode
 		
 		session.close();
 		stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
+		
+		completed = true;
 	}
 	
 	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
@@ -312,7 +331,7 @@ public class StorageNode extends DFSnode
 		LOGGER.debug( "UPDATED: " + (updated != null) + ", NEW_VERSION: " + file.getVersion() );
 		
 		if(updated == null)
-			quorum_t.closeQuorum( agreedNodes );
+			quorum_t.closeQuorum( quorum, agreedNodes );
 		else {
 			file.setVersion( updated );
 			
@@ -350,7 +369,7 @@ public class StorageNode extends DFSnode
 						
 						// Update the list of agreedNodes.
 						agreedNodes.remove( index );
-						QuorumSystem.saveState( agreedNodes );
+						quorum.saveState( agreedNodes );
 					}
 				}
 				catch( IOException e ) {
@@ -359,7 +378,7 @@ public class StorageNode extends DFSnode
 						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
 						//this.session.sendMessage( message, true );
 						
-						quorum_t.cancelQuorum( this.session, agreedNodes );
+						quorum_t.cancelQuorum( this.session, quorum, agreedNodes );
 						return;
 					}
 				}
@@ -495,7 +514,7 @@ public class StorageNode extends DFSnode
 		LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
 		
 		if(updated == null)
-			quorum_t.closeQuorum( agreedNodes );
+			quorum_t.closeQuorum( quorum, agreedNodes );
 		else {
 			file.setVersion( updated );
 			file.setDeleted( true );
@@ -635,111 +654,20 @@ public class StorageNode extends DFSnode
 	}
 	
 	/**
-	 * Class used to manage the agreed nodes of the quorum.
+	 * Start a thread, replacing an inactive one
+	 * due to some error.
 	*/
-	public static class QuorumNode
+	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
 	{
-		private final GossipMember node;
-		private List<QuorumNode> nodes;
-		private final String fileName;
-		private final byte opType;
-		private final long id;
+		StorageNode node = new StorageNode( state.getFileManager(),
+											state.getQuorumThread(),
+											state.getHasing(), state.getNet(), state.getSession() );
 		
-		public QuorumNode( final GossipMember node, final String fileName, final byte opType, final long id )
-		{
-			this.node = node;
-			this.fileName = fileName;
-			this.opType = opType;
-			this.id = id;
+		synchronized( threadPool ) {
+			threadPool.execute( node );
 		}
 		
-		public GossipMember getNode()
-		{
-			return node;
-		}
-		
-		/**
-		 * Method used, during the transmission of the files,
-		 * to set the list of agreed nodes.
-		*/
-		public void addList( final List<QuorumNode> nodes )
-		{
-			this.nodes = nodes;
-		}
-		
-		public List<QuorumNode> getList()
-		{
-			return nodes;
-		}
-		
-		public String getFileName()
-		{
-			return fileName;
-		}
-		
-		public byte getOpType()
-		{
-			return opType;
-		}
-		
-		public long getId()
-		{
-			return id;
-		}
-	}
-	
-	/**
-	 * Class used to represent a file during the quorum phase.
-	 * The object remains in the Map as long as its TimeToLive
-	 * is greater than 0.
-	*/
-	public static class QuorumFile
-	{
-		/** Maximum waiting time of the file in the Map. */
-		private static final long MAX_TTL = 60000; // 1 Minute.
-		
-		private long id;
-		private long ttl = MAX_TTL;
-		private byte opType;
-		private int readers = 0;
-		
-		public QuorumFile( final long id, final byte opType )
-		{
-			this.id = id;
-			this.opType = opType;
-			if(opType == Message.GET)
-				readers = 1;
-		}
-		
-		public void updateTTL( final int delta )
-		{
-			ttl -= delta;
-		}
-		
-		public boolean toDelete()
-		{
-			return (opType == Message.GET && readers == 0) || ttl <= 0;
-		}
-		
-		/**
-		 * Changes the number of readers.
-		 * 
-		 * @param additive	+1/-1
-		*/
-		public void setReaders( final int additive )
-		{
-			readers += additive;
-		}
-		
-		public byte getOpType()
-		{
-			return opType;
-		}
-		
-		public long getId()
-		{
-			return id;
-		}
+		return node;
 	}
 	
 	public static void main( String args[] ) throws Exception

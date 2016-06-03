@@ -32,7 +32,7 @@ import org.json.JSONObject;
 
 import com.google.common.hash.HashFunction;
 
-import distributed_fs.overlay.DFSnode;
+import distributed_fs.overlay.DFSNode;
 import gossiping.StartupSettings;
 
 public class Utils
@@ -99,7 +99,7 @@ public class Utils
 		
 		/* Total number of processors or cores available to the JVM */
 		int cores = runtime.availableProcessors();
-		DFSnode.LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
+		DFSNode.LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
 		virtualNodes = (short) (virtualNodes + (cores * 4));
 		
 		/* Size of the RAM */
@@ -145,10 +145,10 @@ public class Utils
 			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
 		}
 		
-		DFSnode.LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
+		DFSNode.LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
 		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // divide it by 250MB
 		
-		DFSnode.LOGGER.debug( "Total nodes: " + virtualNodes );
+		DFSNode.LOGGER.debug( "Total nodes: " + virtualNodes );
 		
 		return virtualNodes;
 	}

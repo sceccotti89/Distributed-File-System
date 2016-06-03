@@ -16,7 +16,7 @@ import javax.xml.bind.DatatypeConverter;
 import org.apache.log4j.Logger;
 
 import distributed_fs.net.Networking.UDPnet;
-import distributed_fs.overlay.DFSnode;
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.Utils;
 
 /**
@@ -31,7 +31,7 @@ public abstract class NetworkMonitor extends Thread
 	private static final SecretKeySpec keySpec = new SecretKeySpec( DatatypeConverter.parseBase64Binary( "ABEiM0RVZneImaq7zN3u/w==" ), SEC_ALG );
     private static final IvParameterSpec ivSpec = new IvParameterSpec( DatatypeConverter.parseBase64Binary( "AAECAwQFBgcICQoLDA0ODw==" ) );
 	
-    protected static final Logger LOGGER = Logger.getLogger( DFSnode.class.getName() );
+    protected static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
     
 	public NetworkMonitor( final String address ) throws IOException
 	{
