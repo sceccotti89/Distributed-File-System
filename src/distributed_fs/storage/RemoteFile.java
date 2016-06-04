@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import distributed_fs.net.IOSerializable;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 
 /**
@@ -51,9 +51,9 @@ public class RemoteFile implements IOSerializable//, Serializable
 		if(removed || directory)
 			this.content = null;
 		else {
-			byte[] file = Utils.readFileFromDisk( dbRoot + name );
+			byte[] file = DFSUtils.readFileFromDisk( dbRoot + name );
 			// Store the content in compressed form.
-			this.content = Utils.compressData( file );
+			this.content = DFSUtils.compressData( file );
 		}
 	}
 	
@@ -110,7 +110,7 @@ public class RemoteFile implements IOSerializable//, Serializable
 		if(content == null)
 			return null;
 		else
-			return Utils.decompressData( content );
+			return DFSUtils.decompressData( content );
 	}
 	
 	@Override
@@ -126,7 +126,7 @@ public class RemoteFile implements IOSerializable//, Serializable
 	public byte[] read()
 	{
 		int contentSize = (content == null) ? 0 : (content.length + Integer.BYTES);
-		byte[] clock = Utils.serializeObject( vClock );
+		byte[] clock = DFSUtils.serializeObject( vClock );
 		ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 2 + name.length() + clock.length + Byte.BYTES * 2 + contentSize );
 		buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
 		buffer.putInt( clock.length ).put( clock );
@@ -142,11 +142,11 @@ public class RemoteFile implements IOSerializable//, Serializable
 	public void write( byte[] data )
 	{
 		ByteBuffer buffer = ByteBuffer.wrap( data );
-		name = new String( Utils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-		vClock = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
+		name = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
+		vClock = DFSUtils.deserializeObject( DFSUtils.getNextBytes( buffer ) );
 		deleted = (buffer.get() == (byte) 0x1);
 		isDirectory = (buffer.get() == (byte) 0x1);
 		if(buffer.remaining() > 0)
-			content = Utils.getNextBytes( buffer );
+			content = DFSUtils.getNextBytes( buffer );
 	}
 }

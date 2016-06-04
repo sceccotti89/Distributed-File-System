@@ -60,7 +60,7 @@ public class MessageRequest extends Message
 	/**
 	 * Returns the payload of the message.
 	*/
-	public byte[] getData()
+	public byte[] getPayload()
 	{
 		return data;
 	}

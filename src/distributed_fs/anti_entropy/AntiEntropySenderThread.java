@@ -19,8 +19,8 @@ import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.Utils;
+import distributed_fs.storage.FileTransferThread;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
@@ -43,7 +43,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	
 	public AntiEntropySenderThread( final GossipMember _me,
 									final DFSDatabase _database,
-									final FileManagerThread fMgr,
+									final FileTransferThread fMgr,
 									final ConsistentHasherImpl<GossipMember, String> cHasher ) throws SocketException
 	{
 		super( _me, _database, fMgr, cHasher );
@@ -54,7 +54,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 		LOGGER.info( "Anti Entropy Sender Thread launched" );
 		
-		if(!Utils.testing)
+		if(!DFSUtils.testing)
 			addresses.add( me.getHost() );
 		
 		while(!shoutDown) {
@@ -71,7 +71,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					GossipMember succNode = cHasher.getBucket( succId );
 					if(succNode != null) {
 						if(!addresses.contains( succNode.getHost() )) {
-							if(!Utils.testing)
+							if(!DFSUtils.testing)
 								addresses.add( succNode.getHost() );
 							try{ startAntiEntropy( succNode, vNodeId.array(), vNodeId, MERKLE_FROM_MAIN ); }
 							catch( IOException | InterruptedException e ){ /*e.printStackTrace();*/ }
@@ -125,7 +125,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		List<DistributedFile> files = database.getKeysInRange( fromId, destId );
 		m_tree = createMerkleTree( files );
 		
-		LOGGER.debug( "Vnode: " + Utils.bytesToHex( sourceId ) );
+		LOGGER.debug( "Vnode: " + DFSUtils.bytesToHex( sourceId ) );
 		LOGGER.debug( "FILES: " + files );
 		LOGGER.debug( "Type: " + msg_type + ", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() );
 		
@@ -137,7 +137,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		checkTreeDifferences();
 		
 		if(m_tree != null && bitSet.cardinality() > 0) {
-			LOGGER.debug( "ID: " + Utils.bytesToHex( sourceId ) + ", BIT_SET: " + bitSet );
+			LOGGER.debug( "ID: " + DFSUtils.bytesToHex( sourceId ) + ", BIT_SET: " + bitSet );
 			// Create and send the list of versions.
 			session.sendMessage( getVersions( files ), true );
 		}
@@ -157,7 +157,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		byte[] data = Net.createMessage( null, sourceId, true );
 		data = Net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
 		if(m_tree != null)
-			data = Net.createMessage( data, Utils.intToByteArray( m_tree.getHeight() ), true );
+			data = Net.createMessage( data, DFSUtils.intToByteArray( m_tree.getHeight() ), true );
 		if(msg_type == MERKLE_FROM_REPLICA)
 			data = Net.createMessage( data, destId.array(), true );
 		session.sendMessage( data, true );
@@ -173,7 +173,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		
 		if(m_tree != null) {
 			// Receive the height of the receiver tree.
-			int inputHeight = Utils.byteArrayToInt( session.receiveMessage() );
+			int inputHeight = DFSUtils.byteArrayToInt( session.receiveMessage() );
 			if(inputHeight == 0)
 				return;
 			
@@ -264,7 +264,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				break; // or (i+1) would overflow
 			
 			DistributedFile file = files.get( i );
-			byte[] vClock = Utils.serializeObject( file.getVersion() );
+			byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
 			msg = Net.createMessage( msg, vClock, true );
 		}
 		
@@ -284,7 +284,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		List<ByteBuffer> predecessors = new ArrayList<>( numNodes );
 		int size = 0;
 		
-		if(!Utils.testing)
+		if(!DFSUtils.testing)
 			addresses.add( me.getHost() );
 		
 		// choose the nodes whose address is different than this node
@@ -299,7 +299,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				currId = prev;
 				if(!addresses.contains( node.getHost() )) {
 					predecessors.add( currId = prev );
-					if(!Utils.testing)
+					if(!DFSUtils.testing)
 						addresses.add( node.getHost() );
 					size++;
 				}

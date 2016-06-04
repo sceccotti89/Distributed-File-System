@@ -21,7 +21,6 @@ public class ThreadMonitor extends Thread
 	public ThreadMonitor( final ExecutorService threadPool )
 	{
 		this.threadPool = threadPool;
-		
 		threads = new ArrayList<>( DFSNode.MAX_USERS );
 		
 		setDaemon( true );
@@ -31,6 +30,9 @@ public class ThreadMonitor extends Thread
 	public void run()
 	{
 		while(true) {
+			try{ sleep( 200 ); }
+			catch( InterruptedException e1 ) { break; }
+			
 			// TODO mutua esclusione con l'addThread??
 			ListIterator<DFSNode> it = threads.listIterator();
 			while(it.hasNext()) {
@@ -49,10 +51,12 @@ public class ThreadMonitor extends Thread
 							else // LOAD BALANCER
 								;//LoadBalancer.startThread( node.getId(), node.getActionsList() );
 							
-							it.add( node );
+							if(node != null)
+								it.add( node );
 						}
 						catch( JSONException | IOException e ){
-							
+							// Ignored.
+							//e.printStackTrace();
 						}
 					}
 				}

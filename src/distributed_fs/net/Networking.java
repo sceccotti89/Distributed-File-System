@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import distributed_fs.net.messages.Message;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 
 public class Networking
 {
@@ -113,7 +113,7 @@ public class Networking
 		*/
 		public void sendMessage( final Message message, final boolean tryCompress ) throws IOException
 		{
-			sendMessage( Utils.serializeObject( message ), tryCompress );
+			sendMessage( DFSUtils.serializeObject( message ), tryCompress );
 		}
 		
 		/** 
@@ -128,7 +128,7 @@ public class Networking
 			byte[] message;
 			
 			if(tryCompress)
-				message = Utils.compressData( data );
+				message = DFSUtils.compressData( data );
 			else
 				message = data;
 			
@@ -178,7 +178,7 @@ public class Networking
 				}
 				
 				if(decompress)
-					return Utils.decompressData( data );
+					return DFSUtils.decompressData( data );
 				else
 					return data;
 			}
@@ -291,7 +291,7 @@ public class Networking
 		 * @param address	the remote address
 		 * @param port		the remote port
 		 * @param timeOut	the connection will reamin blocked
-		 * 					for a maximum of timeOut milliseconds.
+		 * 					for a maximum of {@code timeOut} milliseconds.
 		 * 					0 means infinite time.
 		*/
 		public TCPSession tryConnect( final String address, final int port, final int timeOut ) throws IOException
@@ -444,7 +444,7 @@ public class Networking
 			srcPort = dPacket.getPort();
 			
 			ByteBuffer buffer = ByteBuffer.wrap( dPacket.getData() );
-			return Utils.getNextBytes( buffer );
+			return DFSUtils.getNextBytes( buffer );
 		}
 		
 		@Override

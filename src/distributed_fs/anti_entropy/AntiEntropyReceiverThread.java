@@ -22,8 +22,8 @@ import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.Utils;
+import distributed_fs.storage.FileTransferThread;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
@@ -46,14 +46,14 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	private static final Map<byte[], Integer> syncNodes = new ConcurrentHashMap<>( 8 );
 	
 	public AntiEntropyReceiverThread( final GossipMember _me,
-									final DFSDatabase database,
-									final FileManagerThread fMgr,
-									final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
+									  final DFSDatabase database,
+									  final FileTransferThread fMgr,
+									  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
 	{
 		super( _me, database, fMgr, cHasher );
 		
 		threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
-		addToSynch( Utils.hexToBytes( me.getId() ).array() );
+		addToSynch( DFSUtils.hexToBytes( me.getId() ) );
 		Net.setSoTimeout( 2000 );
 	}
 	
@@ -84,7 +84,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		private TCPSession session;
 		private GossipMember sourceNode;
 		private byte[] sourceId = null;
-		private BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
+		private BitSet bitSet = new BitSet();
 		
 		public AntiEntropyNode( final TCPSession session )
 		{
@@ -106,7 +106,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				// Get the input tree status and height.
 				byte inputTree = data.get();
 				int inputHeight = (inputTree == (byte) 0x0) ?
-								  0 : Utils.byteArrayToInt( Utils.getNextBytes( data ) );
+								  0 : DFSUtils.byteArrayToInt( DFSUtils.getNextBytes( data ) );
 				
 				LOGGER.debug( "TYPE: " + msg_type );
 				List<DistributedFile> files;
@@ -118,7 +118,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				else {
 					// Get the virtual destination node identifier.
-					ByteBuffer destId = ByteBuffer.wrap( Utils.getNextBytes( data ) );
+					ByteBuffer destId = ByteBuffer.wrap( DFSUtils.getNextBytes( data ) );
 					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
 					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
 					files = database.getKeysInRange( fromId, destId );
@@ -136,7 +136,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				// Check the differences through the trees.
 				boolean hasKey = checkTreeDifferences( inputTree, inputHeight );
-				LOGGER.debug( "FROM_ID: " + Utils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
+				LOGGER.debug( "FROM_ID: " + DFSUtils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)
 					filesToSend = getMissingFiles( files );
@@ -172,7 +172,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		{
 			ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 			// Get the source node identifier.
-			sourceId = Utils.getNextBytes( data );
+			sourceId = DFSUtils.getNextBytes( data );
 			sourceNode = cHasher.getBucket( ByteBuffer.wrap( sourceId ) );
 			if(sourceNode == null) {
 				session.close();
@@ -182,7 +182,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			//LOGGER.debug( "Received connection from: " + srcAddress + ", Id: " + Utils.bytesToHex( sourceId ) );
 			
 			if(syncNodes.containsKey( sourceId )) {
-				LOGGER.info( "Node " + Utils.bytesToHex( sourceId ) + " is syncronizing..." );
+				LOGGER.info( "Node " + DFSUtils.bytesToHex( sourceId ) + " is syncronizing..." );
 				session.close();
 				return null;
 			}
@@ -217,7 +217,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				// Send the own tree height to the sender node.
-				byte[] msg = Net.createMessage( null, Utils.intToByteArray( treeHeight ), true );
+				byte[] msg = Net.createMessage( null, DFSUtils.intToByteArray( treeHeight ), true );
 				session.sendMessage( msg, false );
 				
 				// Reduce the level of the tree if it is greater.
@@ -388,7 +388,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		{
 			List<VectorClock> vClocks = new ArrayList<>();
 			while(versions.remaining() > 0) {
-				VectorClock vClock = Utils.deserializeObject( Utils.getNextBytes( versions ) );
+				VectorClock vClock = DFSUtils.deserializeObject( DFSUtils.getNextBytes( versions ) );
 				vClocks.add( vClock );
 			}
 			

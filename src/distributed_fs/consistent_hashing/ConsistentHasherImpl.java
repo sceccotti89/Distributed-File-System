@@ -21,7 +21,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Preconditions;
 
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
@@ -95,7 +95,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		
 		List<ByteBuffer> virtBuckets = new ArrayList<>();
 		for (int virtualNodeId = 1; virtualNodeId <= virtualNodes; virtualNodeId++) {
-			ByteBuffer virtBucket = Utils.getNodeId( virtualNodeId, bucketName.getAddress() );
+			ByteBuffer virtBucket = DFSUtils.getNodeId( virtualNodeId, bucketName.getAddress() );
 			//System.out.println( "Value: " + Utils.bytesToHex( virtBucket.array() ) );
 			bucketsMap.put( virtBucket, bucketName );
 			virtBuckets.add( virtBucket );
@@ -154,14 +154,14 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	public void addMember( final M memberName )
 	{
 		Preconditions.checkNotNull( memberName, "Member name can not be null" );
-		membersMap.put( Utils.getId( memberName ), memberName );
+		membersMap.put( DFSUtils.getId( memberName ), memberName );
 	}
 
 	@Override
 	public void removeMember( final M memberName )
 	{
 		Preconditions.checkNotNull( memberName, "Member name can not be null" );
-		membersMap.remove( Utils.getId( memberName ) );
+		membersMap.remove( DFSUtils.getId( memberName ) );
 	}
 
 	@Override
@@ -172,7 +172,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		
 		NavigableMap<ByteBuffer, M> localMembersMap = new TreeMap<>();
 		members.forEach( member -> {
-			localMembersMap.put( Utils.getId( member ), member );
+			localMembersMap.put( DFSUtils.getId( member ), member );
 		});
 		
 		return getMembersInternal( bucketName, localMembersMap );

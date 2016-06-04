@@ -28,7 +28,7 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.StorageNode;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
@@ -49,14 +49,14 @@ public class QuorumThread extends Thread
 	private static final ReadLock LOCK_READERS = LOCK.readLock();
 	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
 	
-    private static final int BLOCKED_TIME = 5000; // 5 seconds.
+    private static final int BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
     private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
     //private static final int QUORUM_PORT = 2500;
     
     public QuorumThread( final int port,
                          final String address,
-                         final StorageNode node ) throws IOException, JSONException
+                         final StorageNode node ) throws IOException
     {
         this.port = port + 3;
         this.address = address;
@@ -85,10 +85,6 @@ public class QuorumThread extends Thread
             }
         } );
         timer.start();
-        
-        /*List<QuorumNode> nodes = QuorumSystem.loadState();
-        if(nodes.size() > 0 && QuorumSystem.timeElapsed < BLOCKED_TIME)
-            cancelQuorum( null, nodes );*/
     }
     
     @Override
@@ -122,7 +118,7 @@ public class QuorumThread extends Thread
                 if(session == null)
                     continue;
                 
-                // read the request
+                // Read the request.
                 //byte[] data = net.receiveMessage();
                 //LOGGER.info( "[QUORUM] Received a connection from: " + net.getSrcAddress() );
                 
@@ -132,7 +128,7 @@ public class QuorumThread extends Thread
                 switch( data.get() ) {
                     case( MAKE_QUORUM ):
                         byte opType = data.get();
-                        String fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+                        String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
                         DFSNode.LOGGER.info( "Received a MAKE_QUORUM request for '" + fileName +
                                              "'. Actual status: " + (node.getBlocked( fileName, opType ) ? "BLOCKED" : "FREE") );
                         
@@ -160,7 +156,7 @@ public class QuorumThread extends Thread
                     case( RELEASE_QUORUM ):
                         DFSNode.LOGGER.info( "Received a RELEASE_QUORUM request" );
                         long id = data.getLong();
-                        fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+                        fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
                         node.setBlocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
                         break;
                 }
@@ -180,7 +176,7 @@ public class QuorumThread extends Thread
     {
         synchronized( id ) {
             id = (id + 1) % Long.MAX_VALUE;
-            return Utils.longToByteArray( id );
+            return DFSUtils.longToByteArray( id );
         }
     }
     
@@ -216,7 +212,7 @@ public class QuorumThread extends Thread
                                          final String fileName,
                                          final String destId ) throws IOException
     {
-        ByteBuffer id = Utils.hexToBytes( destId );
+        ByteBuffer id = DFSUtils.hexToByteBuffer( destId );
         
         List<GossipMember> nodes = node.getSuccessorNodes( id, address, QuorumSession.getMaxNodes() );
         
@@ -338,7 +334,7 @@ public class QuorumThread extends Thread
                 //net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
                 //mySession.sendMessage( new byte[]{ RELEASE_QUORUM }, false );
                 byte[] msg = net.createMessage( new byte[]{ RELEASE_QUORUM },
-                                                Utils.longToByteArray( agreedNodes.get( i ).getId() ),
+                                                DFSUtils.longToByteArray( agreedNodes.get( i ).getId() ),
                                                 false );
                 msg = net.createMessage( msg,
                                          agreedNodes.get( i ).getFileName().getBytes( StandardCharsets.UTF_8 ),
@@ -376,18 +372,18 @@ public class QuorumThread extends Thread
     /**
      * Sets the locked state for a given file.
      * 
-     * @param blocked   {@code true} for locking state, {@code false} otherwise
+     * @param locked   {@code true} for locking state, {@code false} otherwise
      * @param fileName  name of the file
      * @param id        id of the quorum
      * @param opType    operation type
     */
-    public void setBlocked( final boolean blocked, final String fileName, final long id, final byte opType )
+    public void setLocked( final boolean locked, final String fileName, final long id, final byte opType )
     {
     	LOCK_WRITERS.lock();
     	
         QuorumFile qFile = fileLock.get( fileName );
         
-        if(blocked) {
+        if(locked) {
             if(qFile != null)
                 qFile.setReaders( +1 );
             else
@@ -417,7 +413,7 @@ public class QuorumThread extends Thread
      * @return {@code true} if the file is locked,
      *         {@code false} otherwise.
     */
-    public boolean getBlocked( final String fileName, final byte opType )
+    public boolean getLocked( final String fileName, final byte opType )
     {
     	LOCK_READERS.lock();
         QuorumFile qFile = fileLock.get( fileName );

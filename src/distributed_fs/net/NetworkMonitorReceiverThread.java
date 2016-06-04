@@ -7,7 +7,7 @@ package distributed_fs.net;
 import java.io.IOException;
 import java.util.HashMap;
 
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 
 public class NetworkMonitorReceiverThread extends NetworkMonitor
 {
@@ -35,7 +35,7 @@ public class NetworkMonitorReceiverThread extends NetworkMonitor
 				//TODO LOGGER.debug( "Received a message from " + net.getSrcAddress() );
 				
 				// save the statistics
-				NodeStatistics stats = Utils.deserializeObject( decryptMessage( data ) );
+				NodeStatistics stats = DFSUtils.deserializeObject( decryptMessage( data ) );
 				//TODO LOGGER.debug( "Stats: " + stats );
 				nodes.put( net.getSrcAddress(), stats );
 			}

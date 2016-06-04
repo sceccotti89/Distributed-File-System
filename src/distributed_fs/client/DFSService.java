@@ -26,7 +26,7 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 
@@ -61,7 +61,7 @@ public class DFSService extends DFSManager implements IDFSService
 	{
 		super( ipAddress, members );
 		
-		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
+		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
 		
 		net = new TCPnet( address, this.port );
 		net.setSoTimeout( 5000 );
@@ -145,7 +145,7 @@ public class DFSService extends DFSManager implements IDFSService
 			fileName = fileName.substring( database.getFileSystemRoot().length() );*/
 		fileName = checkFile( fileName, database.getFileSystemRoot() );
 		
-		DistributedFile file = database.getFile( Utils.getId( fileName ) );
+		DistributedFile file = database.getFile( DFSUtils.getId( fileName ) );
 		if(file == null || file.isDeleted())
 			return null;
 		
@@ -379,7 +379,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		DistributedFile file = database.getFile( fileName );
 		System.out.println( "FILE: " + file );
-		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )){
+		if(file == null || !DFSUtils.existFile( database.getFileSystemRoot() + fileName, false )){
 			if(database.checkExistFile( fileName )) {
 				if(file == null)
 					file = new DistributedFile( fileName, database.getFileSystemRoot(), new VectorClock() );
@@ -476,9 +476,9 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		boolean completed = true;
 		
-		ByteBuffer fileId = Utils.getId( fileName );
+		ByteBuffer fileId = DFSUtils.getId( fileName );
 		DistributedFile file = database.getFile( fileId );
-		if(file == null || !Utils.existFile( database.getFileSystemRoot() + fileName, false )) {
+		if(file == null || !DFSUtils.existFile( database.getFileSystemRoot() + fileName, false )) {
 			LOGGER.error( "File \"" + fileName + "\" not founded." );
 			return false;
 		}

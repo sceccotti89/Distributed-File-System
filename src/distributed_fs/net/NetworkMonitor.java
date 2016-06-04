@@ -17,7 +17,7 @@ import org.apache.log4j.Logger;
 
 import distributed_fs.net.Networking.UDPnet;
 import distributed_fs.overlay.DFSNode;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 
 /**
  * Class used to monitor the network state of the storage nodes.
@@ -35,8 +35,8 @@ public abstract class NetworkMonitor extends Thread
     
 	public NetworkMonitor( final String address ) throws IOException
 	{
-		if(!Utils.testing)
-			LOGGER.setLevel( Utils.logLevel );
+		if(!DFSUtils.testing)
+			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		net = new UDPnet();
 		net.joinMulticastGroup( InetAddress.getByName( address ) );

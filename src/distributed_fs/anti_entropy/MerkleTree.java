@@ -15,7 +15,7 @@ import java.util.Queue;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 
 /**
  * MerkleTree is an implementation of a Merkle binary hash tree where the leaves
@@ -318,8 +318,8 @@ public class MerkleTree
 	
 	private byte[] internalHash( final byte[] leftChildSig, final byte[] rightChildSig )
 	{
-		String leftSig = Utils.bytesToHex( leftChildSig );
-		String rightSig = Utils.bytesToHex( rightChildSig );
+		String leftSig = DFSUtils.bytesToHex( leftChildSig );
+		String rightSig = DFSUtils.bytesToHex( rightChildSig );
 		//System.out.println( "LEFT: " + leftSig );
 		//System.out.println( "RIGHT: " + rightSig );
 		//System.out.println( "RESULT: " + Utils.bytesToHex( _hash.hashBytes( (leftSig + rightSig).getBytes() ).asBytes() ) );
@@ -374,7 +374,7 @@ public class MerkleTree
 			}
 			
 			return String.format( "MerkleTree.Node<type:%d, sig:[%s], left (type): %s, right (type): %s>",
-								  type, Utils.bytesToHex( sig ), leftType, rightType );
+								  type, DFSUtils.bytesToHex( sig ), leftType, rightType );
 		}
 	}
 }

@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 
 import distributed_fs.anti_entropy.MerkleTree;
 import distributed_fs.net.IOSerializable;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Version;
 
@@ -179,7 +179,7 @@ public class DistributedFile implements IOSerializable//, Serializable
 	@Override
 	public byte[] read()
 	{
-		byte[] clock = Utils.serializeObject( version );
+		byte[] clock = DFSUtils.serializeObject( version );
 		int hintedHandoffSize = (HintedHandoff == null) ? 0 : (HintedHandoff.length() + Integer.BYTES);
 		ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 2 + name.length() + clock.length + Byte.BYTES * 2 + hintedHandoffSize );
 		buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
@@ -196,11 +196,11 @@ public class DistributedFile implements IOSerializable//, Serializable
 	public void write( byte[] data )
 	{
 		ByteBuffer buffer = ByteBuffer.wrap( data );
-		name = new String( Utils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-		version = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
+		name = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
+		version = DFSUtils.deserializeObject( DFSUtils.getNextBytes( buffer ) );
 		deleted = (buffer.get() == (byte) 0x1);
 		isDirectory = (buffer.get() == (byte) 0x1);
 		if(buffer.remaining() > 0)
-			HintedHandoff = new String( Utils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
+			HintedHandoff = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
 	}
 }

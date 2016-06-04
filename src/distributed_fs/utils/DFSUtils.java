@@ -35,7 +35,7 @@ import com.google.common.hash.HashFunction;
 import distributed_fs.overlay.DFSNode;
 import gossiping.StartupSettings;
 
-public class Utils
+public class DFSUtils
 {
 	/** Hash function used to compute the identifier of a node. */
 	public static final HashFunction _hash = StartupSettings._hash;
@@ -294,7 +294,7 @@ public class Utils
 	{
 		if(content == null) {
 			if(!new File( name ).exists())
-				Utils.createDirectory( name );
+				DFSUtils.createDirectory( name );
 		}
 		else {
 			// Test whether the path to that file doesn't exist.
@@ -351,7 +351,7 @@ public class Utils
 	/**
 	 * Decompresses data using a GZIP decompressor.
 	 * This method works only if the input data has been
-	 * compressed with the {@link Utils#compressData(byte[])} method.
+	 * compressed with the {@link DFSUtils#compressData(byte[])} method.
 	 * 
 	 * @param data	the bytes to decompress
 	 * 
@@ -427,9 +427,19 @@ public class Utils
 	/** 
 	 * Transforms an hexadecimal representation in a ByteBuffer object.
 	 * 
-	 * @param s		the hexadecimal representation
+	 * @param s   the hexadecimal representation of the object
 	*/
-	public static ByteBuffer hexToBytes( final String s )
+	public static ByteBuffer hexToByteBuffer( final String s )
+	{
+		return ByteBuffer.wrap( hexToBytes( s ) );
+	}
+	
+	/** 
+	 * Transforms an hexadecimal representation in a byte[] object.
+	 * 
+	 * @param s   the hexadecimal representation of the object
+	*/
+	public static byte[] hexToBytes( final String s )
 	{
 		//return DatatypeConverter.parseHexBinary( s );
 		
@@ -442,7 +452,7 @@ public class Utils
 								 + Character.digit( s.charAt( i+1 ), 16 ));
 		}
 		
-		return ByteBuffer.wrap( data );
+		return data;
 	}
 	
 	/**

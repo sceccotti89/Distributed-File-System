@@ -16,8 +16,8 @@ import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.Utils;
+import distributed_fs.storage.FileTransferThread;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
@@ -27,7 +27,7 @@ import gossiping.GossipMember;
 public abstract class AntiEntropyThread extends Thread
 {
 	protected final ConsistentHasherImpl<GossipMember, String> cHasher;
-	protected final FileManagerThread fMgr;
+	protected final FileTransferThread fMgr;
 	protected final DFSDatabase database;
 	protected final TCPnet Net;
 	protected GossipMember me;
@@ -44,11 +44,11 @@ public abstract class AntiEntropyThread extends Thread
 	
 	public AntiEntropyThread( final GossipMember _me,
 							  final DFSDatabase database,
-							  final FileManagerThread fMgr,
+							  final FileTransferThread fMgr,
 							  final ConsistentHasherImpl<GossipMember, String> _cHasher )
 	{
-		if(!Utils.testing)
-			LOGGER.setLevel( Utils.logLevel );
+		if(!DFSUtils.testing)
+			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		this.me = _me;
 		this.fMgr = fMgr;

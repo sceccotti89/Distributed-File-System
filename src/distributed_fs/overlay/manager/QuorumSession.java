@@ -17,7 +17,7 @@ import org.json.JSONObject;
 
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
@@ -34,7 +34,7 @@ public class QuorumSession
 	public QuorumSession( final long id ) throws IOException, JSONException
 	{
 	    quorumFile = QUORUM_FILE + id + ".json";
-        if(!Utils.existFile( quorumFile, true ))
+        if(!DFSUtils.existFile( quorumFile, true ))
             saveState( null );
     }
 	
@@ -47,7 +47,7 @@ public class QuorumSession
 	{
 		List<QuorumNode> nodes = new ArrayList<>();
 		
-		JSONObject file = Utils.parseJSONFile( quorumFile );
+		JSONObject file = DFSUtils.parseJSONFile( quorumFile );
 		
 		long timestamp = file.getLong( "timestamp" );
 		timeElapsed = System.currentTimeMillis() - timestamp;
@@ -107,7 +107,8 @@ public class QuorumSession
 	*/
 	public void closeQuorum()
 	{
-		new File( quorumFile ).delete();
+		if(quorumFile != null)
+			new File( quorumFile ).delete();
 	}
 	
 	/**

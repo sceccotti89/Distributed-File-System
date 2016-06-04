@@ -25,10 +25,10 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.StorageNode;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
-public class FileManagerThread extends Thread
+public class FileTransferThread extends Thread
 {
 	private final ExecutorService threadPoolSend; // Pool used to send the files in parallel.
 	private final ExecutorService threadPoolReceive; // Pool used to receive the files in parallel.
@@ -45,13 +45,13 @@ public class FileManagerThread extends Thread
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
 	//public static final short DEFAULT_PORT = 7535; // Default port used to send/receive files.
-	public static final Logger LOGGER = Logger.getLogger( FileManagerThread.class );
+	public static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
 	
-	public FileManagerThread( final GossipMember node,
-							  final int port,
-							  final ConsistentHasherImpl<GossipMember, String> cHasher,
-							  final String resourcesLocation,
-							  final String databaseLocation ) throws IOException, DFSException
+	public FileTransferThread( final GossipMember node,
+							   final int port,
+							   final ConsistentHasherImpl<GossipMember, String> cHasher,
+							   final String resourcesLocation,
+							   final String databaseLocation ) throws IOException, DFSException
 	{
 		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
 		sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
@@ -63,8 +63,8 @@ public class FileManagerThread extends Thread
 		threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
 		threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
 		
-		if(!Utils.testing)
-			LOGGER.setLevel( Utils.logLevel );
+		if(!DFSUtils.testing)
+			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		LOGGER.info( "File Manager Thread successfully initialized" );
 	}
@@ -116,7 +116,7 @@ public class FileManagerThread extends Thread
 		boolean synch = (data.get() == (byte) 0x1);
 		// get and verify the quorum attribute
 		if(data.get() == (byte) 0x1) {
-			String fileName = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
+			String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
 			node.setBlocked( false, fileName, data.getLong(), (byte) 0x0 ); // Here the operation type is useless.
 		}
 		
@@ -128,14 +128,14 @@ public class FileManagerThread extends Thread
 			data = ByteBuffer.wrap( session.receiveMessage() );
 			if(data.get() == Message.PUT) {
 				//RemoteFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
-				RemoteFile file = new RemoteFile( Utils.getNextBytes( data ) );
+				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
 				boolean updated = (database.saveFile( file, file.getVersion(), null, true ) != null);
 				LOGGER.debug( "Updated save: " + updated );
 			}
 			else {
 				//DistributedFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
-				DistributedFile file = new DistributedFile( Utils.getNextBytes( data ) );
+				DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
 				boolean updated = (database.removeFile( file.getName(), file.getVersion(), true ) != null);
 				LOGGER.debug( "Updated delete: " + updated );
@@ -291,9 +291,9 @@ public class FileManagerThread extends Thread
 			byte[] msg = new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (node != null) ? (byte) 0x1 : (byte) 0x0 };
 			if(node != null) {
 				msg = net.createMessage( msg, files.get( 0 ).getName().getBytes( StandardCharsets.UTF_8 ), true );
-				msg = net.createMessage( msg, Utils.longToByteArray( node.getId() ), false );
+				msg = net.createMessage( msg, DFSUtils.longToByteArray( node.getId() ), false );
 			}
-			msg = net.createMessage( msg, Utils.intToByteArray( size ), false );
+			msg = net.createMessage( msg, DFSUtils.intToByteArray( size ), false );
 			
 			/*byte[] msg = net.createMessage( new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0,
 														  (quorumId >= 0) ? (byte) 0x1 : (byte) 0x0 },

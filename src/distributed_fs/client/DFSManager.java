@@ -28,7 +28,7 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 
@@ -67,7 +67,7 @@ public class DFSManager
 		
 		//java.util.logging.Logger.getLogger( "udt" ).setLevel( java.util.logging.Level.WARNING );
 		
-		JSONObject file = Utils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
+		JSONObject file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
@@ -76,7 +76,7 @@ public class DFSManager
 			address = this.getNetworkAddress( inet, IPversion );
 		
 		if(members != null) {
-			// Get the load balancer nodes from the given list.
+			// Get the load balancer nodes from the input list.
 			loadBalancers = new ArrayList<>( members.size() );
 			for(GossipMember member : members) {
 				if(member.getNodeType() == GossipMember.LOAD_BALANCER)
@@ -89,7 +89,7 @@ public class DFSManager
 			loadBalancers = new ArrayList<>( nodes.length() );
 			for(int i = 0; i < nodes.length(); i++) {
 				JSONObject data = nodes.getJSONObject( i );
-				loadBalancers.add( new RemoteGossipMember( data.getString( "host" ), Utils.SERVICE_PORT, "", 0, GossipMember.STORAGE ) );
+				loadBalancers.add( new RemoteGossipMember( data.getString( "host" ), DFSUtils.SERVICE_PORT, "", 0, GossipMember.STORAGE ) );
 				LOGGER.info( "Added load balancer: " + data.getString( "host" ) );
 			}
 		}
@@ -124,7 +124,7 @@ public class DFSManager
 		
 		if(_address == null)
 			throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
-									Utils.DISTRIBUTED_FS_CONFIG );
+									DFSUtils.DISTRIBUTED_FS_CONFIG );
 		
 		LOGGER.info( "Address: " + _address );
 		
@@ -174,7 +174,7 @@ public class DFSManager
 		LOGGER.info( "Sending data..." );
 		//MessageRequest message = new MessageRequest( Message.PUT, file.getName(), Utils.serializeObject( file ) );
 		MessageRequest message = new MessageRequest( Message.PUT, file.getName(), file.read() );
-		session.sendMessage( Utils.serializeObject( message ), true );
+		session.sendMessage( DFSUtils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}
 	
@@ -182,7 +182,7 @@ public class DFSManager
 	{
 		LOGGER.info( "Sending data..." );
 		MessageRequest message = new MessageRequest( Message.GET, fileName );
-		session.sendMessage( Utils.serializeObject( message ), true );
+		session.sendMessage( DFSUtils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}
 	
@@ -194,7 +194,7 @@ public class DFSManager
 	{
 		LOGGER.info( "Sending data..." );
 		MessageRequest message = new MessageRequest( Message.GET_ALL );
-		session.sendMessage( Utils.serializeObject( message ), true );
+		session.sendMessage( DFSUtils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}
 	
@@ -202,7 +202,7 @@ public class DFSManager
 	{
 		LOGGER.info( "Waiting for the incoming files..." );
 		
-		MessageResponse message = Utils.deserializeObject( session.receiveMessage() );
+		MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
 		List<RemoteFile> files = new ArrayList<>();
 		if(message.getFiles() != null) {
 			for(byte[] file : message.getFiles())
@@ -220,13 +220,13 @@ public class DFSManager
 		LOGGER.info( "Sending data..." );
 		//MessageRequest message = new MessageRequest( Message.DELETE, file.getName(), Utils.serializeObject( file ) );
 		MessageRequest message = new MessageRequest( Message.DELETE, file.getName(), file.read() );
-		session.sendMessage( Utils.serializeObject( message ), true );
+		session.sendMessage( DFSUtils.serializeObject( message ), true );
 		LOGGER.info( "Data sent." );
 	}
 	
 	protected boolean checkResponse( final TCPSession session, final String op, final boolean toPrint ) throws IOException
 	{
-		MessageResponse message = Utils.deserializeObject( session.receiveMessage() );
+		MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
 		byte opType = message.getType();
 		if(toPrint)
 			LOGGER.debug( "Received: " + getStringCode( opType ) );

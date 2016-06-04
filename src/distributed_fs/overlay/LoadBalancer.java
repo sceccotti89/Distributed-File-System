@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.util.List;
 
 import org.json.JSONException;
-import org.junit.Test;
 
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.NetworkMonitorReceiverThread;
@@ -23,7 +22,7 @@ import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
 import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.utils.CmdLineParser;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipService;
 import gossiping.GossipSettings;
@@ -45,7 +44,7 @@ public class LoadBalancer extends DFSNode
 	 * @param ipAddress			the ip address. If {@code null} it will be taken using the configuration file parameters.
 	 * @param port				port used to receive incoming requests.
 	 * 							If the value is less or equal than 0,
-	 * 							then the default one will be chosed ({@link Utils#SERVICE_PORT});
+	 * 							then the default one will be chosed ({@link DFSUtils#SERVICE_PORT});
 	 * @param startupMembers	list of nodes
 	*/
 	public LoadBalancer( final String ipAddress,
@@ -56,7 +55,7 @@ public class LoadBalancer extends DFSNode
 		
 		if(startupMembers != null) {
 			// Start the gossiping from the input list.
-			String id = Utils.bytesToHex( Utils.getNodeId( 1, _address ).array() );
+			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, _address ).array() );
 			GossipSettings settings = new GossipSettings();
 			GossipService gossipService = new GossipService( _address, GossipManager.GOSSIPING_PORT, id, computeVirtualNodes(),
 															 GossipMember.LOAD_BALANCER, startupMembers, settings, this );
@@ -66,9 +65,9 @@ public class LoadBalancer extends DFSNode
 		monitor = new NetworkMonitorReceiverThread( _address );
 		monitor.start();
 		
-		this.port = (port <= 0) ? Utils.SERVICE_PORT : port;
+		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
 		
-		try {
+		/*try {
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
 				//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
@@ -77,7 +76,8 @@ public class LoadBalancer extends DFSNode
 					threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
 			}
 		}
-		catch( IOException e ){}
+		catch( IOException e ){}*/
+		launch();
 		
 		//closeResources();
 	}
@@ -102,7 +102,6 @@ public class LoadBalancer extends DFSNode
 		this.port = port;
 	}
 	
-	@Test
 	public void launch() throws JSONException
 	{
 		try {
@@ -148,7 +147,7 @@ public class LoadBalancer extends DFSNode
 			
 			try {
 				//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-				MessageRequest data = Utils.deserializeObject( session.receiveMessage() );
+				MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
 				// get the operation type
 				byte opType = data.getType();
 				
@@ -169,7 +168,7 @@ public class LoadBalancer extends DFSNode
 				
 				String fileName;
 				if(opType == Message.GET_ALL)
-					fileName = Utils.createRandomFile();
+					fileName = DFSUtils.createRandomFile();
 				else
 					fileName = data.getFileName();
 				
@@ -179,7 +178,7 @@ public class LoadBalancer extends DFSNode
 				/*ByteBuffer nodeId = cHasher.getSuccessor( Utils.getId( fileName ) );
 				if(nodeId == null)
 					nodeId = cHasher.getFirstKey();*/
-				ByteBuffer nodeId = cHasher.getNextBucket( Utils.getId( fileName ) );
+				ByteBuffer nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
 				if(nodeId != null) {
 					GossipMember node = cHasher.getBucket( nodeId );
 					if(node != null) {
@@ -221,7 +220,7 @@ public class LoadBalancer extends DFSNode
 								
 								// forward the message to the target node
 								//forwardRequest( opType, targetNode.getId(), hintedHandoff, fileName, data );
-								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getData() );
+								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getPayload() );
 								newSession.close();
 								LOGGER.info( "[LB] Request forwarded to: " + targetNode );
 								break;
@@ -379,7 +378,7 @@ public class LoadBalancer extends DFSNode
 		}
 		//}
 		
-		session.sendMessage( Utils.serializeObject( message ), true );
+		session.sendMessage( DFSUtils.serializeObject( message ), true );
 	}
 	
 	public static void main( String args[] ) throws Exception

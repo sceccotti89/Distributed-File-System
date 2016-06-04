@@ -39,8 +39,8 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileManagerThread;
-import distributed_fs.utils.Utils;
+import distributed_fs.storage.FileTransferThread;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipRunner;
 import gossiping.LogLevel;
@@ -55,7 +55,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected static NodeStatistics stats;
 	protected ExecutorService threadPool;
 	protected TCPnet _net;
-	protected FileManagerThread fMgr;
+	protected FileTransferThread fMgr;
 	protected ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
@@ -84,11 +84,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 		
 		setConfigure();
 		
-		if(!Utils.testing)
-			LOGGER.setLevel( Utils.logLevel );
-		
-		//if(nodeType == GossipMember.STORAGE)
-			//QuorumSystem.init();
+		if(!DFSUtils.testing)
+			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -98,7 +95,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
 		if(startupMembers == null || startupMembers.size() == 0)
-			runner = new GossipRunner( new File( Utils.DISTRIBUTED_FS_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
+			runner = new GossipRunner( new File( DFSUtils.DISTRIBUTED_FS_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
 		
 		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
 		{
@@ -114,7 +111,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	/** Testing. */
 	public DFSNode() throws IOException, JSONException
 	{
-		Utils.testing = true;
+		DFSUtils.testing = true;
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -128,13 +125,13 @@ public abstract class DFSNode extends Thread implements GossipListener
 	 * due to an incoming request.
 	*/
 	public DFSNode( final TCPnet net,
-					final FileManagerThread fMgr,
+					final FileTransferThread fMgr,
 					final ConsistentHasherImpl<GossipMember, String> cHasher )
 	{
 		this._net = net;
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
-		Utils.createDirectory( DFSDatabase.RESOURCE_LOCATION );
+		DFSUtils.createDirectory( DFSDatabase.RESOURCE_LOCATION );
 	}
 	
 	/**
@@ -246,9 +243,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 			BasicConfigurator.configure();
 		}
 		
-		JSONObject file = Utils.parseJSONFile( Utils.DISTRIBUTED_FS_CONFIG );
+		JSONObject file = DFSUtils.parseJSONFile( DFSUtils.DISTRIBUTED_FS_CONFIG );
 		int logLevel = LogLevel.fromString( file.getString( "log_level" ) );
-		Utils.logLevel = LogLevel.getLogLevel( logLevel );
+		DFSUtils.logLevel = LogLevel.getLogLevel( logLevel );
 		
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "inet" );
@@ -296,7 +293,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		
 		if(_address == null)
 			throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
-									Utils.DISTRIBUTED_FS_CONFIG );
+									DFSUtils.DISTRIBUTED_FS_CONFIG );
 		
 		LOGGER.info( "Address: " + _address );
 		
@@ -316,7 +313,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		fileName = checkFile( fileName, fMgr.getDatabase().getFileSystemRoot() );
 		System.out.println( "FILE TO ASK: " + fileName );
 		
-		DistributedFile file = fMgr.getDatabase().getFile( Utils.getId( fileName ) );
+		DistributedFile file = fMgr.getDatabase().getFile( DFSUtils.getId( fileName ) );
 		if(file == null || file.isDeleted())
 			return null;
 		
@@ -364,7 +361,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		Set<String> filterAddress = new HashSet<>();
 		int size = 0;
 		
-		if(!Utils.testing)
+		if(!DFSUtils.testing)
 			filterAddress.add( addressToRemove );
 		
 		// Choose the nodes whose address is different than this node
@@ -379,7 +376,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 				currId = succ;
 				if(!filterAddress.contains( node.getHost() )) {
 					nodes.add( node );
-					if(!Utils.testing)
+					if(!DFSUtils.testing)
 						filterAddress.add( node.getHost() );
 					size++;
 				}

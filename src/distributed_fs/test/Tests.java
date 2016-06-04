@@ -34,7 +34,7 @@ import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
@@ -50,7 +50,7 @@ public class Tests
 	private static final int NUMBER_OF_BALANCERS = 2;
 	private static final int NUMBER_OF_NODES = 5;
 	
-	public static void main( String[] args ) throws Exception
+	public static void main( final String[] args ) throws Exception
 	{
 		new Tests();
 	}
@@ -92,13 +92,13 @@ public class Tests
 		int k = 100;
 		for(int i = 0; i < NUMBER_OF_BALANCERS; i++, k++) {
 			int port = 8000 + (i * k);
-			String id = Utils.bytesToHex( Utils.getNodeId( 1, myIpAddress + ":" + port ).array() );
+			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, myIpAddress + ":" + port ).array() );
 			//System.out.println( "ID: " + id );
 			members.add( new RemoteGossipMember( myIpAddress, port, id, 1, GossipMember.LOAD_BALANCER ) );
 		}
 		for(int i = 0 ; i < NUMBER_OF_NODES; i++, k++) {
 			int port = 8000 + (i * k) + NUMBER_OF_BALANCERS;
-			String id = Utils.bytesToHex( Utils.getNodeId( 1, myIpAddress + ":" + port ).array() );
+			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, myIpAddress + ":" + port ).array() );
 			//System.out.println( "ID: " + id );
 			members.add( new RemoteGossipMember( myIpAddress, port, id, 1, GossipMember.STORAGE ) );
 		}
@@ -120,7 +120,7 @@ public class Tests
 			GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
 			System.out.println( "Port: " + member.getPort() + ", Resources: " + "./Resources" + (i+2) + "/" );
 			StorageNode node = new StorageNode( members, member.getId(), myIpAddress, member.getPort(),
-												"./Resources" + (i+2) + "/", "./Database" + (i+2) + "/DFSDatabase" );
+												"./Servers/Resources" + (i+2) + "/", "./Servers/Database" + (i+2) + "/DFSDatabase" );
 			nodes.add( node );
 			new Thread() {
 				@Override
@@ -146,7 +146,7 @@ public class Tests
 	{
 		DFSService service = services.get( 0 );
 		
-		Utils.existFile( "./Resources/Images/photoshop.pdf", true );
+		DFSUtils.existFile( "./Resources/Images/photoshop.pdf", true );
 		
 		String file = "";
 		assertEquals( service.get( file ), service.getFile( file ) );
@@ -216,7 +216,7 @@ public class Tests
 		System.out.println( "\n\nTEST ANTI ENTROPY" );
 		
 		String file = "test3.txt";
-		Utils.existFile( "./Resources/" + file, true );
+		DFSUtils.existFile( "./Resources/" + file, true );
 		
 		modifyTextFile( "./Resources/" + file );
 		assertTrue( services.get( 0 ).put( file ) );
@@ -227,7 +227,7 @@ public class Tests
 		System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
 							", FILE: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
-		readFile( "./Resources6/" + file );
+		readFile( "./Servers/Resources6/" + file );
 	}
 	
 	private void readFile( final String file ) throws IOException
@@ -249,7 +249,7 @@ public class Tests
     {
 		System.out.println( "Starting Hinted Handoff test..." );
     	String file = "chord_sigcomm.pdf";
-    	Utils.existFile( "./Resources/" + file, true );
+    	DFSUtils.existFile( "./Resources/" + file, true );
     	
     	int index = 3 + NUMBER_OF_BALANCERS;
     	String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
@@ -272,7 +272,7 @@ public class Tests
 	{
 		DFSService service = services.get( index );
 		
-		Utils.existFile( "./Resources/Images/photoshop.pdf", true );
+		DFSUtils.existFile( "./Resources/Images/photoshop.pdf", true );
 		
 		service.get( "" );
 		System.out.println( "\n\n" );
@@ -299,7 +299,7 @@ public class Tests
 		
 		Thread.sleep( 1000 );
 		
-		Utils.existFile( "./Resources/test2.txt", true );
+		DFSUtils.existFile( "./Resources/test2.txt", true );
 		service.put( "./Resources/test2.txt" );
 		System.out.println( "\n\n" );
 		
@@ -336,6 +336,9 @@ public class Tests
 		assertTrue( database.getFile( file.getName() ).isDeleted() );
 		
 		database.shutdown();
+		
+		if(services == null && nodes == null)
+			BasicConfigurator.resetConfiguration();
 	}
 
 	@After

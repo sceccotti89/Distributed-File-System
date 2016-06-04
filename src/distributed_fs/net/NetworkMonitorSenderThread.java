@@ -9,7 +9,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 
 import distributed_fs.overlay.DFSNode;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 
 public class NetworkMonitorSenderThread extends NetworkMonitor
 {
@@ -41,7 +41,7 @@ public class NetworkMonitorSenderThread extends NetworkMonitor
 				
 				//System.err.println( "WorkLoad: " + stats.getAverageLoad() );
 				
-				byte[] data = encryptMessage( Utils.serializeObject( stats ) );
+				byte[] data = encryptMessage( DFSUtils.serializeObject( stats ) );
 				//System.out.println( "DATA: " + Utils.deserializeObject( decryptMessage( data ) ) );
 				//sendMessage( encryptMessage( data ) );
 				net.sendMulticastMessage( data );

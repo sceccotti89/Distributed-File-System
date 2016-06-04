@@ -29,7 +29,7 @@ import org.apache.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import distributed_fs.exception.DFSException;
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
@@ -37,7 +37,7 @@ import distributed_fs.versioning.Versioned;
 
 public class DFSDatabase
 {
-	private final FileManagerThread _fileMgr;
+	private final FileTransferThread _fileMgr;
 	private final ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
 	private final VersioningDatabase vDatabase;
@@ -49,11 +49,6 @@ public class DFSDatabase
 	private static final ReadLock LOCK_READERS = LOCK.readLock();
 	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
 	
-	/*private long readers = 0;
-	private long writers = 0;
-	private static final Object LOCK_READERS = new Object();
-	private static final Object LOCK_WRITERS = new Object();*/
-	
 	/** Resource path location. */
 	public static final String RESOURCE_LOCATION = "./Resources/";
 	
@@ -63,7 +58,7 @@ public class DFSDatabase
 	 * Construct a new Distributed File System database.
 	 * 
 	 * @param resourcesLocation		location of the file. If {@code null}, will be set
-	 * 								the default one ({@link Utils#RESOURCE_LOCATION}).
+	 * 								the default one ({@link DFSUtils#RESOURCE_LOCATION}).
 	 * @param databaseLocation		location of the database. If {@code null}, will be set
 	 * 								the default one ({@link VersioningDatabase#DB_LOCATION}).
 	 * @param fileMgr				the manager used to send/receive files.
@@ -72,7 +67,7 @@ public class DFSDatabase
 	*/
 	public DFSDatabase( final String resourcesLocation,
 						final String databaseLocation,
-						final FileManagerThread fileMgr ) throws IOException, DFSException
+						final FileTransferThread fileMgr ) throws IOException, DFSException
 	{
 		_fileMgr = fileMgr;
 		if(_fileMgr != null) {
@@ -89,12 +84,11 @@ public class DFSDatabase
 		//database = new ConcurrentSkipListMap<>();
 		database = new TreeMap<>();
 		
-		// Check if the path is written in the standard format.
+		// Check if the path is written in the correct format.
 		root = (resourcesLocation != null) ? resourcesLocation.replace( "\\", "/" ) : RESOURCE_LOCATION;
 		if(root.substring( root.lastIndexOf( '/' ) ).contains( "." ))
-		    throw new DFSException( "Invalid Database location: " + root );
+		    throw new DFSException( "Invalid Database location: '" + root + "'" );
 		
-		System.out.println( "ROOT 1: " + root );
 		if(root.startsWith( "./" ))
 			root = root.substring( 2 );
 		
@@ -102,10 +96,9 @@ public class DFSDatabase
 		root = f.getAbsolutePath();
 		if(!root.endsWith( "/" ))
 			root += "/";
-		root = root.replace( "\\", "/" ); // System parametric among Windows, Linux and MacOS.
-		System.out.println( "ROOT 2: " + root );
+		root = root.replace( "\\", "/" );
 		
-		if(!Utils.createDirectory( root )) {
+		if(!DFSUtils.createDirectory( root )) {
 			throw new DFSException( "Invalid database path " + root + ".\n" +
 									"Make sure that the path is correct and that you have the permissions to create and execute it." );
 		}
@@ -131,20 +124,20 @@ public class DFSDatabase
 			}
 			fileName = fileName.substring( root.length() );
 			
-			ByteBuffer fileId = Utils.getId( fileName );
-			//LOGGER.debug( "File: " + fileName + ", Directory: " + f.isDirectory() + ", Id: " + Utils.bytesToHex( fileId.array() ) );
+			ByteBuffer fileId = DFSUtils.getId( fileName );
+			LOGGER.debug( "File: " + fileName + ", Directory: " + f.isDirectory() + ", Id: " + DFSUtils.bytesToHex( fileId.array() ) );
 			
 			VectorClock clock = null;
 			boolean deleted = false;
 			String hintedHandoff = null;
 			
 			try{
-				// get the version from the versioning database
+				// Get the version from the versioning database.
 				String statement = "SELECT vClock, hintedHandoff, Deleted FROM versions " +
-									"WHERE fileId = '" + Utils.bytesToHex( fileId.array() ) + "'";
+									"WHERE fileId = '" + DFSUtils.bytesToHex( fileId.array() ) + "'";
 				List<String> values = vDatabase.query( statement, 0 );
 				if(values.size() > 0) {
-					clock = Utils.deserializeObject( Utils.hexToBytes( values.get( 0 ) ).array() );
+					clock = DFSUtils.deserializeObject( DFSUtils.decompressData( DFSUtils.hexToBytes( values.get( 0 ) ) ) );
 					hintedHandoff = values.get( 1 );
 					if(hintedHandoff.length() == 0) hintedHandoff = null;
 					deleted = values.get( 2 ).equals( "1" ) ? true : false;
@@ -157,7 +150,9 @@ public class DFSDatabase
 			if(clock == null) {
 				clock = new VectorClock();
 				// Save the version on its database, since it's not present.
-				try { saveVersion( Utils.bytesToHex( fileId.array() ), Utils.serializeObject( clock ), "", deleted, 0, false ); }
+				try { saveVersion( DFSUtils.bytesToHex( fileId.array() ),
+								   DFSUtils.compressData( DFSUtils.serializeObject( clock ) ),
+								   "", deleted, 0, false ); }
 				catch( SQLException e ) { e.printStackTrace(); }
 			}
 			
@@ -193,7 +188,7 @@ public class DFSDatabase
 		String statement;
 		if(update) {
 			statement = "UPDATE Versions SET " +
-						"vClock = '" + Utils.bytesToHex( clock ) + "', " +
+						"vClock = '" + DFSUtils.bytesToHex( clock ) + "', " +
 						"hintedHandoff = '" + hintedHandoff + "', " +
 						"Deleted = '" + (deleted ? 1 : 0) + "', " + 
 						"TTL = '" + TTL + "' " +
@@ -202,7 +197,7 @@ public class DFSDatabase
 		else {
 			statement = "INSERT INTO Versions (fileId, vClock, hintedHandoff, Deleted, TTL) VALUES ('" +
 						fileId + "', " + "'" +
-						Utils.bytesToHex( clock ) + "', '" +
+						DFSUtils.bytesToHex( clock ) + "', '" +
 						hintedHandoff + "', " +
 						(deleted ? 1 : 0) + ", " +
 						TTL + ")";
@@ -250,7 +245,7 @@ public class DFSDatabase
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
-		ByteBuffer fileId = Utils.getId( fileName );
+		ByteBuffer fileId = DFSUtils.getId( fileName );
 		
 		/*synchronized( LOCK_READERS ) {
 		    synchronized( LOCK_WRITERS ) {
@@ -276,7 +271,7 @@ public class DFSDatabase
 					file.setDeleted( false );
 				
 				updated = clock;
-				doSave( file, content, hintedHandoff, fileId, saveOnDisk );
+				doSave( file, content, hintedHandoff, fileId, saveOnDisk, true );
 			}
 		}
 		else {
@@ -284,7 +279,7 @@ public class DFSDatabase
 			
 			//file = new DistributedFile( fileName, root, clock, _fileMgr != null );
 			file = new DistributedFile( fileName, root, clock );
-			doSave( file, content, hintedHandoff, fileId, saveOnDisk );
+			doSave( file, content, hintedHandoff, fileId, saveOnDisk, false );
 		}
 		
 		System.out.println( "UPDATED: " + updated );
@@ -302,14 +297,18 @@ public class DFSDatabase
 						 final byte[] content,
 						 final String hintedHandoff,
 						 final ByteBuffer fileId,
-						 final boolean saveOnDisk ) throws SQLException, IOException
+						 final boolean saveOnDisk,
+						 final boolean update ) throws SQLException, IOException
 	{
 		if(saveOnDisk) {
-		    System.out.println( "STO PER SALVARE: " + file.getName() + ", FROM ROOT: " + root );
-			saveVersion( Utils.bytesToHex( fileId.array() ),
-						 Utils.serializeObject( file.getVersion() ),
-						 hintedHandoff, false, 0, false );
-			Utils.saveFileOnDisk( root + file.getName(), content );
+		    System.out.println( "STO PER SALVARE: " + file.getName() +
+		    					", ID: " + DFSUtils.bytesToHex( fileId.array() ) +
+		    					", UPDATE: " + update + ", FROM ROOT: " + root );
+		    
+			saveVersion( DFSUtils.bytesToHex( fileId.array() ),
+						 DFSUtils.compressData( DFSUtils.serializeObject( file.getVersion() ) ),
+						 hintedHandoff, false, 0, update );
+			DFSUtils.saveFileOnDisk( root + file.getName(), content );
 		}
 		
 		database.put( fileId, file );
@@ -335,7 +334,7 @@ public class DFSDatabase
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
-		ByteBuffer fileId = Utils.getId( fileName );
+		ByteBuffer fileId = DFSUtils.getId( fileName );
 		
 		/*synchronized( LOCK_READERS ) {
             synchronized( LOCK_WRITERS ) {
@@ -372,11 +371,11 @@ public class DFSDatabase
 		file.setDeleted( true );
 		file.setVersion( clock );
 		
-		saveVersion( Utils.bytesToHex( fileId.array() ),
-					 Utils.serializeObject( clock ),
+		saveVersion( DFSUtils.bytesToHex( fileId.array() ),
+					 DFSUtils.compressData( DFSUtils.serializeObject( clock ) ),
 					 null, true, file.getTimeToLive(), true );
 		
-		Utils.deleteFileOnDisk( root + file.getName() );
+		DFSUtils.deleteFileOnDisk( root + file.getName() );
 	}
 	
 	/**
@@ -462,18 +461,17 @@ public class DFSDatabase
 	/**
 	 * Returns the file specified by the given file name.
 	 * 
-	 * @param fileName	
-	 * @throws InterruptedException 
+	 * @param fileName	name of the file
 	*/
 	public DistributedFile getFile( final String fileName )
 	{
-		return getFile( Utils.getId( fileName ) );
+		return getFile( DFSUtils.getId( fileName ) );
 	}
 	
 	/**
 	 * Returns the file specified by the given id.
 	 * 
-	 * @param id	 
+	 * @param id	 identifier of the file, generated by its name
 	*/
 	public DistributedFile getFile( final ByteBuffer id )
 	{
@@ -535,10 +533,10 @@ public class DFSDatabase
 	*/
 	public boolean checkExistFile( final String filePath ) throws IOException
 	{
-		return checkInFileSystemExists( new File( root ), root + filePath );
+		return checkExistsInFileSystem( new File( root ), root + filePath );
 	}
 	
-	private boolean checkInFileSystemExists( final File filePath, final String fileName )
+	private boolean checkExistsInFileSystem( final File filePath, final String fileName )
 	{
 		File[] files = filePath.listFiles();
 		if(files != null) {
@@ -547,7 +545,7 @@ public class DFSDatabase
 					return true;
 				
 				if(file.isDirectory()) {
-					if(checkInFileSystemExists( file, fileName ))
+					if(checkExistsInFileSystem( file, fileName ))
 						return true;
 				}
 			}
@@ -631,8 +629,8 @@ public class DFSDatabase
 						else {
 							// Update the Time To Live of the file.
 							try{
-								saveVersion( Utils.bytesToHex( Utils.getId( file.getName() ).array() ),
-											 Utils.serializeObject( file.getVersion() ),
+								saveVersion( DFSUtils.bytesToHex( DFSUtils.getId( file.getName() ).array() ),
+											 DFSUtils.compressData( DFSUtils.serializeObject( file.getVersion() ) ),
 											 file.getHintedHandoff(), true, file.getTimeToLive(), true );
 							}
 						 	catch( SQLException e ) {
@@ -692,7 +690,7 @@ public class DFSDatabase
 						}
 					}
 					
-					// retrieve the informations from the saved address
+					// Retrieve the informations from the saved address.
 					String[] data = address.split( ":" );
 					String host = data[0];
 					int port = Integer.parseInt( data[1] ) + 1;
@@ -759,7 +757,7 @@ public class DFSDatabase
 		{
 			Class.forName( "org.hsqldb.jdbcDriver" ).newInstance();
 			
-			Utils.createDirectory( root = (dbFileName != null) ? dbFileName.replace( "\\", File.separator ) : DB_LOCATION );
+			DFSUtils.createDirectory( root = (dbFileName != null) ? dbFileName.replace( "\\", File.separator ) : DB_LOCATION );
 			
 			// Connect to the database. This will load the db files and start the
 			// database if it is not alread running.
@@ -781,7 +779,7 @@ public class DFSDatabase
 												+ "Deleted INTEGER, "
 												+ "TTL INTEGER )" );
 			} catch( SQLException ex2 ) {
-				// Ignore.
+				// Ignored.
 				//ex2.printStackTrace();  // Second time we run program
 										  // should throw exception since table
 										  // already there.

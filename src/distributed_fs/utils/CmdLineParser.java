@@ -101,7 +101,7 @@ public class CmdLineParser
 			String hostname = values[0];
 			int port = Integer.parseInt( values[1] );
 			int nodeType = Integer.parseInt( values[2] );
-			String id = Utils.bytesToHex( Utils.getNodeId( 1, hostname ).array() );
+			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, hostname ).array() );
 			
 			members.add( new RemoteGossipMember( hostname, port, id, 0, nodeType ) );
 		}
