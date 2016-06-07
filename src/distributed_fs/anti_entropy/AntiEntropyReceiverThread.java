@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -135,15 +136,15 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				m_tree = createMerkleTree( files );
 				
 				// Check the differences through the trees.
-				boolean hasKey = checkTreeDifferences( inputTree, inputHeight );
-				LOGGER.debug( "FROM_ID: " + DFSUtils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
+				checkTreeDifferences( inputTree, inputHeight );
+				LOGGER.debug( "FROM_ID: " + DFSUtils.bytesToHex( sourceId ) + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)
 					filesToSend = getMissingFiles( files );
 				
 				addToSynch( sourceId );
 				
-				if(hasKey) {
+				if(bitSet.cardinality() > 0) {
 					// Receive the vector clocks associated to the shared files.
 					byte[] versions = session.receiveMessage();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
@@ -156,6 +157,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					removeFromSynch( sourceId );
 			}
 			catch( IOException e ) {
+			    // Ignored.
 				//e.printStackTrace();
 				
 				if(sourceId != null)
@@ -167,6 +169,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		
 		/**
 		 * Start the handshake phase.
+		 * During this phase some important informations
+		 * are exchanged.
 		*/
 		private ByteBuffer handshake() throws IOException
 		{
@@ -195,19 +199,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * 
 		 * @param inputTree		the input tree status (empty or not)
 		 * @param inputHeight	the height of the input tree
-		 * 
-		 * @return {@code true} if the soure node owns at least one of the keys,
-		 * 		   {@code false} otherwise
 		*/
-		private boolean checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
+		private void checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
 		{
-			boolean sourceHasKey = false;
-			
 			LOGGER.debug( "My tree: " + m_tree + ", other: " + inputTree );
 			bitSet.clear();
 			
-			if(inputTree == (byte) 0x1) {
-				// Tree not empty.
+			if(inputTree == (byte) 0x1) { // Tree not empty.
 				List<Node> nodes = new LinkedList<>();
 				int treeHeight = 0;
 				
@@ -234,60 +232,64 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					pTree = MerkleDeserializer.deserializeNodes( data );
 					LOGGER.debug( "Received tree: " + pTree.size() );
 					
-					sourceHasKey |= compareLevel( nodes, pTree );
+					compareLevel( nodes, pTree );
 				}
 			}
-			
-			return sourceHasKey;
 		}
 		
 		/**
 		 * Compares the current level with the input one.
 		 * 
-		 * @param nodes			list of own nodes
-		 * @param pTree			the input tree level
-		 * 
-		 * @return {@code true} if at least one key is shared, {@code false} otherwise.
+		 * @param nodes		list of own nodes
+		 * @param pTree		the input tree level
 		*/
-		private boolean compareLevel( final List<Node> nodes, final List<Node> pTree ) throws IOException
+		private void compareLevel( final List<Node> nodes, final List<Node> pTree ) throws IOException
 		{
 			BitSet _bitSet = new BitSet();
 			int pTreeSize = pTree.size();
-			boolean sourceHasKey = false;
+			int nodeSize = nodes.size();
+			boolean equalLevel = nodeSize == pTree.size();
+			int index = -1; // Index used to scan efficiently the tree.
 			
-			for(int i = nodes.size() - 1; i >= 0; i --) {
-				Node node = nodes.get( i );
+			ListIterator<Node> it = nodes.listIterator();
+			for(int i = 0; i < nodeSize; i++) {
+				Node node = it.next();
 				boolean found = false;
-				for(int j = 0; j < pTreeSize; j++) {
-					// Compare the current node with each input signature: if equals put 1 in the set.
-					if(!_bitSet.get( j ) && MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
-						_bitSet.set( j );
-						
-						if(!sourceHasKey)
-							sourceHasKey = true;
-						
-						// Set 1 all the range reachable from the node.
-						LinkedList<Node> leaves = m_tree.getLeavesFrom( node );
-						LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
-						bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
-						
-						found = true;
-						break;
-					}
+				
+				if(equalLevel) {
+				    // Compare the current node with the correspondent input signature: if equals put 1 in the set.
+				    if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( i ).sig )) {
+                        _bitSet.set( i );
+                        found = true;
+                    }
+				}
+				else {
+				    // Compare the current node with each input signature: if equals put 1 in the set.
+    				for(int j = index + 1; j < pTreeSize; j++) {
+    					if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
+    						_bitSet.set( index = j );
+    						found = true;
+    						break;
+    					}
+    				}
 				}
 				
-				nodes.remove( i );
+				it.remove();
 				
-				if(!found) {
+				if(found) {
+				    // Set 1 all the range reachable from the node.
+                    LinkedList<Node> leaves = m_tree.getLeavesFrom( node );
+                    LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
+                    bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
+				}
+				else {
 					// If the current node is not found, its sons will be added.
-					if(node.left != null) nodes.add( node.left );
-					if(node.right != null) nodes.add( node.right );
+				    if(node.left  != null) it.add( node.left );
+				    if(node.right != null) it.add( node.right );
 				}
 			}
 			
 			session.sendMessage( _bitSet.toByteArray(), true );
-			
-			return sourceHasKey;
 		}
 		
 		/**
