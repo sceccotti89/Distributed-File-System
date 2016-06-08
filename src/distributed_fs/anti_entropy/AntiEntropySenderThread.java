@@ -7,8 +7,10 @@ package distributed_fs.anti_entropy;
 import java.io.IOException;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -147,6 +149,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	
 	/**
 	 * Start the handshake phase.
+	 * During this phase some important informations
+     * are exchanged.
 	 * 
 	 * @param msg_type		one of {@code MERKLE_FROM_MAIN} and {@code MERKLE_FROM_REPLICA}
 	 * @param sourceId		source node identifier
@@ -177,7 +181,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			if(inputHeight == 0)
 				return;
 			
-			List<Node> nodes = new LinkedList<>();
+			Deque<Node> nodes = new ArrayDeque<>( m_tree.getNumNodes() );
 			nodes.add( m_tree.getRoot() );
 			
 			// Reduce the level of the tree if it is greater.
@@ -199,23 +203,27 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 					break;
 				}
 				else {
-					for(int i = set.nextSetBit( 0 ); i >= 0; i = set.nextSetBit( i+1 )) {
-						LOGGER.debug( "Index: " + i );
-						if(i == Integer.MAX_VALUE)
-							break; // or (i+1) would overflow
-						else {
-							LinkedList<Node> leaves = m_tree.getLeavesFrom( nodes.get( i ) );
-							bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
-						}
-					}
+				    int i = -1, index = set.nextSetBit( 0 );
+				    if(index >= 0) {
+    				    for(Node n : nodes) {
+    				        if(++i == index) {
+        						LOGGER.debug( "Index: " + index );
+    							LinkedList<Node> leaves = m_tree.getLeavesFrom( n );
+    							bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
+        						
+    							if(index == Integer.MAX_VALUE || (index = set.nextSetBit( index + 1 )) == -1)
+                                    break;
+    				        }
+    					}
+				    }
 				}
 				
 				for(int i = 0; i < nNodes; i++) {
-					Node n = nodes.remove( 0 );
+					Node n = nodes.removeFirst();
 					if(set.get( i ) == false){
 						// Insert the right and left child of this node.
-						if(n.left != null) nodes.add( n.left );
-						if(n.right != null) nodes.add( n.right );
+						if(n.left != null) nodes.addLast( n.left );
+						if(n.right != null) nodes.addLast( n.right );
 					}
 				}
 					
@@ -229,7 +237,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	 * 
 	 * @param nodes		current nodes in the tree
 	*/
-	private void sendCurrentLevel( final List<Node> nodes ) throws IOException
+	private void sendCurrentLevel( final Deque<Node> nodes ) throws IOException
 	{
 		int nNodes = nodes.size();
 		

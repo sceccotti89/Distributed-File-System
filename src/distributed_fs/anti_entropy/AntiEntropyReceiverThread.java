@@ -6,12 +6,13 @@ package distributed_fs.anti_entropy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -41,42 +42,42 @@ import gossiping.GossipMember;
 */
 public class AntiEntropyReceiverThread extends AntiEntropyThread
 {
-	private ExecutorService threadPool;
+    private ExecutorService threadPool;
 	
 	/** Map used to manage the nodes in the synchronization phase */
 	private static final Map<byte[], Integer> syncNodes = new ConcurrentHashMap<>( 8 );
 	
 	public AntiEntropyReceiverThread( final GossipMember _me,
-									  final DFSDatabase database,
-									  final FileTransferThread fMgr,
-									  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
+	                                  final DFSDatabase database,
+	                                  final FileTransferThread fMgr,
+	                                  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
 	{
-		super( _me, database, fMgr, cHasher );
-		
-		threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
-		addToSynch( DFSUtils.hexToBytes( me.getId() ) );
-		Net.setSoTimeout( 2000 );
+	    super( _me, database, fMgr, cHasher );
+	    
+	    threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
+	    addToSynch( DFSUtils.hexToBytes( me.getId() ) );
+	    Net.setSoTimeout( 2000 );
 	}
 	
 	@Override
 	public void run()
 	{
-		LOGGER.info( "Anti Entropy Receiver Thread launched" );
-		
-		while(!shoutDown) {
-			try {
-				//System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
-				TCPSession session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
-				if(session == null)
-					continue;
-				threadPool.execute( new AntiEntropyNode( session ) );
-			}
-			catch( IOException e ) {
-				e.printStackTrace();
-			}
-		}
-		
-		LOGGER.info( "Anti-entropy Receiver Thread closed." );
+	    LOGGER.info( "Anti Entropy Receiver Thread launched" );
+	    
+	    while(!shoutDown) {
+	        try {
+	            //System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
+	            TCPSession session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
+	            if(session == null)
+	                continue;
+	            threadPool.execute( new AntiEntropyNode( session ) );
+	        }
+	        catch( IOException e ) {
+	            e.printStackTrace();
+	        }
+	    }
+	    
+	    LOGGER.info( "Anti-entropy Receiver Thread closed." );
 	}
 	
 	private class AntiEntropyNode extends Thread
@@ -206,7 +207,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			bitSet.clear();
 			
 			if(inputTree == (byte) 0x1) { // Tree not empty.
-				List<Node> nodes = new LinkedList<>();
+			    Deque<Node> nodes = new ArrayDeque<>( (m_tree == null) ? 0 : m_tree.getNumNodes() );
 				int treeHeight = 0;
 				
 				if(m_tree != null) {
@@ -243,7 +244,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * @param nodes		list of own nodes
 		 * @param pTree		the input tree level
 		*/
-		private void compareLevel( final List<Node> nodes, final List<Node> pTree ) throws IOException
+		private void compareLevel( final Deque<Node> nodes, final List<Node> pTree ) throws IOException
 		{
 			BitSet _bitSet = new BitSet();
 			int pTreeSize = pTree.size();
@@ -251,9 +252,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			boolean equalLevel = nodeSize == pTree.size();
 			int index = -1; // Index used to scan efficiently the tree.
 			
-			ListIterator<Node> it = nodes.listIterator();
+			//ListIterator<Node> it = nodes.listIterator();
 			for(int i = 0; i < nodeSize; i++) {
-				Node node = it.next();
+				//Node node = it.next();
+			    Node node = nodes.removeFirst();
 				boolean found = false;
 				
 				if(equalLevel) {
@@ -274,7 +276,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
     				}
 				}
 				
-				it.remove();
+				//it.remove();
 				
 				if(found) {
 				    // Set 1 all the range reachable from the node.
@@ -284,8 +286,11 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				else {
 					// If the current node is not found, its sons will be added.
-				    if(node.left  != null) it.add( node.left );
-				    if(node.right != null) it.add( node.right );
+				    if(node.left  != null){
+				        nodes.addLast( node.left ); //it.add( node.left );
+				        if(node.right != null)
+				            nodes.addLast( node.right ); //it.add( node.right );
+				    }
 				}
 			}
 			
@@ -305,10 +310,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			bitSet.flip( 0, m_tree.getNumLeaves() );
 			
 			for(int i = bitSet.nextSetBit( 0 ); i >= 0; i = bitSet.nextSetBit( i+1 )) {
+			    filesToSend.add( files.get( i ) );
 				if(i == Integer.MAX_VALUE)
 					break; // or (i+1) would overflow
-				else
-					filesToSend.add( files.get( i ) );
 			}
 			
 			// flip back the values
@@ -329,10 +333,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * @return list of files which own an older version
 		*/
 		private List<DistributedFile> checkVersions( final int port,
-													 final List<DistributedFile> files,
-													 final List<VectorClock> inClocks,
-													 final String address,
-													 final byte[] sourceNodeId )
+		                                             final List<DistributedFile> files,
+		                                             final List<VectorClock> inClocks,
+		                                             final String address,
+		                                             final byte[] sourceNodeId )
 		{
 			List<DistributedFile> filesToSend = new ArrayList<>();
 			List<DistributedFile> filesToRemove = new ArrayList<>();
