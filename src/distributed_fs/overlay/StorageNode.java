@@ -7,6 +7,7 @@ package distributed_fs.overlay;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import org.json.JSONException;
 
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.exception.DFSException;
+import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.NetworkMonitorSenderThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
@@ -25,6 +27,7 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
+import distributed_fs.overlay.manager.ListManagerThread;
 import distributed_fs.overlay.manager.QuorumSession;
 import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
@@ -33,7 +36,7 @@ import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.storage.RemoteFile;
-import distributed_fs.utils.CmdLineParser;
+import distributed_fs.utils.ArgumentsParser;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
@@ -49,21 +52,24 @@ public class StorageNode extends DFSNode
 {
 	private static GossipMember me;
 	private QuorumThread quorum_t;
+	private String resourcesLocation;
 	
 	// ===== Used by the node instance ===== //
 	private TCPSession session;
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
-	private QuorumSession quorum;
+	private QuorumSession qSession;
 	// =========================================== //
 	
-	//private static final List<DFSNode> threads = new ArrayList<>( DFSNode.MAX_USERS );
-	private static ThreadMonitor monitor_t;
+	private ListManagerThread lMgr_t;
+	private List<Thread> threadsList;
 	
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
-	 * the list of nodes should be passed as arguments.
+	 * the list of nodes should be passed as arguments.<br>
+	 * The node starts only using the {@linkplain #launch()}
+	 * method.
 	 * 
 	 * @param address				the ip address. If {@code null} it will be taken using the configuration file parameters.
 	 * @param startupMembers		list of nodes
@@ -73,46 +79,48 @@ public class StorageNode extends DFSNode
 	 * 								If {@code null} the default one will be selected ({@link Utils#});
 	*/
 	public StorageNode( final String address,
-						final List<GossipMember> startupMembers,
-						final String resourcesLocation,
-						final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
+	                    final List<GossipMember> startupMembers,
+	                    final String resourcesLocation,
+	                    final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
 	{
 		super( GossipMember.STORAGE, address, startupMembers );
 		
 		if(runner != null) {
 			me = runner.getGossipService().getGossipManager().getMyself();
 			this.port = me.getPort();
+			lMgr_t = new ListManagerThread( _address, this.port, me,
+			                                runner.getGossipService().getGossipManager() );
 		}
 		else {
 			// Start the gossiping from the input list.
 			this.port = GossipManager.GOSSIPING_PORT;
 			
-			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, _address ).array() );
+			String id = DFSUtils.getNodeId( 1, _address );
 			me = new RemoteGossipMember( _address, this.port, id, computeVirtualNodes(), GossipMember.STORAGE );
 			
 			GossipSettings settings = new GossipSettings();
 			GossipService gossipService = new GossipService( _address, me.getPort(), me.getId(), me.getVirtualNodes(),
 															 me.getNodeType(), startupMembers, settings, this );
 			gossipService.start();
+			lMgr_t = new ListManagerThread( _address, this.port, me,
+			                                gossipService.getGossipManager() );
 		}
 		
 		cHasher.addBucket( me, me.getVirtualNodes() );
+		quorum_t = new QuorumThread( port, _address, this );
 		
-		fMgr = new FileTransferThread( me, this.port + 1, cHasher, resourcesLocation, databaseLocation );
-		fMgr.addStorageNode( this );
+		fMgr = new FileTransferThread( me, this.port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
 		
-		monitor = new NetworkMonitorSenderThread( _address, this );
+		netMonitor = new NetworkMonitorSenderThread( _address, this );
 		
-		//threadPool.execute( quorum_t = new QuorumThread( port, address, this ) );
-		
-		//this.port = Utils.SERVICE_PORT;
-		//this.port = port;
-		launch();
+		threadsList = new ArrayList<>( MAX_USERS );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 	}
 	
 	/** Testing. */
 	public StorageNode( final List<GossipMember> startupMembers,
 						final String id,
+						final int nodeIndex,
 						final String address,
 						final int port,
 						final String resourcesLocation,
@@ -121,18 +129,32 @@ public class StorageNode extends DFSNode
 		super();
 		
 		_address = address;
+		me = new RemoteGossipMember( _address, port, id, 3, GossipMember.STORAGE );
 		
-		for(GossipMember member: startupMembers) {
+		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
 				gossipEvent( member, GossipState.UP );
 		}
 		
-		fMgr = new FileTransferThread( new RemoteGossipMember( _address, port, id, 3, GossipMember.STORAGE ), port + 1,
-									  cHasher, resourcesLocation, databaseLocation );
-		fMgr.addStorageNode( this );
-		monitor = new NetworkMonitorSenderThread( _address, this );
+		// Used for the quorum location.
+		this.resourcesLocation = "./Servers/QuorumSessions" + nodeIndex + "/";
+		
+		quorum_t = new QuorumThread( port, _address, this );
+		fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
+		netMonitor = new NetworkMonitorSenderThread( _address, this );
+		
+		lMgr_t = new ListManagerThread( address, port, startupMembers );
+		threadsList = new ArrayList<>( MAX_USERS );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 		
 		this.port = port;
+	}
+	
+	/**
+	 * Disable the anti-entropy mechanism.
+	*/
+	public void disableAntiEntropy() {
+	    fMgr.disableAntiEntropy();
 	}
 	
 	/**
@@ -141,12 +163,12 @@ public class StorageNode extends DFSNode
 	public void launch() throws JSONException
 	{
 		fMgr.start();
-		monitor.start();
+		netMonitor.start();
+		quorum_t.start();
+		monitor_t.start();
+		lMgr_t.start();
 		
 		try {
-			threadPool.execute( monitor_t = new ThreadMonitor( threadPool ) );
-			threadPool.execute( quorum_t = new QuorumThread( port, _address, this ) );
-			
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
 				//LOGGER.debug( "[SN] Waiting on: " + _address + ":" + port );
@@ -156,143 +178,133 @@ public class StorageNode extends DFSNode
 				        if(threadPool.isShutdown())
 				            break;
 				        
-				        StorageNode node = new StorageNode( getNextThreadID(), fMgr, quorum_t, cHasher, _net, session );
+				        StorageNode node = new StorageNode( getNextThreadID(), resourcesLocation, fMgr, quorum_t,
+				                                            cHasher, _net, session, netMonitor );
 				        monitor_t.addThread( node );
 				        
 				        threadPool.execute( node );
 				    }
 				}
+				
+			    // Check if the monitor thread is alive: if not a new instance is activated.
+			    if(!monitor_t.isAlive()) {
+			        monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+			        monitor_t.start();
+			    }
 			}
 		}
-		catch( IOException e ) {}
+		catch( IOException e ) {
+		    //e.printStackTrace();
+		}
 		
 		System.out.println( "[SN] '" + _address + ":" + port + "' Closed." );
-		//closeResources();
 	}
 	
 	/**
-	 * Constructor used to handle the incoming request.
-	 * 
-	 * @param id		the associated identifier
-	 * @param fMgr		the file manager thread
-	 * @param quorum_t	the quorum thread
-	 * @param cHasher	the consistent hashing structure
-	 * @param net		the current TCP channel
-	 * @param session	the TCP session
-	*/
-	private StorageNode( final long id,
-						 final FileTransferThread fMgr,
-						 final QuorumThread quorum_t,
-						 final ConsistentHasherImpl<GossipMember, String> cHasher,
-						 final TCPnet net,
-						 final TCPSession session ) throws IOException, JSONException
-	{
-		super( net, fMgr, cHasher );
-		setId( id );
-		
-		this.quorum_t = quorum_t;
-		this.session = session;
-		
-		actionsList = new ArrayList<>( 16 );
-		state = new ThreadState( id, actionsList, fMgr, quorum_t, cHasher );
-	}
-	
-	@Override
+     * Constructor used to handle an incoming request.
+     * 
+     * @param id                    the associated identifier
+     * @param resourcesLocation     the resource location path
+     * @param fMgr                  the file manager thread
+     * @param quorum_t              the quorum thread
+     * @param cHasher               the consistent hashing structure
+     * @param net                   the current TCP channel
+     * @param session               the TCP session
+     * @param netMonitor            the network monitor
+    */
+    private StorageNode( final long id,
+                         final String resourcesLocation,
+    					 final FileTransferThread fMgr,
+    					 final QuorumThread quorum_t,
+    					 final ConsistentHasherImpl<GossipMember, String> cHasher,
+    					 final TCPnet net,
+    					 final TCPSession session,
+    					 final NetworkMonitor netMonitor ) throws IOException, JSONException
+    {
+    	super( net, fMgr, cHasher );
+    	setId( id );
+    	
+    	this.resourcesLocation = resourcesLocation;
+    	this.quorum_t = quorum_t;
+    	this.session = session;
+    	this.netMonitor = netMonitor;
+    	
+    	actionsList = new ArrayDeque<>( 16 );// TODO per adesso e' 16 poi si vedra'
+    	state = new ThreadState( id, actionsList, fMgr, quorum_t, cHasher, this.netMonitor );
+    }
+
+    @Override
 	public void run()
 	{
 		LOGGER.info( "[SN] Received a connection from: " + session.getSrcAddress() );
 		stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );
 		
-		// TODO GENERARE LA MACCHINA A STATI FINITI
+		// TODO GENERARE LA MACCHINA A STATI FINITI, ricordandosi di salvare tutti i dati nell'apposito threadState
 		
 		try {
-			//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-			// TODO dovrei salvare anche il messaggio, altrimenti non saprei piu' cosa devo farci
 			MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
-			//byte opType = data.get();
-			//boolean isCoordinator = (data.get() == (byte) 0x1);
 			byte opType = data.getType();
 			String fileName = data.getFileName();
 			boolean isCoordinator = data.startQuorum();
-			long fileId = (isCoordinator) ? -1 : DFSUtils.bytesToLong( data.getPayload() );
+			long fileId = (opType == Message.GET_ALL || isCoordinator) ?
+			              -1 : DFSUtils.bytesToLong( data.getPayload() );
 			Metadata meta = data.getMetadata();
 			
 			LOGGER.debug( "[SN] Received: " + getCodeString( opType ) + ":" + isCoordinator );
 			
-			//if(!isCoordinator) // GET operation
-				//setBlocked( false, fileName, DFSUtils.bytesToLong( data.getPayload() ), opType );
-			//else {
 			if(isCoordinator) {
 				// The connection with the client must be estabilished before the quorum.
-				//openClientConnection( data );
 				openClientConnection( meta.getClientAddress() );
 				
 				// Get the destination id, since it can be any virtual node.
-				//destId = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				quorum = new QuorumSession( id );
-				agreedNodes = quorum_t.checkQuorum( session, quorum, opType, fileName, destId );
+				qSession = new QuorumSession( resourcesLocation, id );
+				agreedNodes = quorum_t.checkQuorum( session, qSession, opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
-				// TODO rimuovere i commenti di TEST dalla classe QuorumSystem
 				
 				// Check if the quorum has been completed successfully.
 				if(!QuorumSession.isQuorum( opType, replicaNodes )) {
-					//session.sendMessage( new byte[]{ Utils.TRANSACTION_FAILED }, false );
-					//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
-					//session.sendMessage( message, true );
-					closeWorker();
+				    LOGGER.info( "[SN] Quorum failed: " + replicaNodes + "/" + QuorumSession.getMinQuorum( opType ) );
+				    closeWorker();
 					return;
 				}
 				else {
 					if(opType != Message.GET) {
+					    // The successfull transaction will be sent later for the GET operation.
 						LOGGER.info( "[SN] Quorum completed successfully: " + replicaNodes + "/" + QuorumSession.getMinQuorum( opType ) );
 						quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
-						//quorum_t.closeQuorum( new ArrayList<>( agreedNodes ) );
-						
-						//QuorumSystem.saveDecision( agreedNodes );
-						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_OK );
-						//session.sendMessage( message, true );
 					}
-					//session.sendMessage( new byte[]{ Utils.TRANSACTION_OK }, false );
 				}
 			}
 			
 			switch( opType ) {
 				case( Message.PUT ):
-					/*RemoteFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
-					
-					// get (if present) the hinted handoff address
-					String hintedHandoff = null;
-					if(data.remaining() > 0)
-						hintedHandoff = new String( Utils.getNextBytes( data ) );*/
-					//RemoteFile file = Utils.deserializeObject( data.getFile() );
 					RemoteFile file = new RemoteFile( data.getPayload() );
-					
-					// get (if present) the hinted handoff address
+					// Get (if present) the hinted handoff address.
 					String hintedHandoff = meta.getHintedHandoff();
-					
-					LOGGER.debug( "PUT: " + file.getName() + ":" + hintedHandoff );
+					LOGGER.debug( "[SN] PUT: " + file.getName() + ":" + hintedHandoff );
 					
 					handlePUT( isCoordinator, file, hintedHandoff );
 					break;
 					
 				case( Message.GET ):
-					//handleGET( isCoordinator, new String( Utils.getNextBytes( data ) ) );
 					handleGET( isCoordinator, fileName, fileId );
 					break;
 					
-				/*case( Message.GET_ALL ): 
-					//handleGET_ALL( data );
-					handleGET_ALL( data.getClientAddress() );
-					break;*/
+				case( Message.GET_ALL ): 
+                    handleGET_ALL( meta.getClientAddress() );
+                    break;
 				
 				case( Message.DELETE ):
-					//handleDELETE( isCoordinator, Utils.deserializeObject( Utils.getNextBytes( data ) ) );
-					//handleDELETE( isCoordinator, Utils.deserializeObject( data.getFile() ) );
-					handleDELETE( isCoordinator, new DistributedFile( data.getPayload() ) );
-					break;
+				    DistributedFile dFile = DFSUtils.deserializeObject( data.getPayload() );
+				    // Get (if present) the hinted handoff address.
+                    hintedHandoff = meta.getHintedHandoff();
+                    LOGGER.debug( "[SN] DELETE: " + dFile.getName() + ":" + hintedHandoff );
+				    
+				    handleDELETE( isCoordinator, dFile, hintedHandoff );
+				    break;
 			}
 		}
 		catch( IOException | SQLException | JSONException e ) {
@@ -304,25 +316,30 @@ public class StorageNode extends DFSNode
 	
 	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
 	{
-		LOGGER.debug( "GIVEN_VERSION: " + file.getVersion() + ", NEW_GIVEN_VERSION: " + file.getVersion().incremented( _address ) );
-		VectorClock newClock = file.getVersion().incremented( _address );
-		VectorClock updated = fMgr.getDatabase().saveFile( file, newClock, hintedHandoff, true );
-		LOGGER.debug( "UPDATED: " + (updated != null) + ", NEW_VERSION: " + file.getVersion() );
+		//LOGGER.debug( "GIVEN_VERSION: " + file.getVersion() + ", NEW_GIVEN_VERSION: " + file.getVersion().incremented( _address ) );
+		VectorClock clock = file.getVersion().incremented( _address );
+		clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff, true );
+		LOGGER.debug( "[SN] UPDATED: " + (clock != null) );
 		
-		if(updated == null)
-			quorum_t.closeQuorum( quorum, agreedNodes );
+		if(clock == null) // Not updated.
+			quorum_t.closeQuorum( qSession, agreedNodes );
 		else {
-			file.setVersion( updated );
+			file.setVersion( clock );
 			
 			// Send, in parallel, the file to the replica nodes.
-			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, fMgr.getDatabase().getFileSystemRoot() ) );
+			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, file.isDirectory(), hintedHandoff ) );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
-				//qNode.addList( agreedNodes );
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
-				fMgr.sendFiles( node.getPort() + 1/*, Message.PUT*/, files, node.getHost(), false, null, qNode );
+				fMgr.sendFiles( node.getPort() + 1, files, node.getHost(), false, null, qNode );
 			}
 		}
+		
+		// Send the update state to the client.
+		MessageResponse message = new MessageResponse( (byte) ((clock != null) ? 0x1 : 0x0) );
+		if(clock != null)
+		    message.addObject( DFSUtils.serializeObject( clock ) );
+		session.sendMessage( message, true );
 	}
 	
 	private void handleGET( final boolean isCoordinator, final String fileName, final long fileId ) throws IOException, JSONException
@@ -338,26 +355,25 @@ public class StorageNode extends DFSNode
 			int errors = 0;
 			
 			// Get the replica versions.
-			int index = 0;
+			int index = 0, offset = 0;
 			for(TCPSession session : openSessions) {
 				try{
 					ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 					if(data.get() == (byte) 0x1) { // Replica node owns the requested file.
-						byte[] file = DFSUtils.getNextBytes( data );
-						filesToSend.put( DFSUtils.deserializeObject( file ), file );
+					    System.out.println( "NUOVO FILE " + fileName );
+					    byte[] file = DFSUtils.getNextBytes( data );
+					    filesToSend.put( new RemoteFile( file ), file );
 						
 						// Update the list of agreedNodes.
-						agreedNodes.remove( index );
-						quorum.saveState( agreedNodes );
+						agreedNodes.remove( index - offset );
+						qSession.saveState( agreedNodes );
+						offset++;
 					}
 				}
 				catch( IOException e ) {
 					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
 						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-						//MessageResponse message = new MessageResponse( Utils.TRANSACTION_FAILED );
-						//this.session.sendMessage( message, true );
-						
-						quorum_t.cancelQuorum( this.session, quorum, agreedNodes );
+						quorum_t.cancelQuorum( this.session, qSession, agreedNodes );
 						return;
 					}
 				}
@@ -370,16 +386,10 @@ public class StorageNode extends DFSNode
 			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
 			quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
 			
-			//MessageResponse message = new MessageResponse( Message.TRANSACTION_OK );
-			//session.sendMessage( message, true );
-			
-			//quorum_t.closeQuorum( agreedNodes );
-			
 			// Put in the list the file present in the database of this node.
-			DistributedFile dFile = fMgr.getDatabase().getFile( DFSUtils.getId( fileName ) );
+			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
 			if(dFile != null) {
 				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
-				//byte[] file = Utils.serializeObject( rFile );
 				filesToSend.put( rFile, rFile.read() );
 			}
 			
@@ -389,48 +399,37 @@ public class StorageNode extends DFSNode
 			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
 			
 			// Send the files directly to the client.
-			/*session.sendMessage( Utils.intToByteArray( reconciledFiles.size() ), false );
-			for(int i = 0; i < reconciledFiles.size(); i++) {
-				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
-				session.sendMessage( data, true );
-			}
-			sendFilesToClient( reconciledFiles );
-			*/
-			
 			MessageResponse message = new MessageResponse();
 			for(int i = 0; i < reconciledFiles.size(); i++) {
 				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
-				message.addFile( data );
+				message.addObject( data );
 			}
+			
 			session.sendMessage( message, true );
 			
 			LOGGER.info( "Files sent to the client." );
 		}
 		else {
-			// REPLICA node: send the requested file to the coordinator
-			MessageResponse message;
-			DistributedFile file = fMgr.getDatabase().getFile( DFSUtils.getId( fileName ) );
-			if(file == null)
-				//session.sendMessage( new byte[]{ (byte) 0x0 }, false );
-				//session.sendMessage( new MessageResponse( (byte) 0x0 ), false );
-				message = new MessageResponse( (byte) 0x0 );
+			// REPLICA node: send the requested file to the coordinator.
+		    DistributedFile file = fMgr.getDatabase().getFile( fileName );
+		    System.out.println( "[SN] Cerco il file: " + fileName + ": " + file );
+		    byte[] message;
+		    if(file == null)
+				message = new byte[]{ (byte) 0x0 };
 			else {
-				//RemoteFile rFile = new RemoteFile( file );
-				message = new MessageResponse( (byte) 0x1 );
-				//message.addFile( Utils.serializeObject( new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() ) ) );
-				message.addFile( new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() ).read() );
-				//session.sendMessage( message, true );
-				//byte[] msg = _net.createMessage( new byte[]{ (byte) 0x1 }, Utils.serializeObject( rFile ), true );
-				//session.sendMessage( msg, true );
+			    byte[] bFile = new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() ).read();
+			    message = _net.createMessage( new byte[]{ (byte) 0x1 }, bFile, true );
+				//message.addObject( new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() ).read() );
 			}
 			
+		    // Remove the lock to the file.
 			quorum_t.setLocked( false, fileName, fileId, Message.GET );
 			session.sendMessage( message, true );
 		}
 	}
 	
 	/**
-	 * Make the reconciliation among different vector clocks.
+	 * Makes the reconciliation among different vector clocks.
 	 * 
 	 * @param files		list of files to compare
 	 * 
@@ -446,7 +445,7 @@ public class StorageNode extends DFSNode
 		//List<Versioned<RemoteFile>> inconsistency = vec_resolver.resolveConflicts( versions );
 		List<Versioned<RemoteFile>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
-		// get the uncorrelated files
+		// Get the uncorrelated files.
 		List<RemoteFile> uncorrelatedVersions = new ArrayList<>();
 		for(Versioned<RemoteFile> version : inconsistency)
 			uncorrelatedVersions.add( version.getValue() );
@@ -454,64 +453,49 @@ public class StorageNode extends DFSNode
 		return uncorrelatedVersions;
 	}
 	
-	/*private void handleGET_ALL( final ByteBuffer data ) throws IOException
-	{
-		openClientConnection( data );
-		
-		if(session != null) {
-			List<DistributedFile> files = fMgr.getDatabase().getAllFiles();
-			session.sendMessage( Utils.intToByteArray( files.size() ), true );
-			for(int i = files.size() - 1; i >= 0; i --) {
-				RemoteFile file = new RemoteFile( files.get( i ) );
-				session.sendMessage( Utils.serializeObject( file ), true );
-			}
-			
-			session.close();
-		}
-	}*/
+	private void handleGET_ALL( final String clientAddress ) throws IOException
+    {
+        openClientConnection( clientAddress );
+        
+        List<DistributedFile> files = fMgr.getDatabase().getAllFiles();
+        List<byte[]> filesToSend = new ArrayList<>( files.size() );
+        for(DistributedFile file : files) {
+            RemoteFile rFile = new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() );
+            //filesToSend.add( Utils.serializeObject( rFile ) );
+            filesToSend.add( rFile.read() );
+        }
+        
+        MessageResponse message = new MessageResponse( (byte) 0x0, filesToSend );
+        session.sendMessage( message, true );
+    }
 	
-	/*private void handleGET_ALL( final String clientAddress ) throws IOException
+	private void handleDELETE( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException, SQLException
 	{
-		openClientConnection( clientAddress );
+		VectorClock clock = file.getVersion().incremented( _address );
+		clock = fMgr.getDatabase().removeFile( file.getName(), clock, hintedHandoff );
+		//System.out.println( "UPDATED: " + (clock != null) + ", AGREED_NODES: " + agreedNodes );
 		
-		if(session != null) {
-			List<DistributedFile> files = fMgr.getDatabase().getAllFiles();
-			List<byte[]> filesToSend = new ArrayList<>( files.size() );
-			for(DistributedFile file : files) {
-				RemoteFile rFile = new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() );
-				//filesToSend.add( Utils.serializeObject( rFile ) );
-				filesToSend.add( rFile.read() );
-			}
-			
-			MessageResponse message = new MessageResponse( (byte) 0x0, filesToSend );
-			session.sendMessage( message, true );
-			
-			session.close();
-		}
-	}*/
-	
-	private void handleDELETE( final boolean isCoordinator, final DistributedFile file ) throws IOException, SQLException
-	{
-		VectorClock newClock = file.getVersion().incremented( _address );
-		VectorClock updated = fMgr.getDatabase().removeFile( file.getName(), newClock, true );
-		System.out.println( "UPDATED: " + (updated != null) + ", AGREED_NODES: " + agreedNodes );
-		LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
-		
-		if(updated == null)
-			quorum_t.closeQuorum( quorum, agreedNodes );
+		if(clock == null)
+			quorum_t.closeQuorum( qSession, agreedNodes );
 		else {
-			file.setVersion( updated );
+		    LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
+			file.setVersion( clock );
 			file.setDeleted( true );
 			
 			// Send, in parallel, the DELETE request to all the agreed nodes.
 			List<DistributedFile> files = Collections.singletonList( file );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
-				//qNode.addList( agreedNodes );
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
-				fMgr.sendFiles( node.getPort() + 1/*, Message.DELETE*/, files, node.getHost(), false, null, qNode );
+				fMgr.sendFiles( node.getPort() + 1, files, node.getHost(), false, null, qNode );
 			}
 		}
+		
+		// Send the update state to the client.
+		MessageResponse message = new MessageResponse( (byte) ((clock != null) ? 0x1 : 0x0) );
+        if(clock != null)
+            message.addObject( DFSUtils.serializeObject( clock ) );
+        session.sendMessage( message, true );
 	}
 	
 	/** 
@@ -523,127 +507,57 @@ public class StorageNode extends DFSNode
 	*/
 	private List<TCPSession> sendRequestToReplicaNodes( final String fileName )
 	{
-		// create the message
-		/*ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES * 2 + Integer.BYTES + fileName.length() );
-		buffer.put( Utils.GET ).put( (byte) 0x0 ).putInt( fileName.length() ).put( fileName.getBytes( StandardCharsets.UTF_8 ) );
-		byte[] data = buffer.array();
-		
-		// send the message to the replica nodes
-		List<TCPSession> openSessions = new ArrayList<>();
-		LOGGER.info( "Send request to replica nodes..." );
-		
-		for(String address : agreedNodes) {
-			try{
-				TCPSession session = _net.tryConnect( address, Utils.SERVICE_PORT, 2000 );
-				if(session != null) {
-					session.sendMessage( data, true );
-					openSessions.add( session );
-				}
-			} catch( IOException e ) {}
-		}*/
-		
 		// Send the message to the replica nodes.
 		List<TCPSession> openSessions = new ArrayList<>();
 		LOGGER.info( "Send request to replica nodes..." );
 		
+		int errNodes = 0;
 		for(QuorumNode qNode : agreedNodes) {
 			try{
 				GossipMember node = qNode.getNode();
 				TCPSession session = _net.tryConnect( node.getHost(), node.getPort(), 2000 );
 				if(session != null) {
-					byte[] message = DFSUtils.serializeObject( new MessageRequest( Message.GET, fileName, DFSUtils.longToByteArray( qNode.getId() ) ) );
-					session.sendMessage( message, true );
+				    MessageRequest msg = new MessageRequest( Message.GET, fileName, DFSUtils.longToByteArray( qNode.getId() ) );
+					session.sendMessage( msg, true );
 					openSessions.add( session );
 				}
-			} catch( IOException e ) {}
+				else {
+				    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
+				        return null;
+				}
+			} catch( IOException e ) {
+			    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
+                    return null;
+			}
 		}
 		
 		return openSessions;
 	}
 	
 	/**
-	 * Opens a connection with the client.
+	 * Opens a direct connection with client.
+	 * 
+	 * @param clientAddress    the address where the connection is oriented
 	*/
-	/*private void openClientConnection( final ByteBuffer data ) throws IOException
-	{
-		session.close();
-		
-		String clientAddress = new String( Utils.getNextBytes( data ), StandardCharsets.UTF_8 );
-		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-		session = _net.tryConnect( clientAddress, Utils.SERVICE_PORT, 5000 );
-	}*/
-	
 	private void openClientConnection( final String clientAddress ) throws IOException
 	{
-		session.close();
-		
-		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-		String[] host = clientAddress.split( ":" );
-		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
+	    if(clientAddress != null) {
+	        // If the address is not null means that it's a LoadBalancer address.
+	        session.close();
+    		
+    		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
+    		String[] host = clientAddress.split( ":" );
+    		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
+	    }
 	}
 	
 	/**
-	 * Sets the locked state for a given file.
-	 * 
-	 * @param blocked	{@code true} for locking state, {@code false} otherwise
-	 * @param fileName	name of the file
-	 * @param id		id of the quorum
-	 * @param opType	operation type
-	*/
-	public void setBlocked( final boolean blocked, final String fileName, final long id, final byte opType )
-	{
-		/*synchronized ( quorum_t.fileLock ) {
-			QuorumFile qFile = quorum_t.fileLock.get( fileName );
-			
-			if(blocked) {
-				if(qFile != null)
-					qFile.setReaders( +1 );
-				else
-					quorum_t.fileLock.put( fileName, new QuorumFile( id, opType ) );
-			}
-			else {
-				if(qFile != null && id == qFile.id) {
-					if(qFile.getOpType() == Message.GET) {
-						qFile.setReaders( -1 );
-						if(qFile.toDelete())
-							quorum_t.fileLock.remove( fileName );
-					}
-					else
-						quorum_t.fileLock.remove( fileName );
-				}
-			}
-		}*/
-	    quorum_t.setLocked( blocked, fileName, id, opType );
-	}
-	
-	/**
-	 * Checks whether the file is locked or not.
-	 * 
-	 * @param fileName
-	 * @param opType
-	 * 
-	 * @return {@code true} if the file is locked,
-	 * 		   {@code false} otherwise.
-	*/
-	public boolean getBlocked( final String fileName, final byte opType )
-	{
-		/*synchronized ( quorum_t.fileLock ) {
-			QuorumFile qFile = quorum_t.fileLock.get( fileName );
-			if(qFile == null)
-				return false;
-			else 
-				return (opType != Message.GET || qFile.getOpType() != Message.GET);
-		}*/
-	    return quorum_t.getLocked( fileName, opType );
-	}
-	
-	/**
-	 * Close the resources opened by the instance node.
+	 * Closes the resources opened by the instance node.
 	*/
 	public void closeWorker()
 	{
-		if(quorum != null)
-			quorum.closeQuorum();
+		if(qSession != null)
+		    qSession.closeQuorum();
 		session.close();
 		stats.decreaseValue( NodeStatistics.NUM_CONNECTIONS );
 		
@@ -660,10 +574,15 @@ public class StorageNode extends DFSNode
 	*/
 	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
 	{
-		StorageNode node = new StorageNode( state.getId(),
-											state.getFileManager(),
-											state.getQuorumThread(),
-											state.getHasing(), state.getNet(), state.getSession() );
+		StorageNode node =
+		        new StorageNode( state.getId(),
+		                         null,// TODO per adesso e' null, ma poi metterci quello corretto
+		                         state.getFileManager(),
+		                         state.getQuorumThread(),
+		                         state.getHashing(),
+		                         state.getNet(),
+		                         state.getSession(),
+		                         state.getNetMonitor() );
 		
 		synchronized( threadPool ) {
 			if(threadPool.isShutdown())
@@ -677,13 +596,14 @@ public class StorageNode extends DFSNode
 	
 	public static void main( String args[] ) throws Exception
 	{
-		CmdLineParser.parseArgs( args, GossipMember.STORAGE );
+		ArgumentsParser.parseArgs( args, GossipMember.STORAGE );
 		
-		String ipAddress = CmdLineParser.getIpAddress();
-		List<GossipMember> members = CmdLineParser.getNodes();
-		String resourceLocation = CmdLineParser.getResourceLocation();
-		String databaseLocation = CmdLineParser.getDatabaseLocation();
+		String ipAddress = ArgumentsParser.getIpAddress();
+		List<GossipMember> members = ArgumentsParser.getNodes();
+		String resourceLocation = ArgumentsParser.getResourceLocation();
+		String databaseLocation = ArgumentsParser.getDatabaseLocation();
 		
-		new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
+		StorageNode node = new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
+		node.launch();
 	}
 }

@@ -40,7 +40,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	 * 
 	 * @param id	the input identifier
 	*/
-	B getBucket( final ByteBuffer id );
+	B getBucket( final String id );
 
 	/**
 	 * Removes the bucket. There can be virtual nodes for given a bucket.
@@ -135,7 +135,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	/**
 	 * Returns the list of virtual buckets associated to the given bucket node.
 	*/
-	List<ByteBuffer> getVirtualBucketsFor( final B bucketName );
+	List<String> getVirtualBucketsFor( final B bucketName );
 
 	/**
 	 * Converts the given data into bytes. Implementation should be thread safe.

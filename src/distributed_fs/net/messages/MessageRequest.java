@@ -11,8 +11,6 @@ public class MessageRequest extends Message
 	private boolean startQuorum;
 	private String destId;
 	private Metadata meta;
-	//private String clientAddress;
-	//private String HintedHandoff;
 	
 	private static final long serialVersionUID = 307888610331132428L;
 	
@@ -39,7 +37,7 @@ public class MessageRequest extends Message
 	
 	public MessageRequest( final byte opType, final String fileName,
 			   			   final byte[] data, final boolean startQuorum,
-			   			   final String destId, /*final String clientAddress, final String HintedHandoff*/final Metadata meta )
+			   			   final String destId, final Metadata meta )
 	{
 		super( opType );
 		
@@ -48,8 +46,6 @@ public class MessageRequest extends Message
 		this.startQuorum = startQuorum;
 		this.destId = destId;
 		this.meta = meta;
-		//this.clientAddress = clientAddress;
-		//this.HintedHandoff = HintedHandoff;
 	}
 	
 	public String getFileName()
@@ -75,16 +71,6 @@ public class MessageRequest extends Message
 		return destId;
 	}
 	
-	/*public String getClientAddress()
-	{
-		return clientAddress;
-	}
-	
-	public String getHintedHandoff()
-	{
-		return HintedHandoff;
-	}*/
-	
 	public Metadata getMetadata()
 	{
 		return meta;
@@ -94,9 +80,4 @@ public class MessageRequest extends Message
 	{
 		meta = new Metadata( sourceAddress, hintedHandoff );
 	}
-	
-	/*public void setClientAddress( final String address )
-	{
-		clientAddress = address;
-	}*/
 }

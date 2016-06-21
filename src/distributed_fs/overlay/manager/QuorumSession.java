@@ -28,12 +28,24 @@ public class QuorumSession
 	
 	/** Parameters of the quorum protocol (like Dynamo). */
 	private static final short N = 3, W = 2, R = 2;
+	/** The location of the quorum file. */
+	private static final String QUORUM_LOCATION = "QuorumSessions/";
 	/** The quorum file status location. */
-	public static final String QUORUM_FILE = "./Settings/QuorumStatus";
+	public static final String QUORUM_FILE = "QuorumStatus_";
 	
-	public QuorumSession( final long id ) throws IOException, JSONException
+	/**
+	 * Construct a new quorum session.
+	 * 
+	 * @param fileLocation     specify the location of the quorum files. If {@code null} the default location will be used
+	 * @param id               identifier used to reference in a unique way the associated quorum file
+	*/
+	public QuorumSession( final String fileLocation, final long id ) throws IOException, JSONException
 	{
-	    quorumFile = QUORUM_FILE + id + ".json";
+	    if(fileLocation == null)
+	        quorumFile = QUORUM_LOCATION + "QuorumSession_" + id + ".json";
+	    else
+	        quorumFile = fileLocation + "QuorumSession_" + id + ".json";
+	    System.out.println( "FILE: " + quorumFile );
         if(!DFSUtils.existFile( quorumFile, true ))
             saveState( null );
     }
@@ -98,6 +110,7 @@ public class QuorumSession
 		writer.close();
 	}
 	
+	// TODO implementare dall'esterno questa funzione
 	public long getTimeElapsed() {
 		return timeElapsed;
 	}
@@ -140,12 +153,10 @@ public class QuorumSession
 	}
 	
 	public static boolean isQuorum( final byte opType, final int replicaNodes ) {
-		// TODO TEST (finiti i test togliere i commenti)
-		return true;
-		/*if(opType == Message.PUT || opType == Message.DELETE)
+		if(opType == Message.PUT || opType == Message.DELETE)
 			return isWriteQuorum( replicaNodes );
 		else
-			return isReadQuorum( replicaNodes );*/
+			return isReadQuorum( replicaNodes );
 	}
 	
 	public static boolean unmakeQuorum( final int errors, final byte opType ) {
@@ -155,14 +166,10 @@ public class QuorumSession
 			return (N - errors) < R;
 	}
 	
-	public static int getMinQuorum( final byte opType )
-	{
-		// TODO TEST (finiti i test togliere i commenti)
-		return 0;
-		
-		/*if(opType == Message.GET)
+	public static int getMinQuorum( final byte opType ) {
+		if(opType == Message.GET)
 			return R;
 		else
-			return W;*/
+			return W;
 	}
 }

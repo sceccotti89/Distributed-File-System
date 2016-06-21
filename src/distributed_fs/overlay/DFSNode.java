@@ -13,9 +13,9 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +36,7 @@ import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
+import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
@@ -51,28 +52,28 @@ public abstract class DFSNode extends Thread implements GossipListener
 {
 	protected static String _address;
 	protected int port;
-	protected static NetworkMonitor monitor;
+	protected NetworkMonitor netMonitor;
 	protected static NodeStatistics stats;
 	protected ExecutorService threadPool;
+	protected ThreadMonitor monitor_t;
 	protected TCPnet _net;
 	protected FileTransferThread fMgr;
 	protected ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
-	protected int nodeType;
 	
 	protected boolean shutDown = false;
 	
 	protected ThreadState state;
-	protected List<Integer> actionsList; // Actions performed by the thread, during the request processing.
+	// Actions performed by the thread, during the request processing.
+	protected Deque<Integer> actionsList;
+	
 	protected long id;
 	protected boolean completed = false; // Used to check if the thread has completed the job.
-	private static long nextThreadID; // Next unique identifier associated to the Thread.
+	private long nextThreadID; // Next unique identifier associated to the Thread.
 	
-	protected static boolean initConfig = false;
-	
-	public static final int MAX_USERS = 64; // Maximum number of accepted connections.
-	public static final int WAIT_CLOSE = 500;
+	protected static final int MAX_USERS = 64; // Maximum number of accepted connections.
+	public static final int WAIT_CLOSE = 200;
 	public static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
 	
 	public DFSNode( final int nodeType,
@@ -80,7 +81,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 					final List<GossipMember> startupMembers ) throws IOException, JSONException
 	{
 		_address = address;
-		this.nodeType = nodeType;
 		
 		setConfigure();
 		
@@ -112,6 +112,10 @@ public abstract class DFSNode extends Thread implements GossipListener
 	public DFSNode() throws IOException, JSONException
 	{
 		DFSUtils.testing = true;
+		if(!DFSUtils.initConfig){
+		    DFSUtils.initConfig = true;
+            BasicConfigurator.configure();
+        }
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -131,7 +135,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		this._net = net;
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
-		DFSUtils.createDirectory( DFSDatabase.RESOURCE_LOCATION );
+		DFSUtils.createDirectory( DFSDatabase.RESOURCES_LOCATION );
 	}
 	
 	/**
@@ -228,7 +232,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 			LOGGER.info( "Added node: " + member.toJSONObject().toString() );
 			cHasher.addBucket( member, member.getVirtualNodes() );
 			if(fMgr != null) {
-				fMgr.getDatabase().checkMember( member.getHost() );
+				fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
 			}
 		}
 	}
@@ -238,8 +242,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 	*/
 	private void setConfigure() throws IOException, JSONException
 	{
-		if(!initConfig){
-			initConfig = true;
+		if(!DFSUtils.initConfig){
+		    DFSUtils.initConfig = true;
 			BasicConfigurator.configure();
 		}
 		
@@ -305,44 +309,16 @@ public abstract class DFSNode extends Thread implements GossipListener
 	 * 
 	 * @return the file, if present, {@code null} otherwise
 	*/
-	public DistributedFile getFile( String fileName ) throws InterruptedException
+	public DistributedFile getFile( final String fileName ) throws InterruptedException
 	{
 		if(fMgr == null)
 			return null;
 		
-		fileName = checkFile( fileName, fMgr.getDatabase().getFileSystemRoot() );
-		System.out.println( "FILE TO ASK: " + fileName );
-		
-		DistributedFile file = fMgr.getDatabase().getFile( DFSUtils.getId( fileName ) );
+		DistributedFile file = fMgr.getDatabase().getFile( fileName );
 		if(file == null || file.isDeleted())
 			return null;
 		
 		return file;
-	}
-	
-	/**
-	 * Checks if the file has the correct format.
-	 * 
-	 * @param fileName	the input file
-	 * @param dbRoot	the database root
-	*/
-	private String checkFile( String fileName, final String dbRoot )
-	{
-		String backup = fileName;
-		if(fileName.startsWith( "./" ))
-			fileName = fileName.substring( 2 );
-		
-		File f = new File( fileName );
-		fileName = f.getAbsolutePath();
-		if(f.isDirectory() && !fileName.endsWith( "/" ))
-			fileName += "/";
-		fileName = fileName.replace( "\\", "/" );
-		if(fileName.startsWith( dbRoot ))
-			fileName = fileName.substring( dbRoot.length() );
-		else
-			fileName = backup;
-		
-		return fileName;
 	}
 	
 	/**
@@ -355,7 +331,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	 * @return the list of successor nodes;
 	 * 		   it could contains less than {@code numNodes} elements.
 	*/
-	public List<GossipMember> getSuccessorNodes( final ByteBuffer id, final String addressToRemove, final int numNodes )
+	public List<GossipMember> getSuccessorNodes( final String id, final String addressToRemove, final int numNodes )
 	{
 		List<GossipMember> nodes = new ArrayList<>( numNodes );
 		Set<String> filterAddress = new HashSet<>();
@@ -364,8 +340,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 		if(!DFSUtils.testing)
 			filterAddress.add( addressToRemove );
 		
-		// Choose the nodes whose address is different than this node
-		ByteBuffer currId = id, succ;
+		// Choose the nodes whose address is different than this node.
+		String currId = id, succ;
 		while(size < numNodes) {
 			succ = cHasher.getNextBucket( currId );
 			if(succ == null || succ.equals( id ))
@@ -383,28 +359,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 			}
 		}
 		
-		/*currId = cHasher.getFirstKey();
-		if(currId != null) {
-			while(size < numNodes) {
-				currId = cHasher.getSuccessor( currId );
-				if(currId == null || currId.equals( id ))
-					break;
-				
-				GossipMember node = cHasher.getBucket( currId );
-				if(node != null && !filterAddress.contains( node.getHost() )) {
-					nodes.add( node );
-					if(!testing)
-						filterAddress.add( node.getHost() );
-					size++;
-				}
-			}
-		}*/
-		
 		return nodes;
-	}
-	
-	public int getNodeType() {
-		return nodeType;
 	}
 	
 	public ThreadState getJobState() {
@@ -425,8 +380,8 @@ public abstract class DFSNode extends Thread implements GossipListener
     	this.id = id;
     }
     
-    protected static synchronized long getNextThreadID() {
-        return ++nextThreadID;
+    protected long getNextThreadID() {
+        return nextThreadID = (nextThreadID + 1) % Long.MAX_VALUE;
     }
 	
 	protected String getCodeString( final byte opType )
@@ -448,7 +403,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	{
 		shutDown = true;
 		
-		monitor.shutDown();
+		netMonitor.shutDown();
 		_net.close();
 		if(runner != null)
 			runner.getGossipService().shutdown();
@@ -458,7 +413,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		if(fMgr != null)
 			fMgr.shutDown();
 		
-		try{ monitor.join(); }
+		try{ netMonitor.join(); }
 		catch( InterruptedException e ) {}
 	}
 }

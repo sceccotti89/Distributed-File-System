@@ -4,66 +4,65 @@
 
 package distributed_fs.storage;
 
-import java.io.File;
-import java.nio.ByteBuffer;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 
 import distributed_fs.anti_entropy.MerkleTree;
-import distributed_fs.net.IOSerializable;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Version;
 
-public class DistributedFile implements IOSerializable//, Serializable
+public class DistributedFile implements /*IOSerializable,*/ Serializable
 {
 	private String name;
 	private VectorClock version;
 	private boolean deleted = false;
 	private boolean isDirectory;
-	//private transient byte[] signature;
-	//private final byte[] id;
-	private transient String HintedHandoff;
+	
+	private String fileId;
+	private String HintedHandoff;
+	
+	private transient byte[] signature;
 	
 	// Parameters used to check the life of a deleted file
-	private transient long currTime, liveness = 0;
-	private static transient final int TTL = 360000; // 1 hour
+	private long currTime, liveness;
+	private static transient final int TTL = 3600000; // 1 hour
 	
 	//private static final long serialVersionUID = -1525749756439181410L;
 	
-	public DistributedFile( final byte[] data )
+	/* Generated Serial ID */
+    private static final long serialVersionUID = 7522473187709784849L;
+
+    /**
+	 * Constructor used when the file has been serialized with
+	 * the {@link IOSerializable} interface.
+	*/
+	/*public DistributedFile( final byte[] data )
 	{
 		write( data );
+		fileId = DFSUtils.byteBufferToHex( DFSUtils.getId( this.name ) );
+	}*/
+	
+    /**
+     * General constructor.
+    */
+	public DistributedFile( final RemoteFile file, final boolean isDirectory, final String hintedHandoff )
+	{
+		this( file.getName(), isDirectory, file.getVersion(), hintedHandoff );
 	}
 	
-	public DistributedFile( final RemoteFile file, final String root )
+	public DistributedFile( final String name, final boolean isDirectory, final VectorClock version, final String hintedHandoff )
 	{
-		this( file.getName(), root, file.getVersion() );
-	}
-	
-	/**
-	 * Constructor.
-	 * This is equivalent to: {@link DistributedFile#DistributedFile(String, String, VectorClock, boolean)},
-	 * with {@code false} as third parameter.
-	*/
-	public DistributedFile( final String name, final String root, final VectorClock version )
-	{
-		/*this( name, root, version, false );
-	}
-
-	public DistributedFile( final String name, final String root, final VectorClock version, final boolean set_signature )
-	{*/
 		this.name = name;
 		this.version = version;
+		this.HintedHandoff = hintedHandoff;
 		
-		isDirectory = new File( root + name ).isDirectory();
+		//isDirectory = new File( root + name ).isDirectory();
+		this.isDirectory = isDirectory;
 		if(isDirectory && !name.endsWith( "/" ))
 			this.name += "/";
 		
-		//id = Utils.getId( this.name ).array();
-		
-		//if(set_signature)
-			//signature = MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
-			//signature = MerkleTree.getSignature( (name + version.toString()).getBytes( StandardCharsets.UTF_8 ) );
+		fileId = DFSUtils.getId( this.name );
 	}
 	
 	public void setHintedHandoff( final String address ) {
@@ -78,17 +77,23 @@ public class DistributedFile implements IOSerializable//, Serializable
 		return name;
 	}
 	
+	public String getFileId() {
+	    return fileId;
+	}
+	
 	public boolean isDeleted() {
 		return deleted;
 	}
 	
 	public void setDeleted( final boolean value )
 	{
-		deleted = value;
-		if(deleted)
-			currTime = System.currentTimeMillis();
-		else
-			liveness = 0;
+		if(deleted != value) {
+			deleted = value;
+			if(deleted)
+				currTime = System.currentTimeMillis();
+			else
+				liveness = 0;
+		}
 	}
 	
 	public boolean isDirectory() {
@@ -96,7 +101,7 @@ public class DistributedFile implements IOSerializable//, Serializable
 	}
 	
 	/**
-	 * Method used to check whether a file has to be delete.
+	 * Method used to check whether a file has to be definitely deleted.
 	 * If the file is marked as deleted, then it can be removed
 	 * when an internal TTL value will be reached.
 	 * 
@@ -123,13 +128,16 @@ public class DistributedFile implements IOSerializable//, Serializable
 		return (int) Math.max( 0, TTL - liveness );
 	}
 	
+	/**
+	 * Returns the signature of the file.
+	*/
 	public byte[] getSignature()
 	{
-		/*if(signature == null)
+		if(signature == null)
 			signature = MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
-		return signature;*/
+		return signature;
 		//return MerkleTree.getSignature( (name + version.toString() + deleted).getBytes( StandardCharsets.UTF_8 ) );
-		return MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
+		//return MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
 	}
 	
 	public VectorClock getVersion()
@@ -176,15 +184,20 @@ public class DistributedFile implements IOSerializable//, Serializable
 				", Deleted: " + deleted + " }";
 	}
 
-	@Override
+	/*@Override
 	public byte[] read()
 	{
 		byte[] clock = DFSUtils.serializeObject( version );
 		int hintedHandoffSize = (HintedHandoff == null) ? 0 : (HintedHandoff.length() + Integer.BYTES);
-		ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 2 + name.length() + clock.length + Byte.BYTES * 2 + hintedHandoffSize );
+		int capacity = Integer.BYTES * 2 + name.length() + clock.length + Byte.BYTES * 2 + Long.BYTES * 2 + hintedHandoffSize;
+		ByteBuffer buffer = ByteBuffer.allocate( capacity );
 		buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
 		buffer.putInt( clock.length ).put( clock );
 		buffer.put( (deleted) ? (byte) 0x1 : (byte) 0x0 );
+		if(deleted) {
+    		buffer.putLong( currTime );
+    		buffer.putLong( liveness );
+		}
 		buffer.put( (isDirectory) ? (byte) 0x1 : (byte) 0x0 );
 		if(hintedHandoffSize > 0)
 			buffer.putInt( HintedHandoff.length() ).put( HintedHandoff.getBytes( StandardCharsets.UTF_8 ) );
@@ -199,8 +212,12 @@ public class DistributedFile implements IOSerializable//, Serializable
 		name = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
 		version = DFSUtils.deserializeObject( DFSUtils.getNextBytes( buffer ) );
 		deleted = (buffer.get() == (byte) 0x1);
+		if(deleted) {
+            currTime = buffer.getLong();
+            liveness = buffer.getLong();
+        }
 		isDirectory = (buffer.get() == (byte) 0x1);
 		if(buffer.remaining() > 0)
 			HintedHandoff = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-	}
+	}*/
 }

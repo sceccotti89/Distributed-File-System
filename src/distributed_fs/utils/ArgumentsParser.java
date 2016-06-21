@@ -21,22 +21,29 @@ import gossiping.RemoteGossipMember;
  * Class used to parse the arguments
  * of a specific node.
 */
-public class CmdLineParser
+public class ArgumentsParser
 {
 	private static CommandLine cmd = null;
 	private static Options options = new Options();
 	
-	private static final String PORT = "p", ADDRESS = "a", NODES = "n", RESOURCES = "r", DATABASE = "d", HELP = "h";
+	private static final String PORT = "p", ADDRESS = "a",
+								NODES = "n", RESOURCES = "r",
+								DATABASE = "d", LOAD_BALANCERS = "l", HELP = "h";
 	
 	public static void parseArgs( final String[] args, final int nodeType ) throws ParseException
 	{
 		if(nodeType != GossipMember.STORAGE)
 			options.addOption( PORT, "port", true, "Set the listening port." );
-		options.addOption( ADDRESS, "addr", true, "Set the ip address of the node." );
 		if(nodeType != GossipMember.LOAD_BALANCER) {
 			options.addOption( RESOURCES, "rloc", true, "Set the location of the resources." );
 			options.addOption( DATABASE, "dloc", true, "Set the location of the database." );
 		}
+		
+		// Only a client option.
+		if(nodeType != GossipMember.STORAGE && nodeType != GossipMember.LOAD_BALANCER)
+		    options.addOption( LOAD_BALANCERS, "ldb", true, "Set the use of the load balancers." );
+		
+		options.addOption( ADDRESS, "addr", true, "Set the ip address of the node." );
 		options.addOption( NODES, "node", true, "Add a new node, where arg is in the format hostname:port:nodeType." );
 		options.addOption( HELP, "help", false, "Show help." );
 		
@@ -60,6 +67,14 @@ public class CmdLineParser
 			return -1;
 		
 		return Integer.parseInt( cmd.getOptionValue( PORT ) );
+	}
+	
+	public static boolean getLoadBalancers()
+	{
+	    if(!cmd.hasOption( LOAD_BALANCERS ))
+	        return false;
+	    
+	    return Boolean.parseBoolean( cmd.getOptionValue( LOAD_BALANCERS ) );
 	}
 	
 	public static List<GossipMember> getNodes() throws ParseException
@@ -101,7 +116,7 @@ public class CmdLineParser
 			String hostname = values[0];
 			int port = Integer.parseInt( values[1] );
 			int nodeType = Integer.parseInt( values[2] );
-			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, hostname ).array() );
+			String id = DFSUtils.getNodeId( 1, hostname );
 			
 			members.add( new RemoteGossipMember( hostname, port, id, 0, nodeType ) );
 		}

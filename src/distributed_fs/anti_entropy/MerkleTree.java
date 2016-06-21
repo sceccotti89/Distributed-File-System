@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -44,11 +45,11 @@ import distributed_fs.utils.DFSUtils;
 */
 public class MerkleTree
 {
-	public static final int MAGIC_HDR = 0xcdaace99;
-	private static final int INT_BYTES = Integer.BYTES;
-	private static final int LONG_BYTES = Long.BYTES;
-	public static final byte LEAF_SIG_TYPE = 0x0;
-	private static final byte INTERNAL_SIG_TYPE = 0x01;
+	public static final int   MAGIC_HDR          = 0xcdaace99;
+	private static final int  INT_BYTES          = Integer.BYTES;
+	private static final int  LONG_BYTES         = Long.BYTES;
+	public static final byte  LEAF_SIG_TYPE      = 0x0;
+	private static final byte INTERNAL_SIG_TYPE  = 0x01;
 	
 	public static final HashFunction _hash = Hashing.md5();
 	public static final int sigLength = _hash.hashBytes( "".getBytes( StandardCharsets.UTF_8 ) ).asBytes().length;
@@ -109,9 +110,9 @@ public class MerkleTree
 		int parentSigSz = LONG_BYTES;
 		int leafSigSz = leafSigs.get( 0 ).length;
 		
-		// some of the internal nodes may use leaf signatures (when "promoted")
+		// Some of the internal nodes may use leaf signatures (when "promoted")
 		// so ensure that the ByteBuffer overestimates how much space is needed
-		// since ByteBuffer does not expand on demand
+		// since ByteBuffer does not expand on demand.
 		int maxSigSz = leafSigSz;
 		if (parentSigSz > maxSigSz) {
 			maxSigSz = parentSigSz;
@@ -125,8 +126,8 @@ public class MerkleTree
 		buf.putInt( MAGIC_HDR ).putInt( nnodes );  // header
 		serializeBreadthFirst( buf );
 
-		// the ByteBuf allocated space is likely more than was needed
-		// so copy to a byte array of the exact size necesssary
+		// The ByteBuf allocated space is likely more than was needed
+		// so copy to a byte array of the exact size necesssary.
 		byte[] serializedTree = new byte[buf.position()];
 		buf.rewind();
 		buf.get( serializedTree );
@@ -219,14 +220,14 @@ public class MerkleTree
 	 * 
 	 * @return list of leaves reached from the given node
 	*/
-	public LinkedList<Node> getLeavesFrom( final Node n )
+	public Deque<Node> getLeavesFrom( final Node n )
 	{
 		LinkedList<Node> leaves = new LinkedList<>();
-		List<Node> nodes = new LinkedList<>();
+		Deque<Node> nodes = new ArrayDeque<>();
 		nodes.add( n );
 		
 		while(nodes.size() > 0) {
-			Node node = nodes.remove( 0 );
+			Node node = nodes.remove();
 			if(node.type == LEAF_SIG_TYPE)
 				leaves.add( node );
 			else {

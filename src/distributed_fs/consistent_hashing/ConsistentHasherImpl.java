@@ -2,7 +2,6 @@
 package distributed_fs.consistent_hashing;
 
 import java.io.Serializable;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,48 +42,49 @@ import gossiping.GossipMember;
 
 public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable> implements ConsistentHasher<B, M> 
 {
-	private final NavigableMap<ByteBuffer, B> bucketsMap;
-	private final NavigableMap<ByteBuffer, M> membersMap;
+	private final NavigableMap<String, B> bucketsMap;
+	private final NavigableMap<String, M> membersMap;
 	
 	private final ConcurrentMap<B, BucketInfo> bucketsAndLocks;
 	
+	// TODO METTERE I METODI ANCHE NELL'INTERFACCIA!!
 	/**
 	 * Contains a lock for the bucket, and also contains all virtual bucket names.
 	 * 
 	 * Lock is used to achieve atomicity while doing operations on the bucket.
 	 *
-	 */
+	*/
 	private static class BucketInfo 
 	{
 		private final ReadWriteLock rwLock;
 		// Acts as a cache, and used while listing members of the actual bucket.
-		private final List<ByteBuffer> virtBuckets;
+		private final List<String> virtBuckets;
 
-		public BucketInfo( final ReadWriteLock rwLock, final List<ByteBuffer> virtBuckets ) 
+		public BucketInfo( final ReadWriteLock rwLock, final List<String> virtBuckets ) 
 		{
 			this.rwLock = rwLock;
 			this.virtBuckets = virtBuckets;
 		}
 	}
-
+	
 	/**
-	 * Creates a consistent hashing ring with the specified hashfunction and
-	 * bytesconverter objects.
-	 * 
-	 * @param virtualInstancesPerBucket creates specified number of virtual
-	 * buckets for each bucket. More the virtual instances, more the equal 
-	 * distribution among buckets. Should be greater than zero, otherwise 
-	 * value 1 is used.
-	 * 
-	 * @param bucketDataToBytesConverter
-	 * @param memberDataToBytesConverter
-	 * @param hashFunction	is used to hash the given bucket and member.
-	 */
+     * Creates a consistent hashing ring.
+    */
 	public ConsistentHasherImpl()
+	{
+	    this.bucketsMap = new ConcurrentSkipListMap<>();
+        this.membersMap = new ConcurrentSkipListMap<>();
+        this.bucketsAndLocks = new ConcurrentHashMap<>();
+    }
+	
+	/**
+	 * Creates a consistent hashing ring with the specified initial capacity.
+	 */
+	public ConsistentHasherImpl( final int initialCapacity )
 	{
 		this.bucketsMap = new ConcurrentSkipListMap<>();
 		this.membersMap = new ConcurrentSkipListMap<>();
-		this.bucketsAndLocks = new ConcurrentHashMap<>();
+		this.bucketsAndLocks = new ConcurrentHashMap<>( initialCapacity );
 	}
 	
 	@Override
@@ -93,19 +93,19 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
 		Preconditions.checkNotNull( virtualNodes, "Bucket name can not be null" );
 		
-		List<ByteBuffer> virtBuckets = new ArrayList<>();
+		List<String> virtBuckets = new ArrayList<>();
 		for (int virtualNodeId = 1; virtualNodeId <= virtualNodes; virtualNodeId++) {
-			ByteBuffer virtBucket = DFSUtils.getNodeId( virtualNodeId, bucketName.getAddress() );
+		    String virtBucket = DFSUtils.getNodeId( virtualNodeId, bucketName.getAddress() );
 			//System.out.println( "Value: " + Utils.bytesToHex( virtBucket.array() ) );
 			bucketsMap.put( virtBucket, bucketName );
 			virtBuckets.add( virtBucket );
 		}
 		
-		bucketsAndLocks.putIfAbsent( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
+		bucketsAndLocks.put( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
 	}
 	
 	@Override
-	public B getBucket( final ByteBuffer id )
+	public B getBucket( final String id )
 	{
 		return bucketsMap.get( id );
 	}
@@ -133,17 +133,18 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		ReadWriteLock rwLock = bucketInfo.rwLock;
 		boolean result = false;
 		try {
-			if (tryLock)
+			if(tryLock)
 				result = rwLock.writeLock().tryLock( timeout, unit );
 			else {
 				rwLock.writeLock().lock();
 				result = true;
 			}
-			if (result)
-				for (ByteBuffer virtNode : bucketInfo.virtBuckets)
+			
+			if(result)
+				for(String virtNode : bucketInfo.virtBuckets)
 					bucketsMap.remove( virtNode );
 		} finally {
-			if (result)
+			if(result)
 				rwLock.writeLock().unlock();
 		}
 		
@@ -170,7 +171,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
 		Preconditions.checkNotNull( members,	    "Members can not be null." );
 		
-		NavigableMap<ByteBuffer, M> localMembersMap = new TreeMap<>();
+		NavigableMap<String, M> localMembersMap = new TreeMap<>();
 		members.forEach( member -> {
 			localMembersMap.put( DFSUtils.getId( member ), member );
 		});
@@ -184,7 +185,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		return getMembersInternal( bucketName, membersMap );
 	}
 
-	private List<M> getMembersInternal( final B bucketName, final NavigableMap<ByteBuffer, M> members ) 
+	private List<M> getMembersInternal( final B bucketName, final NavigableMap<String, M> members ) 
 	{
 		Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
 		Preconditions.checkNotNull( members,	    "Members can not be null." );
@@ -198,13 +199,13 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		try {
 			rwLock.readLock().lock();
 			if (bucketsAndLocks.containsKey( bucketName )) {
-				for (ByteBuffer currNode : bInfo.virtBuckets) {
+				for (String currNode : bInfo.virtBuckets) {
 					// get the previous key
-					ByteBuffer prevNode = bucketsMap.lowerKey( currNode );
+					String prevNode = bucketsMap.lowerKey( currNode );
 					if (prevNode == null) {
 						// add all the lower keys
 						result.addAll( members.headMap( currNode, true ).values() );
-						Optional<ByteBuffer> lastKey = getLastKey( bucketsMap );
+						Optional<String> lastKey = getLastKey( bucketsMap );
 						if (lastKey.isPresent() && !lastKey.get().equals( currNode ))
 							result.addAll( members.tailMap( lastKey.get(), false ).values() ); // add all the greater keys
 					} else {
@@ -244,13 +245,13 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		return new ArrayList<>( membersMap.values() );
 	}
 	
-	public ByteBuffer getFirstKey()
+	public String getFirstKey()
 	{
 		try{ return bucketsMap.firstKey(); }
 		catch( NoSuchElementException e ) { return null; }
 	}
 	
-	public ByteBuffer getLastKey()
+	public String getLastKey()
 	{
 		try{ return bucketsMap.lastKey(); }
 		catch( NoSuchElementException e ) { return null; }
@@ -261,10 +262,10 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given bucket
 	*/
-	public ArrayList<ByteBuffer> getSuccessors( final ByteBuffer id )
+	public ArrayList<String> getSuccessors( final String id )
 	{
 		Preconditions.checkNotNull( id, "Id can not be null" );
-		return new ArrayList<ByteBuffer>( bucketsMap.tailMap( id ).keySet() );
+		return new ArrayList<String>( bucketsMap.tailMap( id ).keySet() );
 	}
 	
 	/**
@@ -272,7 +273,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given identifier
 	*/
-	public ByteBuffer getSuccessor( final ByteBuffer id )
+	public String getSuccessor( final String id )
 	{
 		Preconditions.checkNotNull( id, "Id cannot be null" );
 		return bucketsMap.higherKey( id );
@@ -284,9 +285,9 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given bucket
 	*/
-	public ByteBuffer getNextBucket( final ByteBuffer id )
+	public String getNextBucket( final String id )
 	{
-		ByteBuffer succ = getSuccessor( id );
+		String succ = getSuccessor( id );
 		if(succ == null)
 			return getFirstKey();
 		
@@ -298,10 +299,10 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given bucket
 	*/
-	public ArrayList<ByteBuffer> getPredecessors( final ByteBuffer id )
+	public ArrayList<String> getPredecessors( final String id )
 	{
 		Preconditions.checkNotNull( id, "Id can not be null" );
-		return new ArrayList<ByteBuffer>( bucketsMap.headMap( id ).keySet() );
+		return new ArrayList<String>( bucketsMap.headMap( id ).keySet() );
 	}
 	
 	/**
@@ -309,7 +310,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given bucket
 	*/
-	public ByteBuffer getPredecessor( final ByteBuffer id )
+	public String getPredecessor( final String id )
 	{
 		Preconditions.checkNotNull( id, "Id can not be null" );
 		return bucketsMap.lowerKey( id );
@@ -321,9 +322,9 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	 * 
 	 * @param id	the given bucket
 	*/
-	public ByteBuffer getPreviousBucket( final ByteBuffer id )
+	public String getPreviousBucket( final String id )
 	{
-		ByteBuffer prev = getPredecessor( id );
+		String prev = getPredecessor( id );
 		if(prev == null)
 			return getLastKey();
 		
@@ -331,7 +332,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 	
 	@Override
-	public List<ByteBuffer> getVirtualBucketsFor( final B bucketName )
+	public List<String> getVirtualBucketsFor( final B bucketName )
 	{
 		Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
 		return bucketsAndLocks.get( bucketName ).virtBuckets;
@@ -345,6 +346,17 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 
 	/**
+     * Removes all of the mappings from this map.<br>
+     * The map will be empty after this call returns.
+    */
+    public void clear()
+    {
+        bucketsMap.clear();
+        membersMap.clear();
+        bucketsAndLocks.clear();
+    }
+
+    /**
 	 * Calculates the distribution of members to buckets for various virtual
 	 * nodes, and returns distribution buckets and corresponding members list
 	 * for each virtual node in a map.

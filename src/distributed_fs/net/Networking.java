@@ -42,21 +42,21 @@ public class Networking
 		if(currentData == null) {
 			if(addLength) {
 				buffer = ByteBuffer.allocate( Integer.BYTES + toAdd.length );
-				buffer.putInt( toAdd.length ).put( toAdd ).array();
+				buffer.putInt( toAdd.length ).put( toAdd );
 			}
 			else {
 				buffer = ByteBuffer.allocate( toAdd.length );
-				buffer.put( toAdd ).array();
+				buffer.put( toAdd );
 			}
 		}
 		else {
 			if(addLength) {
 				buffer = ByteBuffer.allocate( currentData.length + Integer.BYTES + toAdd.length );
-				buffer.put( currentData ).putInt( toAdd.length ).put( toAdd ).array();
+				buffer.put( currentData ).putInt( toAdd.length ).put( toAdd );
 			}
 			else {
 				buffer = ByteBuffer.allocate( currentData.length + toAdd.length );
-				buffer.put( currentData ).put( toAdd ).array();
+				buffer.put( currentData ).put( toAdd );
 			}
 		}
 		
@@ -152,7 +152,6 @@ public class Networking
 				out.flush();
 			}
 			catch( IOException e ) {
-				//e.printStackTrace();
 				close();
 				throw e;
 			}

@@ -1,7 +1,7 @@
 {
 	"log_level":"DEBUG",
- 	"network_interface": [ {"type":"eth2"}, {"IPversion":4} ],
+ 	"network_interface": [ {"type":"wlp2s0"}, {"IPversion":4} ],
  	"members": [
-  		{"host":"192.168.5.3"}
+  		{"host":"192.168.5.3", "nodeType":0}
  	]
 }

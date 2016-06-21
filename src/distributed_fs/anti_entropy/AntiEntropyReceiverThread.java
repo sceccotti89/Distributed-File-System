@@ -6,13 +6,14 @@ package distributed_fs.anti_entropy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.LinkedList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -40,50 +41,56 @@ import gossiping.GossipMember;
 */
 public class AntiEntropyReceiverThread extends AntiEntropyThread
 {
-	private ExecutorService threadPool;
+    private ExecutorService threadPool;
 	
 	/** Map used to manage the nodes in the synchronization phase */
-	private static final Map<byte[], Integer> syncNodes = new ConcurrentHashMap<>( 8 );
+	private final Map<String, Integer> syncNodes = new HashMap<>( 8 );
 	
 	public AntiEntropyReceiverThread( final GossipMember _me,
-									  final DFSDatabase database,
-									  final FileTransferThread fMgr,
-									  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
+	                                  final DFSDatabase database,
+	                                  final FileTransferThread fMgr,
+	                                  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
 	{
-		super( _me, database, fMgr, cHasher );
-		
-		threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
-		addToSynch( DFSUtils.hexToBytes( me.getId() ) );
-		Net.setSoTimeout( 2000 );
+	    super( _me, database, fMgr, cHasher );
+	    
+	    threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
+	    addToSynch( me.getId() );
+	    Net.setSoTimeout( 2000 );
 	}
 	
 	@Override
 	public void run()
 	{
-		LOGGER.info( "Anti Entropy Receiver Thread launched" );
-		
-		while(!shoutDown) {
-			try {
-				//System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + port );
-				TCPSession session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
-				if(session == null)
-					continue;
-				threadPool.execute( new AntiEntropyNode( session ) );
-			}
-			catch( IOException e ) {
-				e.printStackTrace();
-			}
-		}
-		
-		LOGGER.info( "Anti-entropy Receiver Thread closed." );
+	    LOGGER.info( "Anti Entropy Receiver Thread launched" );
+	    
+	    while(!shoutDown) {
+	        try {
+	            //System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + 2) );
+	            TCPSession session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
+	            if(session == null)
+	                continue;
+	            threadPool.execute( new AntiEntropyNode( session ) );
+	        }
+	        catch( IOException e ) {
+	            e.printStackTrace();
+	        }
+	    }
+	    
+	    LOGGER.info( "Anti-entropy Receiver Thread closed." );
 	}
 	
+	/**
+	 * Class used to manage an incoming connection.<br>
+	 * It controls all the phases of the process,
+	 * from the handshake, passing from the comparison of the trees,
+	 * ending with the versions resolution.
+	*/
 	private class AntiEntropyNode extends Thread
 	{
 		private MerkleTree m_tree = null;
 		private TCPSession session;
 		private GossipMember sourceNode;
-		private byte[] sourceId = null;
+		private String sourceId = null;
 		private BitSet bitSet = new BitSet();
 		
 		public AntiEntropyNode( final TCPSession session )
@@ -94,6 +101,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		@Override
 		public void run()
 		{
+		    boolean filesSent = false;
+		    
 			try {
 				String srcAddress = session.getSrcAddress();
 				
@@ -111,39 +120,39 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				LOGGER.debug( "TYPE: " + msg_type );
 				List<DistributedFile> files;
 				if(msg_type == MERKLE_FROM_MAIN) {
-					ByteBuffer destId = ByteBuffer.wrap( sourceId );
-					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
-					files = database.getKeysInRange( fromId, destId );
-					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
+				    // Here the sourceId is the destId.
+				    String fromId = cHasher.getPreviousBucket( sourceId );
+					files = database.getKeysInRange( fromId, sourceId );
+					LOGGER.debug( "Node: " + me.getPort() +
+					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
+					              ", to: " + cHasher.getBucket( sourceId ).getAddress() );
 				}
 				else {
 					// Get the virtual destination node identifier.
-					ByteBuffer destId = ByteBuffer.wrap( DFSUtils.getNextBytes( data ) );
-					ByteBuffer fromId = cHasher.getPreviousBucket( destId );
-					LOGGER.debug( "From: " + cHasher.getBucket( fromId ).getAddress() + ", to: " + cHasher.getBucket( destId ).getAddress() );
+				    String destId = new String( DFSUtils.getNextBytes( data ) );
+				    String fromId = cHasher.getPreviousBucket( destId );
+					LOGGER.debug( "Node: " + me.getPort() +
+					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
+					              ", to: " + cHasher.getBucket( destId ).getAddress() );
 					files = database.getKeysInRange( fromId, destId );
 				}
-				
-				// ================ TODO finiti i test, togliere sta roba ================= //
-				//System.out.println( me + " - RICEVUTA CONNESSIONE DAL NODO CHE MI INTERESSA!!!!!!!!!!!!!!!!!" );
-				LOGGER.debug( "Files: " + files );
-				// =========================================================================== //
 				
 				List<DistributedFile> filesToSend = new ArrayList<>();
 				// TODO si potrebbe usare una variabile che determina fino a che altezza creare l'albero
 				// TODO per esempio il minimo tra le due altezze
+				// TODO in queso modo risparmio tempo perche' non devo per forza arrivare fino alla root
 				m_tree = createMerkleTree( files );
 				
 				// Check the differences through the trees.
-				boolean hasKey = checkTreeDifferences( inputTree, inputHeight );
-				LOGGER.debug( "FROM_ID: " + DFSUtils.bytesToHex( sourceId ) + ", GET_KEY: " + hasKey + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
+				checkTreeDifferences( inputTree, inputHeight );
+				LOGGER.debug( "FROM_ID: " + sourceId + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)
 					filesToSend = getMissingFiles( files );
 				
 				addToSynch( sourceId );
 				
-				if(hasKey) {
+				if(bitSet.cardinality() > 0) {
 					// Receive the vector clocks associated to the shared files.
 					byte[] versions = session.receiveMessage();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
@@ -151,14 +160,16 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				if(filesToSend.size() > 0)
-					fMgr.sendFiles( sourceNode.getPort() + 1/*, Message.PUT*/, filesToSend, srcAddress, false, sourceId, null );
+					fMgr.sendFiles( sourceNode.getPort() + 1, filesToSend, srcAddress, false, sourceId, null );
 				else // No differences.
 					removeFromSynch( sourceId );
+				filesSent = true;
 			}
-			catch( IOException e ) {
+			catch( IOException | IllegalAccessError e ) {
+			    // Ignored.
 				//e.printStackTrace();
 				
-				if(sourceId != null)
+				if(sourceId != null && filesSent)
 					removeFromSynch( sourceId );
 			}
 			
@@ -167,22 +178,24 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		
 		/**
 		 * Start the handshake phase.
+		 * During this phase some important informations
+		 * are exchanged.
 		*/
 		private ByteBuffer handshake() throws IOException
 		{
 			ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 			// Get the source node identifier.
-			sourceId = DFSUtils.getNextBytes( data );
-			sourceNode = cHasher.getBucket( ByteBuffer.wrap( sourceId ) );
+			sourceId = new String( DFSUtils.getNextBytes( data ) );
+			sourceNode = cHasher.getBucket( sourceId );
 			if(sourceNode == null) {
 				session.close();
 				return null;
 			}
 			
-			//LOGGER.debug( "Received connection from: " + srcAddress + ", Id: " + Utils.bytesToHex( sourceId ) );
+			//LOGGER.debug( "Received connection from: " + sourceNode + ", Id: " + sourceId );
 			
-			if(syncNodes.containsKey( sourceId )) {
-				LOGGER.info( "Node " + DFSUtils.bytesToHex( sourceId ) + " is syncronizing..." );
+			if(isSynch( sourceId )) {
+				LOGGER.info( "Node " + sourceId + " is synchronizing..." );
 				session.close();
 				return null;
 			}
@@ -195,20 +208,14 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * 
 		 * @param inputTree		the input tree status (empty or not)
 		 * @param inputHeight	the height of the input tree
-		 * 
-		 * @return {@code true} if the soure node owns at least one of the keys,
-		 * 		   {@code false} otherwise
 		*/
-		private boolean checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
+		private void checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
 		{
-			boolean sourceHasKey = false;
-			
 			LOGGER.debug( "My tree: " + m_tree + ", other: " + inputTree );
 			bitSet.clear();
 			
-			if(inputTree == (byte) 0x1) {
-				// Tree not empty.
-				List<Node> nodes = new LinkedList<>();
+			if(inputTree == (byte) 0x1) { // Tree not empty.
+			    Deque<Node> nodes = new ArrayDeque<>( (m_tree == null) ? 0 : m_tree.getNumNodes() );
 				int treeHeight = 0;
 				
 				if(m_tree != null) {
@@ -217,7 +224,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				// Send the own tree height to the sender node.
-				byte[] msg = Net.createMessage( null, DFSUtils.intToByteArray( treeHeight ), true );
+				byte[] msg = DFSUtils.intToByteArray( treeHeight );
 				session.sendMessage( msg, false );
 				
 				// Reduce the level of the tree if it is greater.
@@ -234,60 +241,68 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					pTree = MerkleDeserializer.deserializeNodes( data );
 					LOGGER.debug( "Received tree: " + pTree.size() );
 					
-					sourceHasKey |= compareLevel( nodes, pTree );
+					compareLevel( nodes, pTree );
 				}
 			}
-			
-			return sourceHasKey;
 		}
 		
 		/**
 		 * Compares the current level with the input one.
 		 * 
-		 * @param nodes			list of own nodes
-		 * @param pTree			the input tree level
-		 * 
-		 * @return {@code true} if at least one key is shared, {@code false} otherwise.
+		 * @param nodes		list of own nodes
+		 * @param pTree		the input tree level
 		*/
-		private boolean compareLevel( final List<Node> nodes, final List<Node> pTree ) throws IOException
+		private void compareLevel( final Deque<Node> nodes, final List<Node> pTree ) throws IOException
 		{
 			BitSet _bitSet = new BitSet();
 			int pTreeSize = pTree.size();
-			boolean sourceHasKey = false;
+			int nodeSize = nodes.size();
+			boolean equalLevel = (nodeSize == pTree.size());
+			int index = -1; // Index used to scan efficiently the tree.
 			
-			for(int i = nodes.size() - 1; i >= 0; i --) {
-				Node node = nodes.get( i );
+			//ListIterator<Node> it = nodes.listIterator();
+			for(int i = 0; i < nodeSize; i++) {
+				//Node node = it.next();
+			    Node node = nodes.removeFirst();
 				boolean found = false;
-				for(int j = 0; j < pTreeSize; j++) {
-					// Compare the current node with each input signature: if equals put 1 in the set.
-					if(!_bitSet.get( j ) && MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
-						_bitSet.set( j );
-						
-						if(!sourceHasKey)
-							sourceHasKey = true;
-						
-						// Set 1 all the range reachable from the node.
-						LinkedList<Node> leaves = m_tree.getLeavesFrom( node );
-						LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
-						bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
-						
-						found = true;
-						break;
-					}
+				
+				if(equalLevel) {
+				    // Compare the current node with the correspondent input signature: if equals put 1 in the set.
+				    if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( i ).sig )) {
+                        _bitSet.set( i );
+                        found = true;
+                    }
+				}
+				else {
+				    // Compare the current node with each input signature: if equals put 1 in the set.
+    				for(int j = index + 1; j < pTreeSize; j++) {
+    					if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
+    						_bitSet.set( index = j );
+    						found = true;
+    						break;
+    					}
+    				}
 				}
 				
-				nodes.remove( i );
+				//it.remove();
 				
-				if(!found) {
+				if(found) {
+				    // Set 1 all the range reachable from the node.
+				    Deque<Node> leaves = m_tree.getLeavesFrom( node );
+                    LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
+                    bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
+				}
+				else {
 					// If the current node is not found, its sons will be added.
-					if(node.left != null) nodes.add( node.left );
-					if(node.right != null) nodes.add( node.right );
+				    if(node.left  != null){
+				        nodes.addLast( node.left ); //it.add( node.left );
+				        if(node.right != null)
+				            nodes.addLast( node.right ); //it.add( node.right );
+				    }
 				}
 			}
 			
 			session.sendMessage( _bitSet.toByteArray(), true );
-			
-			return sourceHasKey;
 		}
 		
 		/**
@@ -303,10 +318,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			bitSet.flip( 0, m_tree.getNumLeaves() );
 			
 			for(int i = bitSet.nextSetBit( 0 ); i >= 0; i = bitSet.nextSetBit( i+1 )) {
+			    filesToSend.add( files.get( i ) );
 				if(i == Integer.MAX_VALUE)
 					break; // or (i+1) would overflow
-				else
-					filesToSend.add( files.get( i ) );
 			}
 			
 			// flip back the values
@@ -315,7 +329,19 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			return filesToSend;
 		}
 		
-		/**
+		private List<VectorClock> getVersions( final ByteBuffer versions )
+        {
+            int size = bitSet.cardinality();
+        	List<VectorClock> vClocks = new ArrayList<>( size );
+        	for(int i = 0; i < size; i++) {
+        		VectorClock vClock = DFSUtils.deserializeObject( DFSUtils.getNextBytes( versions ) );
+        		vClocks.add( vClock );
+        	}
+        	
+        	return vClocks;
+        }
+
+        /**
 		 * Checks the versions of the shared files.
 		 * 
 		 * @param port			destination port
@@ -327,10 +353,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * @return list of files which own an older version
 		*/
 		private List<DistributedFile> checkVersions( final int port,
-													 final List<DistributedFile> files,
-													 final List<VectorClock> inClocks,
-													 final String address,
-													 final byte[] sourceNodeId )
+		                                             final List<DistributedFile> files,
+		                                             final List<VectorClock> inClocks,
+		                                             final String address,
+		                                             final String sourceNodeId )
 		{
 			List<DistributedFile> filesToSend = new ArrayList<>();
 			List<DistributedFile> filesToRemove = new ArrayList<>();
@@ -383,20 +409,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			
 			return id;
 		}
-		
-		private List<VectorClock> getVersions( final ByteBuffer versions )
-		{
-			List<VectorClock> vClocks = new ArrayList<>();
-			while(versions.remaining() > 0) {
-				VectorClock vClock = DFSUtils.deserializeObject( DFSUtils.getNextBytes( versions ) );
-				vClocks.add( vClock );
-			}
-			
-			return vClocks;
-		}
 	}
 	
-	private synchronized void addToSynch( final byte[] nodeId )
+	private synchronized boolean isSynch( final String nodeId ) {
+	    return syncNodes.containsKey( nodeId );
+	}
+	
+	private synchronized void addToSynch( final String nodeId )
 	{
 		Integer value = syncNodes.get( nodeId );
 		if(value == null)
@@ -410,7 +429,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	 * 
 	 * @param nodeId	identifier of the node to remove
 	*/
-	public synchronized void removeFromSynch( final byte[] nodeId )
+	public synchronized void removeFromSynch( final String nodeId )
 	{
 		int value = syncNodes.get( nodeId );
 		if(value == 1)

@@ -11,7 +11,7 @@ public class MessageResponse extends Message
 {
 	//private String destHost;
 	//private byte[] destId;
-	private List<byte[]> files;
+	private List<byte[]> objects;
 	
 	private static final long serialVersionUID = 5483699354525628260L;
 	
@@ -25,23 +25,23 @@ public class MessageResponse extends Message
 		this( response, null );
 	}
 	
-	public MessageResponse( final byte response, final List<byte[]> files )
+	public MessageResponse( final byte response, final List<byte[]> objects )
 	{
 		super( response );
 		
-		this.files = files;
+		this.objects = objects;
 	}
 	
-	public void addFile( final byte[] file )
+	public void addObject( final byte[] object )
 	{
-		if(files == null)
-			files = new ArrayList<>();
+		if(objects == null)
+		    objects = new ArrayList<>( 4 );
 		
-		files.add( file );
+		objects.add( object );
 	}
 	
-	public List<byte[]> getFiles()
+	public List<byte[]> getObjects()
 	{
-		return files;
+		return objects;
 	}
 }

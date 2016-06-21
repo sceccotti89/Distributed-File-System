@@ -14,7 +14,7 @@ import distributed_fs.versioning.VectorClock;
 
 /**
  * Class used to send a remote file,
- * containing the serialization of the file and its vector clock
+ * containing the serialization of the file and its vector clock.
 */
 public class RemoteFile implements IOSerializable//, Serializable
 {
@@ -26,6 +26,10 @@ public class RemoteFile implements IOSerializable//, Serializable
 	
 	//private static final long serialVersionUID = 2640027211348418180L;
 	
+	/**
+	 * Constructor used to create the file from its serialized form.<br>
+	 * The serialization must be done using the {@link IOSerializable} interface.
+	*/
 	public RemoteFile( final byte[] data )
 	{
 		write( data );
@@ -37,7 +41,8 @@ public class RemoteFile implements IOSerializable//, Serializable
 	}
 
 	public RemoteFile( final String name, final VectorClock vClock,
-					   final boolean removed, final boolean directory, final String dbRoot ) throws IOException
+					   final boolean removed, final boolean directory,
+					   final String dbRoot ) throws IOException
 	{
 		this.name = name;
 		this.vClock = vClock;
@@ -51,6 +56,7 @@ public class RemoteFile implements IOSerializable//, Serializable
 		if(removed || directory)
 			this.content = null;
 		else {
+		    System.out.println( "NAME: " + name + ", DIR: " + directory );
 			byte[] file = DFSUtils.readFileFromDisk( dbRoot + name );
 			// Store the content in compressed form.
 			this.content = DFSUtils.compressData( file );

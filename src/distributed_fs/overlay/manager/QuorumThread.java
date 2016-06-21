@@ -14,9 +14,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.swing.Timer;
 
@@ -27,36 +25,35 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
-import distributed_fs.overlay.StorageNode;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
  * Class used to receive the quorum requests.
- * The request can be a make or a release quorum.
+ * The request can be either a make or a release quorum.
 */
 public class QuorumThread extends Thread
 {
     private int port;
     private String address;
-    private Timer timer;
-    private Long id = (long) -1;
-    private StorageNode node;
+    private DFSNode node;
     private boolean shutDown;
+    
+    private Timer timer;
+    private long nextId = -1L;
+    private long id = -1L;
     private final Map<String, QuorumFile> fileLock = new HashMap<>( 64 );
     
-    private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
-	private static final ReadLock LOCK_READERS = LOCK.readLock();
-	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
+    private static final ReentrantLock QUORUM_LOCK = new ReentrantLock( true );
 	
-    private static final int BLOCKED_TIME = 10000; // 10 seconds.
+    private static final short BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
     private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
     //private static final int QUORUM_PORT = 2500;
     
     public QuorumThread( final int port,
                          final String address,
-                         final StorageNode node ) throws IOException
+                         final DFSNode node ) throws IOException
     {
         this.port = port + 3;
         this.address = address;
@@ -70,7 +67,7 @@ public class QuorumThread extends Thread
             public void actionPerformed( final ActionEvent e )
             {
                 if(!shutDown) {
-                    LOCK_WRITERS.lock();
+                    QUORUM_LOCK.lock();
                     
                     Iterator<QuorumFile> it = fileLock.values().iterator();
                     while(it.hasNext()) {
@@ -79,8 +76,8 @@ public class QuorumThread extends Thread
                         if(qFile.toDelete())
                             it.remove();
                     }
-                
-                   LOCK_WRITERS.unlock();
+                    
+                    QUORUM_LOCK.unlock();
                 }
             }
         } );
@@ -110,18 +107,16 @@ public class QuorumThread extends Thread
             return;
         }
         
+        //System.out.println( "[QUORUM] Waiting on " + address + ":" + port );
+        
         byte[] msg;
         while(!shutDown) {
             try {
-                //LOGGER.info( "[QUORUM] Waiting on " + _address + ":" + port );
                 TCPSession session = net.waitForConnection();
                 if(session == null)
                     continue;
                 
                 // Read the request.
-                //byte[] data = net.receiveMessage();
-                //LOGGER.info( "[QUORUM] Received a connection from: " + net.getSrcAddress() );
-                
                 ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
                 DFSNode.LOGGER.info( "[QUORUM] Received a connection from: " + session.getSrcAddress() );
                 
@@ -129,27 +124,17 @@ public class QuorumThread extends Thread
                     case( MAKE_QUORUM ):
                         byte opType = data.get();
                         String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
+                        boolean locked = setLocked( true, fileName, 0, opType );
+                        
                         DFSNode.LOGGER.info( "Received a MAKE_QUORUM request for '" + fileName +
-                                             "'. Actual status: " + (node.getBlocked( fileName, opType ) ? "BLOCKED" : "FREE") );
+                                             "'. Request status: " + (!locked ? "BLOCKED" : "FREE") );
                         
                         // Send the current blocked state.
-                        boolean blocked = node.getBlocked( fileName, opType );
-                        //boolean blocked = getBlocked();
-                        if(blocked)
+                        if(!locked)
                             msg = new byte[]{ DECLINE_QUORUM_REQUEST };
-                        else {
-                            /*if(opType == Message.GET)
-                                msg = new byte[]{ ACCEPT_QUORUM_REQUEST };
-                            else*/
-                            msg = net.createMessage( new byte[]{ ACCEPT_QUORUM_REQUEST }, getNextId( opType ), false );
-                        }
+                        else 
+                            msg = net.createMessage( new byte[]{ ACCEPT_QUORUM_REQUEST }, DFSUtils.longToByteArray( id ), false );
                         session.sendMessage( msg, false );
-                        
-                        //net.sendMessage( data, InetAddress.getByName( net.getSrcAddress() ), net.getSrcPort() );
-                        //LOGGER.info( "[QUORUM] Type: " + getCodeString( opType ) );
-                        //if(opType != Message.GET && !blocked)
-                            //setBlocked( true, id );
-                        node.setBlocked( true, fileName, id, opType );
                         
                         break;
                     
@@ -157,12 +142,12 @@ public class QuorumThread extends Thread
                         DFSNode.LOGGER.info( "Received a RELEASE_QUORUM request" );
                         long id = data.getLong();
                         fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-                        node.setBlocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
+                        setLocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
                         break;
                 }
             }
             catch( IOException e ) {
-                //e.printStackTrace();
+                e.printStackTrace();
                 break;
             }
         }
@@ -172,20 +157,9 @@ public class QuorumThread extends Thread
         DFSNode.LOGGER.info( "Quorum thread closed." );
     }
     
-    private byte[] getNextId( final byte opType )
+    private long getNextId()
     {
-        synchronized( id ) {
-            id = (id + 1) % Long.MAX_VALUE;
-            return DFSUtils.longToByteArray( id );
-        }
-    }
-    
-    @Override
-    public long getId()
-    {
-        synchronized( id ) {
-            return id;
-        }
+        return nextId = (nextId + 1) % Long.MAX_VALUE;
     }
     
     public void close()
@@ -200,6 +174,7 @@ public class QuorumThread extends Thread
      * Starts the quorum phase.
      * 
      * @param session   the actual TCP connection
+     * @param quorum    
      * @param opType    
      * @param fileName  
      * @param destId    
@@ -212,9 +187,7 @@ public class QuorumThread extends Thread
                                          final String fileName,
                                          final String destId ) throws IOException
     {
-        ByteBuffer id = DFSUtils.hexToByteBuffer( destId );
-        
-        List<GossipMember> nodes = node.getSuccessorNodes( id, address, QuorumSession.getMaxNodes() );
+        List<GossipMember> nodes = node.getSuccessorNodes( destId, address, QuorumSession.getMaxNodes() );
         
         DFSNode.LOGGER.debug( "Neighbours: " + nodes.size() );
         if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
@@ -235,6 +208,7 @@ public class QuorumThread extends Thread
      * Contacts the nodes to complete the quorum phase.
      * 
      * @param session   
+     * @param quorum    
      * @param opType    
      * @param fileName  
      * @param nodes     
@@ -261,12 +235,8 @@ public class QuorumThread extends Thread
                 mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
                 byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
                 mySession.sendMessage( msg, true );
-                //mySession.sendMessage( new byte[]{ MAKE_QUORUM, opType }, false );
                 
-                //net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), QUORUM_PORT );
-                //net.sendMessage( new byte[]{ MAKE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
                 DFSNode.LOGGER.info( "[SN] Waiting the response..." );
-                //byte[] data = net.receiveMessage();
                 ByteBuffer data = ByteBuffer.wrap( mySession.receiveMessage() );
                 mySession.close();
                 
@@ -288,6 +258,9 @@ public class QuorumThread extends Thread
                 }
             }
             catch( IOException | JSONException e ) {
+                // Ignored.
+                //e.printStackTrace();
+                
                 if(mySession != null)
                     mySession.close();
                 
@@ -308,6 +281,7 @@ public class QuorumThread extends Thread
      * Closes the opened quorum requests.
      * 
      * @param session       network channel with the client
+     * @param quorum        the actual quorum session
      * @param agreedNodes   list of contacted nodes
     */
     public void cancelQuorum( final TCPSession session, final QuorumSession quorum, final List<QuorumNode> agreedNodes ) throws IOException
@@ -320,6 +294,12 @@ public class QuorumThread extends Thread
         sendQuorumResponse( session, Message.TRANSACTION_FAILED );
     }
     
+    /**
+     * Close an opened quorum.
+     * 
+     * @param quorum        
+     * @param agreedNodes   
+    */
     public void closeQuorum( final QuorumSession quorum, final List<QuorumNode> agreedNodes )
     {
         //UDPnet net = new UDPnet();
@@ -328,17 +308,12 @@ public class QuorumThread extends Thread
         for(int i = agreedNodes.size() - 1; i >= 0; i--) {
             GossipMember node = agreedNodes.get( i ).getNode();
             TCPSession mySession = null;
-            //try { net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), QUORUM_PORT ); }
             try {
                 mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
-                //net.sendMessage( new byte[]{ RELEASE_QUORUM }, InetAddress.getByName( node.getHost() ), node.getPort() + 3 );
-                //mySession.sendMessage( new byte[]{ RELEASE_QUORUM }, false );
                 byte[] msg = net.createMessage( new byte[]{ RELEASE_QUORUM },
                                                 DFSUtils.longToByteArray( agreedNodes.get( i ).getId() ),
                                                 false );
-                msg = net.createMessage( msg,
-                                         agreedNodes.get( i ).getFileName().getBytes( StandardCharsets.UTF_8 ),
-                                         true );
+                msg = net.createMessage( msg, agreedNodes.get( i ).getFileName().getBytes( StandardCharsets.UTF_8 ), true );
                 mySession.sendMessage( msg, true );
                 
                 agreedNodes.remove( i );
@@ -372,25 +347,36 @@ public class QuorumThread extends Thread
     /**
      * Sets the locked state for a given file.
      * 
-     * @param locked   {@code true} for locking state, {@code false} otherwise
+     * @param toLock    {@code true} to (try to) lock the file, {@code false} otherwise
      * @param fileName  name of the file
-     * @param id        id of the quorum
+     * @param fileId    id of the quorum file
      * @param opType    operation type
+     * 
+     * @return {@code true} if the file has been locked, {@code false} otherwise.
     */
-    public void setLocked( final boolean locked, final String fileName, final long id, final byte opType )
+    public boolean setLocked( final boolean toLock, final String fileName, final long fileId, final byte opType )
     {
-    	LOCK_WRITERS.lock();
+        boolean isLocked = true;
+        
+        QUORUM_LOCK.lock();
     	
         QuorumFile qFile = fileLock.get( fileName );
         
-        if(locked) {
-            if(qFile != null)
-                qFile.setReaders( +1 );
+        if(toLock) {
+            if(qFile != null) {
+                if(opType == Message.GET && qFile.getOpType() == opType) {
+                    // Read locking.
+                    qFile.setReaders( +1 );
+                    id = qFile.getId();
+                }
+                else // The file is already locked in write mode.
+                     isLocked = false;
+            }
             else
-                fileLock.put( fileName, new QuorumFile( id, opType ) );
+                fileLock.put( fileName, new QuorumFile( id = getNextId(), opType ) );
         }
         else {
-            if(qFile != null && id == qFile.getId()) {
+            if(qFile != null && fileId == qFile.getId()) {
                 if(qFile.getOpType() == Message.GET) {
                     qFile.setReaders( -1 );
                     if(qFile.toDelete())
@@ -401,28 +387,9 @@ public class QuorumThread extends Thread
             }
         }
         
-        LOCK_WRITERS.unlock();
-    }
-    
-    /**
-     * Checks whether the file is locked or not.
-     * 
-     * @param fileName
-     * @param opType
-     * 
-     * @return {@code true} if the file is locked,
-     *         {@code false} otherwise.
-    */
-    public boolean getLocked( final String fileName, final byte opType )
-    {
-    	LOCK_READERS.lock();
-        QuorumFile qFile = fileLock.get( fileName );
-        LOCK_READERS.unlock();
+        QUORUM_LOCK.unlock();
         
-        if(qFile == null)
-        	return false;
-        else 
-        	return (opType != Message.GET || qFile.getOpType() != Message.GET);
+        return isLocked;
     }
     
     /**
@@ -516,11 +483,13 @@ public class QuorumThread extends Thread
 		/**
 		 * Changes the number of readers.
 		 * 
-		 * @param additive	+1/-1
+		 * @param value   +1/-1
 		*/
-		public void setReaders( final int additive )
+		public void setReaders( final int value )
 		{
-			readers += additive;
+			readers += value;
+			if(value == +1) // Restart the time to live.
+			    ttl = MAX_TTL;
 		}
 		
 		public byte getOpType()

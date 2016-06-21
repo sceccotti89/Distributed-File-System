@@ -5,13 +5,16 @@
 package distributed_fs.overlay;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.sql.SQLException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import org.json.JSONException;
 
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.NetworkMonitorReceiverThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
@@ -21,7 +24,9 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
 import distributed_fs.overlay.manager.QuorumSession;
-import distributed_fs.utils.CmdLineParser;
+import distributed_fs.overlay.manager.ThreadMonitor;
+import distributed_fs.overlay.manager.ThreadState;
+import distributed_fs.utils.ArgumentsParser;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipService;
@@ -35,6 +40,8 @@ public class LoadBalancer extends DFSNode
 	private TCPSession session;
 	private String clientAddress;
 	// =========================================== //
+	
+	private List<Thread> threadsList;
 	
 	/**
 	 * Constructor with the default settings.<br>
@@ -55,31 +62,20 @@ public class LoadBalancer extends DFSNode
 		
 		if(startupMembers != null) {
 			// Start the gossiping from the input list.
-			String id = DFSUtils.bytesToHex( DFSUtils.getNodeId( 1, _address ).array() );
+			String id = DFSUtils.getNodeId( 1, _address );
 			GossipSettings settings = new GossipSettings();
 			GossipService gossipService = new GossipService( _address, GossipManager.GOSSIPING_PORT, id, computeVirtualNodes(),
 															 GossipMember.LOAD_BALANCER, startupMembers, settings, this );
 			gossipService.start();
 		}
 		
-		monitor = new NetworkMonitorReceiverThread( _address );
-		monitor.start();
-		
 		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
 		
-		/*try {
-			_net.setSoTimeout( WAIT_CLOSE );
-			while(!shutDown) {
-				//System.out.println( "[LB] Waiting on: " + _address + ":" + this.port );
-				TCPSession session = _net.waitForConnection( _address, this.port );
-				if(session != null)
-					threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
-			}
-		}
-		catch( IOException e ){}*/
-		launch();
+		netMonitor = new NetworkMonitorReceiverThread( _address );
+		threadsList = new ArrayList<>( MAX_USERS );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 		
-		//closeResources();
+		launch();
 	}
 	
 	/** Testing. */
@@ -96,45 +92,66 @@ public class LoadBalancer extends DFSNode
 				gossipEvent( member, GossipState.UP );
 		}
 		
-		monitor = new NetworkMonitorReceiverThread( _address );
-		monitor.start();
+		netMonitor = new NetworkMonitorReceiverThread( _address );
+		threadsList = new ArrayList<>( MAX_USERS );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 		
 		this.port = port;
 	}
 	
 	public void launch() throws JSONException
 	{
+	    netMonitor.start();
+	    
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
 				//LOGGER.debug( "[LB] Waiting on: " + _address + ":" + this.port );
 				TCPSession session = _net.waitForConnection( _address, this.port );
-				if(session != null)
-					threadPool.execute( new LoadBalancer( _net, session, cHasher ) );
+				if(session != null) {
+				    synchronized( threadPool ) {
+                        if(threadPool.isShutdown())
+                            break;
+                        
+                        LoadBalancer node = new LoadBalancer( _net, session, cHasher, netMonitor );
+                        monitor_t.addThread( node );
+                        
+                        threadPool.execute( node );
+                    }
+				}
+				
+				// Check if the monitor thread is alive: if not a new instance is activated.
+                if(!monitor_t.isAlive()) {
+                    monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+                    monitor_t.start();
+                }
 			}
 		}
 		catch( IOException e ) {}
 		
 		System.out.println( "[LB] Closed." );
-		
-		//closeResources();
 	}
 	
 	/**
-	 * Constructor used to handle the incoming request.
+	 * Constructor used to handle an incoming request.
 	 * 
-	 * @param net			the net it is connected to
-	 * @param srcSession	the input request
-	 * @param cHasher		the consistent hashing
+	 * @param net          the net it is connected to
+	 * @param srcSession   the input request
+	 * @param cHasher      the consistent hashing
+	 * @param netMonitor   the network monitor   
 	*/
 	private LoadBalancer( final TCPnet net,
 						  final TCPSession srcSession,
-						  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws JSONException, IOException
+						  final ConsistentHasherImpl<GossipMember, String> cHasher,
+						  final NetworkMonitor netMonitor ) throws JSONException, IOException
 	{
 		super( net, null, cHasher );
 		
+		this.netMonitor = netMonitor;
 		session = srcSession;
-		clientAddress = session.getSrcAddress();
+		
+		actionsList = new ArrayDeque<>( 16 );// TODO per adesso e' 16 poi si vedra'
+        state = new ThreadState( id, actionsList, fMgr, null, cHasher, this.netMonitor );
 	}
 	
 	@Override
@@ -142,121 +159,94 @@ public class LoadBalancer extends DFSNode
 	{
 		//LOGGER.info( "[LB] Handling an incoming connection..." );
 		
-		while(true) {
-			TCPSession newSession = null;
+		//while(true) {
+		TCPSession newSession = null;
+		
+		try {
+		    MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
+			// Get the operation type.
+			byte opType = data.getType();
+			clientAddress = data.getMetadata().getClientAddress();
 			
-			try {
-				//ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
-				MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
-				// get the operation type
-				byte opType = data.getType();
-				
-				if(opType == Message.HELLO) {
-					clientAddress = data.getMetadata().getClientAddress();
-					LOGGER.info( "[LB] Received a new connection from: " + clientAddress );
-					continue;
-				}
-				
-				/*byte opType = data.get();
-				// get the file name
-				String fileName = new String( Utils.getNextBytes( data ) );*/
-				
-				if(opType == Message.CLOSE) {
-					LOGGER.info( "[LB] Received CLOSE request." );
-					break;
-				}
-				
-				String fileName;
-				if(opType == Message.GET_ALL)
-					fileName = DFSUtils.createRandomFile();
-				else
-					fileName = data.getFileName();
-				
-				LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
-				
-				// get the node associated to the file
-				/*ByteBuffer nodeId = cHasher.getSuccessor( Utils.getId( fileName ) );
-				if(nodeId == null)
-					nodeId = cHasher.getFirstKey();*/
-				ByteBuffer nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
-				if(nodeId != null) {
-					GossipMember node = cHasher.getBucket( nodeId );
-					if(node != null) {
-						System.out.println( "OWNER: " + node );
+			String fileName = data.getFileName();
+			
+			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
+			
+			// Get the node associated to the file.
+			String nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
+			if(nodeId != null) {
+				GossipMember node = cHasher.getBucket( nodeId );
+				if(node != null) {
+					System.out.println( "OWNER: " + node );
+					
+					// Send the request to the "best" node, based on load informations.
+					String hintedHandoff = null;
+					List<GossipMember> nodes = getNodesFromPreferenceList( nodeId, node );
+					LOGGER.debug( "[LB] Nodes: " + nodes );
+					
+					for(int i = nodes.size() - 1; i >= 0; i--) {
+						GossipMember targetNode = getBalancedNode( nodes );
 						
-						// send the request to the "best" node, based on load informations
-						String hintedHandoff = null;
-						List<GossipMember> nodes = getNodesFromPreferenceList( nodeId, node );
-						LOGGER.debug( "[LB] Nodes: " + nodes );
-						
-						for(int i = nodes.size() - 1; i >= 0; i--) {
-							GossipMember targetNode = getBalancedNode( nodes );
-							
-							// contact the target node
-							//try{ newSession = _net.tryConnect( targetNode.getHost(), Utils.SERVICE_PORT, 2000 ); }
-							LOGGER.debug( "[LB] Contacting: " + targetNode );
-							try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
-							catch( IOException e ){
-								//e.printStackTrace();
-							}
-							
-							if(newSession == null) {
-								LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
-								
-								if(opType == Message.PUT && hintedHandoff == null)
-									//hintedHandoff = targetNode.getHost();
-									hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
-								
-								LOGGER.debug( "Hinted Handoff: " + hintedHandoff );
-								
-								nodes.remove( targetNode );
-							}
-							else {
-								// notify the client that a remote node is available
-								MessageResponse response = new MessageResponse( Message.TRANSACTION_OK );
-								session.sendMessage( response, true );
-								//session.close();
-								//session = newSession;
-								
-								// forward the message to the target node
-								//forwardRequest( opType, targetNode.getId(), hintedHandoff, fileName, data );
-								forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getPayload() );
-								newSession.close();
-								LOGGER.info( "[LB] Request forwarded to: " + targetNode );
-								break;
-							}
+						// Contact the target node.
+						LOGGER.debug( "[LB] Contacting: " + targetNode );
+						try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
+						catch( IOException e ){
+						    // Ignored.
+							//e.printStackTrace();
 						}
 						
 						if(newSession == null) {
-							MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
+							LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
+							
+							if(opType == Message.PUT && hintedHandoff == null)
+								hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
+							LOGGER.debug( "Hinted Handoff: " + hintedHandoff );
+							
+							nodes.remove( targetNode );
+						}
+						else {
+							// Notify the client that a remote node is available.
+							MessageResponse response = new MessageResponse( Message.TRANSACTION_OK );
 							session.sendMessage( response, true );
+							
+							// Send the message to the target node.
+							forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getPayload() );
+							newSession.close();
+							LOGGER.info( "[LB] Request forwarded to: " + targetNode );
+							break;
 						}
 					}
+					
+					if(newSession == null) {
+						MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
+						session.sendMessage( response, true );
+					}
 				}
-				else {
-					LOGGER.info( "There is no available nodes. The transaction will be closed." );
-					MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
-					session.sendMessage( response, true );
-				}
-				
-				//session.close();
 			}
-			catch( IOException e ){
-				//e.printStackTrace();
-				//session.close();
-				if(newSession != null)
-					newSession.close();
-				
-				break;
+			else {
+				LOGGER.info( "There are no available nodes. The transaction will be closed." );
+				MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
+				session.sendMessage( response, true );
 			}
+			
+			//session.close();
 		}
+		catch( IOException e ){
+			//e.printStackTrace();
+			//session.close();
+			if(newSession != null)
+				newSession.close();
+			
+			//break;
+		}
+		//}
 		
 		session.close();
-		LOGGER.info( "Closed request from: " + clientAddress );
+		LOGGER.info( "[LB] Closed request from: " + clientAddress );
 	}
 	
 	/**
-	 * Gets the first N-1 nodes from the node's preference list,
+	 * Gets the first N nodes from the node's preference list,
 	 * represented by its identifier.<br>
 	 * For simplicity, its preference list is made by nodes
 	 * encountered while walking the DHT.
@@ -266,9 +256,9 @@ public class LoadBalancer extends DFSNode
 	 * 
 	 * @return list of nodes taken from the given node's preference list.
 	*/
-	private List<GossipMember> getNodesFromPreferenceList( final ByteBuffer id, final GossipMember sourceNode )
+	private List<GossipMember> getNodesFromPreferenceList( final String id, final GossipMember sourceNode )
 	{
-		final int PREFERENCE_LIST = QuorumSession.getMaxNodes() - 1;
+		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
 		List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
 		nodes.add( sourceNode );
 		return nodes;
@@ -288,7 +278,7 @@ public class LoadBalancer extends DFSNode
 		
 		for(int i = 0; i < nodes.size(); i++) {
 			GossipMember node = nodes.get( i );
-			NodeStatistics stats = monitor.getStatisticsFor( node.getHost() );
+			NodeStatistics stats = netMonitor.getStatisticsFor( node.getHost() );
 			if(stats != null) {
 				double workLoad = stats.getAverageLoad();
 				if(workLoad < minWorkLoad) {
@@ -304,90 +294,62 @@ public class LoadBalancer extends DFSNode
 	/** 
 	 * Forward the message to the target node.
 	 * 
+	 * @param session
 	 * @param opType
 	 * @param destId
 	 * @param hintedHandoff
 	 * @param fileName
-	 * @param data
+	 * @param file
 	*/
-	/*private void forwardRequest( final byte opType, final String destId, final String hintedHandoff,
-								 final String fileName, final ByteBuffer data ) throws IOException
-	{
-		byte[] message;
-		byte startQuorum;
-		
-		if(opType == Utils.GET_ALL) {
-			startQuorum = (byte) 0x0;
-			// serialization format: [opType startQuorum clientAddress]
-			message = _net.createMessage( new byte[]{ opType, startQuorum }, clientAddress.getBytes( StandardCharsets.UTF_8 ), true );
-		}
-		else {
-			startQuorum = (byte) 0x1;
-			if(opType != Utils.GET) {
-				// PUT and DELETE operations
-				// serialization format: [opType startQuorum clientAddress destId file [hintedHandoff]]
-				int length = Byte.BYTES * 2 + Integer.BYTES * 2 + clientAddress.length() + destId.length() + data.remaining();
-				ByteBuffer buffer = ByteBuffer.allocate( length );
-				byte[] serialFile = Utils.getNextBytes( data );
-				//LOGGER.info( "File size: " + serialFile.length );
-				buffer.put( opType ).put( startQuorum );
-				buffer.putInt( clientAddress.length() ).put( clientAddress.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( destId.length() ).put( destId.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( serialFile.length ).put( serialFile );
-				
-				message = buffer.array();
-				
-				if(hintedHandoff != null) {
-					// add the hinted handoff address to the end of the message
-					message = _net.createMessage( message, hintedHandoff.getBytes( StandardCharsets.UTF_8 ), true );
-				}
-			}
-			else {
-				// GET operation
-				// serialization format: [opType startQuorum clientAddress destId fileName]
-				int length = Byte.BYTES * 2 + Integer.BYTES * 3 + clientAddress.length() + destId.length() + fileName.length();
-				ByteBuffer buffer = ByteBuffer.allocate( length );
-				buffer.put( opType ).put( startQuorum );
-				buffer.putInt( clientAddress.length() ).put( clientAddress.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( destId.length() ).put( destId.getBytes( StandardCharsets.UTF_8 ) );
-				buffer.putInt( fileName.length() ).put( fileName.getBytes( StandardCharsets.UTF_8 ) );
-				message = buffer.array();
-			}
-		}
-		
-		session.sendMessage( message, true );
-	}*/
-	
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
 	                             final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
 	{
 		MessageRequest message;
-		
-		/*if(opType == Message.GET_ALL) {
-			message = new MessageRequest( opType, null, null, false, null, clientAddress, null );
-		}
-		else {*/
 		Metadata meta = new Metadata( clientAddress, hintedHandoff );
-		if(opType != Message.GET) {
-			// PUT and DELETE operations
-		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
-		}
+		
+		if(opType == Message.GET_ALL)
+			message = new MessageRequest( opType, fileName, null, false, null, meta );
 		else {
-			// GET operation
-		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
+    		if(opType != Message.GET) // PUT and DELETE operations
+    		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
+    		else // GET operation
+    		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
 		}
-		//}
 		
 		session.sendMessage( DFSUtils.serializeObject( message ), true );
 	}
 	
+	/**
+     * Start a thread, replacing an inactive one.
+     * 
+     * @param threadPool
+     * @param state
+    */
+    public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
+    {
+        LoadBalancer node =
+                new LoadBalancer( state.getNet(),
+                                  state.getSession(),
+                                  state.getHashing(),
+                                  state.getNetMonitor() );
+        
+        synchronized( threadPool ) {
+            if(threadPool.isShutdown())
+                return null;
+            
+            threadPool.execute( node );
+        }
+        
+        return node;
+    }
+	
 	public static void main( String args[] ) throws Exception
 	{
-		CmdLineParser.parseArgs( args, GossipMember.LOAD_BALANCER );
+		ArgumentsParser.parseArgs( args, GossipMember.LOAD_BALANCER );
 		
-		String ipAddress = CmdLineParser.getIpAddress();
-		int port = CmdLineParser.getPort();
-		List<GossipMember> members = CmdLineParser.getNodes();
+		String ipAddress = ArgumentsParser.getIpAddress();
+		int port = ArgumentsParser.getPort();
+		List<GossipMember> members = ArgumentsParser.getNodes();
 		
 		new LoadBalancer( ipAddress, port, members );
 	}

@@ -4,8 +4,8 @@
 
 package distributed_fs.anti_entropy;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Random;
 
@@ -76,19 +76,19 @@ public abstract class AntiEntropyThread extends Thread
 	}
 	
 	/**
-	 * Reduce the level of the tree until the other level is reached.
+	 * Reduce the level of the tree until the level is reached.
 	 * 
 	 * @param levels	number of levels to reduce
 	 * @param nodes		list of nodes
 	*/
-	protected void reduceTree( final int levels, final List<Node> nodes )
+	protected void reduceTree( final int levels, final Deque<Node> nodes )
 	{
 		for(int i = 0; i < levels; i++) {
 			int size = nodes.size();
 			for(int j = 0; j < size; j++) {
-				Node n = nodes.remove( 0 );
-				if(n.left != null) nodes.add( n.left );
-				if(n.right != null) nodes.add( n.right );
+				Node n = nodes.removeFirst();
+				if(n.left != null) nodes.addLast( n.left );
+				if(n.right != null) nodes.addLast( n.right );
 			}
 		}
 	}
@@ -100,9 +100,9 @@ public abstract class AntiEntropyThread extends Thread
 	 *
 	 * @return Member random member if list is greater than 1, null otherwise
 	 */
-	protected ByteBuffer selectPartner( final List<ByteBuffer> memberList ) 
+	protected String selectPartner( final List<String> memberList ) 
 	{
-		ByteBuffer member = null;
+	    String member = null;
 		if (memberList.size() > 0) {
 			int randomNeighborIndex = random.nextInt( memberList.size() );
 			member = memberList.get( randomNeighborIndex );

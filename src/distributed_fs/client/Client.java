@@ -17,7 +17,7 @@ import org.apache.commons.cli.ParseException;
 import distributed_fs.client.DFSService.DBListener;
 import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.utils.CmdLineParser;
+import distributed_fs.utils.ArgumentsParser;
 import gossiping.GossipMember;
 import jline.ArgumentCompletor;
 import jline.Completor;
@@ -48,18 +48,20 @@ public class Client implements DBListener
 	public Client( String[] args ) throws ParseException
 	{
 		// Parse the command options.
-		CmdLineParser.parseArgs( args, -1 );
+		ArgumentsParser.parseArgs( args, -1 );
 		
-		String ipAddress = CmdLineParser.getIpAddress();
-		int port = CmdLineParser.getPort();
-		String resourceLocation = CmdLineParser.getResourceLocation();
-		String databaseLocation = CmdLineParser.getDatabaseLocation();
-		List<GossipMember> members = CmdLineParser.getNodes();
+		String ipAddress = ArgumentsParser.getIpAddress();
+		int port = ArgumentsParser.getPort();
+		boolean useLoadBalancers = ArgumentsParser.getLoadBalancers();
+		String resourceLocation = ArgumentsParser.getResourceLocation();
+		String databaseLocation = ArgumentsParser.getDatabaseLocation();
+		List<GossipMember> members = ArgumentsParser.getNodes();
 		
 		//checkInput();
 		
 		try {
-			service = new DFSService( ipAddress, port, members, resourceLocation, databaseLocation, this );
+			service = new DFSService( ipAddress, port, useLoadBalancers, members,
+			                          resourceLocation, databaseLocation, this );
 			if(service.start()) {
 				for(DistributedFile file : service.listFiles())
 					dbFiles.add( file.getName() );

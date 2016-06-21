@@ -52,20 +52,23 @@ public class DFSUtils
 	/** Decides whether the program is running in test mode or not. */
 	public static boolean testing = false;
 	
+	/** Decides whether the configurations are initialized. */
+	public static boolean initConfig = false;
+	
 	/**
 	 * Returns the identifier associated to the node.
 	 * 
 	 * @param virtualNode	the virtual node instance
 	 * @param address		the network address of the object
 	*/
-	public static ByteBuffer getNodeId( final int virtualNode, final String address )
+	public static String getNodeId( final int virtualNode, final String address )
 	{
 		byte[] hostInBytes = address.getBytes( StandardCharsets.UTF_8 );
 		ByteBuffer bb = ByteBuffer.allocate( Integer.BYTES + hostInBytes.length );
 		bb.putInt( virtualNode );
 		bb.put( hostInBytes );
 		
-		return ByteBuffer.wrap( _hash.hashBytes( bb.array() ).asBytes() );
+		return bytesToHex( _hash.hashBytes( bb.array() ).asBytes() );
 	}
 	
 	/**
@@ -74,14 +77,10 @@ public class DFSUtils
 	 * @param object	the given object. It, and all of its superclasses,
 	 * 					must implement the {@link java.io.Serializable} interface
 	*/
-	public static <S extends Serializable> ByteBuffer getId( final S object )
+	public static <S extends Serializable> String getId( final S object )
 	{
 		byte[] bucketNameInBytes = serializeObject( object );
-		byte[] bucketNameAndCode = new byte[bucketNameInBytes.length];
-		ByteBuffer bb = ByteBuffer.wrap( bucketNameAndCode );
-		bb.put( bucketNameInBytes );
-		
-		return ByteBuffer.wrap( _hash.hashBytes( bucketNameAndCode ).asBytes() );
+		return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
 	}
 	
 	/**
@@ -208,13 +207,36 @@ public class DFSUtils
 	*/
 	public static boolean createDirectory( final String dirPath )
 	{
-		File file = new File( dirPath );
-		System.out.println( "FILE: " + file.canWrite() );
-		if(file.exists())
+		return createDirectory( new File( dirPath ) );
+	}
+	
+	/**
+	 * Creates a new directory, if it doesn't exist.
+	 * 
+	 * @param dirFile	the directory file
+	 * 
+	 * @return {@code true} if the direcotry has been created,
+	 * 		   {@code false} otherwise.
+	*/
+	public static boolean createDirectory( final File dirFile )
+	{
+		if(dirFile.exists())
 			return true;
 		
-		return file.mkdir();
+		return dirFile.mkdirs();
 	}
+	
+	/**
+     * Checks whether a file exists.
+     * 
+     * @param f                     the file
+     * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
+     *                              {@code false} otherwise
+    */
+    public static boolean existFile( final File f, final boolean createIfNotExists ) throws IOException
+    {
+        return existFile( f.getAbsolutePath(), createIfNotExists );
+    }
 	
 	/**
 	 * Checks whether a file exists.
@@ -223,7 +245,8 @@ public class DFSUtils
 	 * @param createIfNotExists		setting it to {@code true} the file will be created if it shouldn't exists,
 	 * 								{@code false} otherwise
 	*/
-	public static boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException
+	public static boolean existFile( final String filePath, final boolean createIfNotExists )
+	        throws IOException
 	{
 		File file = new File( filePath );
 		boolean exists = file.exists();
@@ -287,23 +310,21 @@ public class DFSUtils
 	/** 
 	 * Saves a file on disk.
 	 * 
-	 * @param name		the name of the file
+	 * @param filePath	path where the file have to be write
 	 * @param content	bytes of the serialized object
 	*/
-	public static void saveFileOnDisk( final String name, final byte content[] ) throws IOException
+	public static void saveFileOnDisk( final String filePath, final byte content[] ) throws IOException
 	{
-		if(content == null) {
-			if(!new File( name ).exists())
-				DFSUtils.createDirectory( name );
-		}
+		if(content == null) 
+			DFSUtils.createDirectory( filePath );
 		else {
 			// Test whether the path to that file doesn't exist.
 			// In that case create all the necessary directories
-			File file = new File( name ).getParentFile();
+			File file = new File( filePath ).getParentFile();
 			if(!file.exists())
 				file.mkdirs();
 			
-			FileOutputStream fos = new FileOutputStream( name );
+			FileOutputStream fos = new FileOutputStream( filePath );
 			BufferedOutputStream bos = new BufferedOutputStream( fos );
 			
 			bos.write( content, 0, content.length );
@@ -351,7 +372,7 @@ public class DFSUtils
 	/**
 	 * Decompresses data using a GZIP decompressor.
 	 * This method works only if the input data has been
-	 * compressed with the {@link DFSUtils#compressData(byte[])} method.
+	 * compressed with the {@link #compressData(byte[])} method.
 	 * 
 	 * @param data	the bytes to decompress
 	 * 
@@ -380,11 +401,22 @@ public class DFSUtils
 	public static byte[] getNextBytes( final ByteBuffer buffer )
 	{
 		byte[] data = new byte[buffer.getInt()];
+		//System.out.println( "LENGTH: " + data.length + ", REMAINING: " + buffer.remaining() );
 		buffer.get( data );
 		return data;
 	}
 	
 	/** 
+     * Transforms a ByteBuffer object in a hexadecimal representation.
+     * 
+     * @param buffer     the ByteBuffer object
+    */
+    public static String byteBufferToHex( final ByteBuffer buffer )
+    {
+        return bytesToHex( buffer.array() );
+    }
+
+    /** 
 	 * Transforms a byte array in a hexadecimal representation.
 	 * 
 	 * @param b		the byte array
@@ -402,6 +434,8 @@ public class DFSUtils
 		
 		return buf.toString();
 	}
+	
+	
 	
 	/** 
 	 * Transforms an hexadecimal representation in a byte array.
