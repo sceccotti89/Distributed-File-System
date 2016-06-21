@@ -145,6 +145,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				// Check the differences through the trees.
 				checkTreeDifferences( inputTree, inputHeight );
+				
 				LOGGER.debug( "FROM_ID: " + sourceId + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)

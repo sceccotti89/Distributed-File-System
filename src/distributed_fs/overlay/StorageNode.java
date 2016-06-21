@@ -335,11 +335,13 @@ public class StorageNode extends DFSNode
 			}
 		}
 		
+		LOGGER.debug( "Sending the updated clock to the client..." );
 		// Send the update state to the client.
 		MessageResponse message = new MessageResponse( (byte) ((clock != null) ? 0x1 : 0x0) );
 		if(clock != null)
 		    message.addObject( DFSUtils.serializeObject( clock ) );
 		session.sendMessage( message, true );
+		LOGGER.debug( "Clock sent." );
 	}
 	
 	private void handleGET( final boolean isCoordinator, final String fileName, final long fileId ) throws IOException, JSONException
