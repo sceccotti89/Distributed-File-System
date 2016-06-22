@@ -10,6 +10,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -42,7 +43,7 @@ public class Tests
 {
 	private static final String myIpAddress = "127.0.0.1";
 	
-	private List<DFSService> services;
+	private List<DFSService> clients;
 	private List<GossipMember> members;
 	private List<DFSNode> nodes;
 	
@@ -73,6 +74,10 @@ public class Tests
 	
 	public Tests() throws Exception
 	{
+	    DFSUtils.deleteDirectory( new File( "Servers" ) );
+	    DFSUtils.deleteDirectory( new File( "Clients" ) );
+	    
+	    System.out.println( "Start tests..." );
 		//testDatabase();
 		
 		// First test when the service is down.
@@ -82,13 +87,13 @@ public class Tests
 		
 		startSystem( false );
 		
-		Thread.sleep( 5000 );
+		//Thread.sleep( 2000 );
 		
 		//DFSService service = new DFSService( myIpAddress, 9002, true, members, null, null, null );
         //service.start();
 		
 		//testNoLoadBalancers( myIpAddress );
-		testSingleClientOperations();
+		testSingleClient();
 		stressTest();
 		testAntiEntropy();
 		testHintedHandoff();
@@ -163,13 +168,13 @@ public class Tests
 	private void runClients( final String ipAddress, final int numClients ) throws IOException, JSONException, DFSException
 	{
 		int port = 9000;
-		services = new ArrayList<>( numClients );
+		clients = new ArrayList<>( numClients );
 		for(int i = 0; i < numClients; i++) {
 			DFSService service = new DFSService( ipAddress, port + i, true, members,
-			                                     "./Clients//ResourcesClient" + (i + 1),
-			                                     ".Clients//DatabaseClient" + (i + 1), null );
+			                                     "./Clients/ResourcesClient" + (i + 1),
+			                                     "./Clients/DatabaseClient" + (i + 1), null );
 			service.disableSyncThread();
-			services.add( service );
+			clients.add( service );
 			assertTrue( service.start() );
 		}
 	}
@@ -190,9 +195,9 @@ public class Tests
 	}
 	
 	@Test
-	public void testSingleClientOperations() throws IOException, JSONException, DFSException, InterruptedException
+	public void testSingleClient() throws IOException, JSONException, DFSException, InterruptedException
 	{
-		DFSService service = services.get( 0 );
+		DFSService service = clients.get( 0 );
 		
 		DFSUtils.existFile( "./Clients/ResourcesClient1/Images/photoshop.pdf", true );
 		
@@ -240,20 +245,20 @@ public class Tests
 	@Test
     public void stressTest() throws InterruptedException
     {
-    	List<Thread> clients = new ArrayList<>( services.size() );
+    	List<Thread> clientThreads = new ArrayList<>( clients.size() );
     	
-    	for(int i = 0; i < services.size(); i++) {
+    	for(int i = 0; i < clients.size(); i++) {
     		final int index = i;
     		Thread t = new Thread() {
     			@Override
-    			public void run() { try { testMultipleClientOperations( index ); } catch (Exception e) {e.printStackTrace();} }
+    			public void run() { try { testMultipleClient( index ); } catch (Exception e) {e.printStackTrace();} }
     		};
     		t.start();
-    		clients.add( t );
+    		clientThreads.add( t );
     	}
     	
     	// Wait the termination of all the clients.
-    	for(Thread t : clients)
+    	for(Thread t : clientThreads)
     		t.join();
     }
 	
@@ -268,8 +273,8 @@ public class Tests
 		modifyTextFile( "./Clients/ResourcesClient1/" + file );
 		// TODO a volte sembra si blocchi in questo punto.
 		// TODO indagare un po' sulle cause.
-		assertTrue( services.get( 0 ).put( file ) );
-		//assertTrue( services.get( 0 ).put( "test4.txt" ) );
+		assertTrue( clients.get( 0 ).put( file ) );
+		//assertTrue( clients.get( 0 ).put( "test4.txt" ) );
 		
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
@@ -280,8 +285,8 @@ public class Tests
 		readFile( "./Servers/Resources6/" + file );
 		assertNotNull( nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
-		/*assertTrue( services.get( 0 ).delete( file ) );
-		//assertTrue( services.get( 0 ).delete( "test4.txt" ) );
+		/*assertTrue( clients.get( 0 ).delete( file ) );
+		//assertTrue( clients.get( 0 ).delete( "test4.txt" ) );
 		System.out.println( "Waiting..." );
         // Wait the necessary time before to check if the last node have received the updated file.
         Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 1000 );
@@ -318,7 +323,7 @@ public class Tests
     	
     	Thread.sleep( 2000 );
     	
-    	assertTrue( services.get( 0 ).put( file ) );
+    	assertTrue( clients.get( 0 ).put( file ) );
     	System.out.println( "\n\n" );
     	Thread.sleep( 2000 );
     	
@@ -328,9 +333,9 @@ public class Tests
     }
 	
     @Test
-	private void testMultipleClientOperations( final int index ) throws IOException, DFSException, InterruptedException
+	private void testMultipleClient( final int index ) throws IOException, DFSException, InterruptedException
 	{
-		DFSService service = services.get( index );
+		DFSService service = clients.get( index );
 		
 		DFSUtils.existFile( "./Clients/ResourcesClient" + (index + 1) + "/Images/photoshop.pdf", true );
 		
@@ -359,7 +364,7 @@ public class Tests
 		
 		Thread.sleep( 1000 );
 		
-		DFSUtils.existFile( "./Clients/Resources" + (index + 1) + "/test2.txt", true );
+		DFSUtils.existFile( "./Clients/ResourcesClient" + (index + 1) + "/test2.txt", true );
 		service.put( "test2.txt" );
 		System.out.println( "\n\n" );
 		
@@ -369,7 +374,7 @@ public class Tests
 	@Test
 	public void testDatabase() throws IOException, DFSException, SQLException, InterruptedException
 	{
-		if(services == null && nodes == null)
+		if(clients == null && nodes == null)
 			BasicConfigurator.configure();
 		
 		DFSDatabase database = new DFSDatabase( null, null, null );
@@ -399,15 +404,15 @@ public class Tests
 		
 		database.close();
 		
-		if(services == null && nodes == null)
+		if(clients == null && nodes == null)
 			BasicConfigurator.resetConfiguration();
 	}
 	
 	@After
 	public void close() throws InterruptedException
 	{
-	    if(services != null) {
-    		for(DFSService service : services)
+	    if(clients != null) {
+    		for(DFSService service : clients)
     			service.shutDown();
 	    }
 	    

@@ -49,7 +49,6 @@ public class QuorumThread extends Thread
     private static final short BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
     private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
-    //private static final int QUORUM_PORT = 2500;
     
     public QuorumThread( final int port,
                          final String address,
@@ -95,6 +94,7 @@ public class QuorumThread extends Thread
             return;
         }*/
         
+        // TODO utilizzare RUDP, perche' cosi' e' troppo costoso
         TCPnet net;
         
         //try{ net = new UDPnet( _address, QUORUM_PORT ); }

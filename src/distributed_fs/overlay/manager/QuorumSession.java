@@ -45,7 +45,7 @@ public class QuorumSession
 	        quorumFile = QUORUM_LOCATION + "QuorumSession_" + id + ".json";
 	    else
 	        quorumFile = fileLocation + "QuorumSession_" + id + ".json";
-	    System.out.println( "FILE: " + quorumFile );
+	    System.out.println( "QUORUM FILE: " + quorumFile );
         if(!DFSUtils.existFile( quorumFile, true ))
             saveState( null );
     }

@@ -59,7 +59,7 @@ public class DFSDatabase implements Closeable
 	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
 	
 	/* Resources path locations. */
-	public static final String RESOURCES_LOCATION = "Resources/";
+	private static final String RESOURCES_LOCATION = "Resources/";
 	private static final String DATABASE_LOCATION = "Database/";
 	
 	private static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
@@ -107,7 +107,6 @@ public class DFSDatabase implements Closeable
         //database = db.getTreeMap( "map" );
         db = DBMaker.fileDB( new File( dbRoot + "database.db" ) )
                     .snapshotEnable()
-                    .transactionDisable()
                     .make();
         database = db.treeMap( "map" );
         //db.commit();
@@ -118,7 +117,7 @@ public class DFSDatabase implements Closeable
         for(DistributedFile file : database.values()) {
             // If the file is no more on disk it will be deleted.
             if(!DFSUtils.existFile( root + file.getName(), false ))
-                database.remove( file.getFileId() );
+                database.remove( file.getId() );
         }
         loadFiles( new File( root ) );
 		
@@ -167,10 +166,9 @@ public class DFSDatabase implements Closeable
 			fileName = normalizeFileName( fileName );
 			
 			DistributedFile file = database.get( DFSUtils.getId( fileName ) );
-			System.out.println( "CARICO: " + fileName + ", TROVATO: " + file );
 			if(file == null) {
 			    file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
-			    database.put( file.getFileId(), file );
+			    database.put( file.getId(), file );
 			}
 			else {
 				if(file.getHintedHandoff() != null && hhThread != null)
@@ -220,8 +218,7 @@ public class DFSDatabase implements Closeable
 								 final String hintedHandoff, final boolean saveOnDisk ) throws IOException, SQLException
 	{
 		return saveFile( file.getName(), file.getContent(),
-						 clock, hintedHandoff,
-						 saveOnDisk );
+						 clock, hintedHandoff, saveOnDisk );
 	}
 	
 	/**
@@ -247,7 +244,13 @@ public class DFSDatabase implements Closeable
 		fileName = normalizeFileName( fileName );
 		String fileId = DFSUtils.getId( fileName );
 		
+		System.out.println( "IN ATTESA DEL LOCK " + LOCK_WRITERS.getHoldCount() );
 		LOCK_WRITERS.lock();
+		System.out.println( "LOCK ACQUISITO: " + db.isClosed() );
+		if(db.isClosed()) {
+		    LOCK_WRITERS.unlock();
+		    return null;
+		}
 		
 		DistributedFile file = database.get( fileId );
 		
@@ -278,6 +281,9 @@ public class DFSDatabase implements Closeable
     	
 		LOCK_WRITERS.unlock();
 		
+		if(updated != null && listener != null)
+            listener.dbEvent( fileName, Message.GET );
+		
 		return updated;
 	}
 	
@@ -285,18 +291,16 @@ public class DFSDatabase implements Closeable
 						 final byte[] content,
 						 final boolean saveOnDisk ) throws SQLException, IOException
 	{
-		database.put( file.getFileId(), file );
+		database.put( file.getId(), file );
 		db.commit();
 		
+		System.out.println( "SALVO SU DISCO: " + root + file.getName() );
 		if(saveOnDisk) {
 			if(disableAsyncWrites)
 			    DFSUtils.saveFileOnDisk( root + file.getName(), content );
 			else
 			    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
 		}
-		
-		if(listener != null)
-		    listener.dbEvent( file.getName(), Message.GET );
 	}
 	
 	/**
@@ -323,6 +327,10 @@ public class DFSDatabase implements Closeable
 		String fileId = DFSUtils.getId( fileName );
 		
 		LOCK_WRITERS.lock();
+		if(db.isClosed()) {
+            LOCK_WRITERS.unlock();
+            return null;
+        }
         
 		DistributedFile file = database.get( fileId );
 		
@@ -343,13 +351,12 @@ public class DFSDatabase implements Closeable
                 DFSUtils.deleteFileOnDisk( root + fileName );
             else
                 asyncWriter.enqueue( null, root + fileName, Message.DELETE );
-            
-            //System.out.println( "RIMUOVO IL FILE: " + file.getName() + ", ID: " + fileId );
-            if(listener != null)
-                listener.dbEvent( fileName, Message.DELETE );
         }
     	
 		LOCK_WRITERS.unlock();
+		
+		if(updated != null && listener != null)
+            listener.dbEvent( fileName, Message.DELETE );
 		
 		return updated;
 	}
@@ -392,9 +399,14 @@ public class DFSDatabase implements Closeable
 	private void deleteFile( final DistributedFile file ) throws SQLException
 	{
 	    LOCK_WRITERS.lock();
+	    if(db.isClosed()) {
+            LOCK_WRITERS.unlock();
+            return;
+        }
 	    
 	    if(file.isDeleted()) {
-		    database.remove( file.getFileId() );
+		    database.remove( file.getId() );
+		    db.commit();
 		    hhThread.removeFile( file );
 	    }
         
@@ -411,9 +423,13 @@ public class DFSDatabase implements Closeable
 	public boolean containsKey( final String fileName )
 	{
 	    boolean contains;
-	    
 	    String fileId = DFSUtils.getId( fileName );
+	    
 	    LOCK_READERS.lock();
+	    if(db.isClosed()) {
+            LOCK_READERS.unlock();
+            return false;
+        }
 		contains = database.containsKey( fileId );
 		LOCK_READERS.unlock();
 		
@@ -436,6 +452,10 @@ public class DFSDatabase implements Closeable
 		List<DistributedFile> result = new ArrayList<>( 16 );
 		
 		LOCK_READERS.lock();
+		if(db.isClosed()) {
+            LOCK_READERS.unlock();
+            return null;
+        }
     	
         if(destId.compareTo( fromId ) >= 0)
 			result.addAll( database.subMap( fromId, false, destId, true ).values() );
@@ -458,6 +478,10 @@ public class DFSDatabase implements Closeable
 	{
 	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
 	    LOCK_READERS.lock();
+	    if(db.isClosed()) {
+            LOCK_READERS.unlock();
+            return null;
+        }
 	    DistributedFile file = database.get( fileId );
         LOCK_READERS.unlock();
 	    
@@ -472,6 +496,10 @@ public class DFSDatabase implements Closeable
 	public List<DistributedFile> getAllFiles()
 	{
 	    LOCK_READERS.lock();
+	    if(db.isClosed()) {
+            LOCK_READERS.unlock();
+            return null;
+        }
 	    List<DistributedFile>  files = new ArrayList<>( database.values() );
         LOCK_READERS.unlock();
 	    

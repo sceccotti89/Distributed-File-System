@@ -250,7 +250,7 @@ public class StorageNode extends DFSNode
 			              -1 : DFSUtils.bytesToLong( data.getPayload() );
 			Metadata meta = data.getMetadata();
 			
-			LOGGER.debug( "[SN] Received: " + getCodeString( opType ) + ":" + isCoordinator );
+			LOGGER.debug( "[SN] Received (TYPE, COORD) = ('" + getCodeString( opType ) + ":" + isCoordinator + "')" );
 			
 			if(isCoordinator) {
 				// The connection with the client must be estabilished before the quorum.
@@ -284,7 +284,7 @@ public class StorageNode extends DFSNode
 					RemoteFile file = new RemoteFile( data.getPayload() );
 					// Get (if present) the hinted handoff address.
 					String hintedHandoff = meta.getHintedHandoff();
-					LOGGER.debug( "[SN] PUT: " + file.getName() + ":" + hintedHandoff );
+					LOGGER.debug( "[SN] PUT -> (FILE, HH) = ('" + file.getName() + ":" + hintedHandoff + "')" );
 					
 					handlePUT( isCoordinator, file, hintedHandoff );
 					break;

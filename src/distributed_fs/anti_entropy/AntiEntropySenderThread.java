@@ -105,7 +105,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				}
 			}
 			
-			// TODO se ci sono problemi togliere
 			try{ Thread.sleep( EXCH_TIMER ); }
             catch( InterruptedException e ){ break; }
 		}

@@ -137,6 +137,11 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					files = database.getKeysInRange( fromId, destId );
 				}
 				
+				if(files == null) {
+				    session.close();
+				    return;
+				}
+				
 				List<DistributedFile> filesToSend = new ArrayList<>();
 				// TODO si potrebbe usare una variabile che determina fino a che altezza creare l'albero
 				// TODO per esempio il minimo tra le due altezze

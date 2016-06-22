@@ -24,11 +24,9 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 	
 	private transient byte[] signature;
 	
-	// Parameters used to check the life of a deleted file
+	// Parameters used to check the life of a deleted file.
 	private long currTime, liveness;
 	private static transient final int TTL = 3600000; // 1 hour
-	
-	//private static final long serialVersionUID = -1525749756439181410L;
 	
 	/* Generated Serial ID */
     private static final long serialVersionUID = 7522473187709784849L;
@@ -77,7 +75,7 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 		return name;
 	}
 	
-	public String getFileId() {
+	public String getId() {
 	    return fileId;
 	}
 	

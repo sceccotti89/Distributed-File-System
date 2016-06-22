@@ -175,7 +175,7 @@ public class DFSService extends DFSManager implements IDFSService
 		if(!contactRemoteNode( normFileName, Message.GET ))
 			return null;
 		
-		try{
+		try {
 			// Send the request.
 			//LOGGER.info( "Sending message..." );
 			sendGetMessage( normFileName );
@@ -198,6 +198,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			if(files.size() == 0) {
 				LOGGER.info( "File \"" + fileName + "\" not found." );
+				session.close();
 				return null;
 			}
 			
@@ -271,7 +272,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		boolean completed = true;
 		
-		try{
+		try {
 			//LOGGER.info( "Sending file..." );
 			
 			// Send the file.

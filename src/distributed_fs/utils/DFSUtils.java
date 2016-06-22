@@ -270,7 +270,7 @@ public class DFSUtils
 	}
 	
 	/**
-	 * Generates a random file.
+	 * Generates a random file as string.
 	*/
 	public static String createRandomFile()
 	{
@@ -335,6 +335,26 @@ public class DFSUtils
 		}
 	}
 	
+	/**
+	 * Deletes an entire directory.<br>
+	 * If it contains other folders inside, them will be deleted too
+	 * in a recursive manner.
+	 * 
+	 * @param dir  the current directory
+	*/
+	public static void deleteDirectory( final File dir )
+	{
+	    if(dir.exists()) {
+    	    for(File f : dir.listFiles()) {
+    	        if(f.isDirectory())
+    	            deleteDirectory( f );
+    	        f.delete();
+    	    }
+    	    
+    	    dir.delete();
+	    }
+	}
+	
 	/** 
 	 * Deletes a file on disk.
 	 * 
@@ -343,9 +363,8 @@ public class DFSUtils
 	public static void deleteFileOnDisk( final String file )
 	{
 		File f = new File( file );
-		if(f.exists()) {
+		if(f.exists())
 			f.delete();
-		}
 	}
 	
 	/**

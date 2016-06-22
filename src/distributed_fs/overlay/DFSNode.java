@@ -38,7 +38,6 @@ import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadState;
-import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
@@ -135,7 +134,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		this._net = net;
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
-		DFSUtils.createDirectory( DFSDatabase.RESOURCES_LOCATION );
+		//DFSUtils.createDirectory( DFSDatabase.RESOURCES_LOCATION );
 	}
 	
 	/**
@@ -229,7 +228,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 			catch( InterruptedException e ){}
 		}
 		else {
-			LOGGER.info( "Added node: " + member.toJSONObject().toString() );
+		    // TODO RIMETTERE
+			//TODO LOGGER.info( "Added node: " + member.toJSONObject().toString() );
 			cHasher.addBucket( member, member.getVirtualNodes() );
 			if(fMgr != null) {
 				fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
