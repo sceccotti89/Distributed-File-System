@@ -107,7 +107,7 @@ public class Networking
 		/** 
 		 * Sends a new message.
 		 * 
-		 * @param message		data to transmit
+		 * @param message		message to transmit
 		 * @param tryCompress	{@code true} if the data could be sent compressed,
 		 * 						{@code false} otherwise
 		*/
@@ -214,6 +214,7 @@ public class Networking
 		
 		/**
 		 * Constructor used to instantiate the {@code ServerSocket} object.
+		 * 
 		 * @param localAddress	
 		 * @param localPort		
 		*/

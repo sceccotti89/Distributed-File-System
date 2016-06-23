@@ -18,7 +18,7 @@ import java.util.List;
 import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPSession;
-import distributed_fs.overlay.manager.QuorumSession;
+import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;

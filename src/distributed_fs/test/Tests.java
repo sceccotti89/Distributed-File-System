@@ -52,23 +52,6 @@ public class Tests
 	
 	public static void main( final String[] args ) throws Exception
 	{
-	    //8002 = 2CCDB0A66E41511C0BC786727EB2A254CCCD39BB
-	    //8105 = CF84B271DD59C6F89A106BBA2FE7063D1C17E00B
-	    //8210 = E2352D531FAB14375362844A9C4516601359F49D
-	    //8317 = 496D95264EC975412E55AC8EBA12F93B7AA834DF
-	    //8426 = AA3592473714D61449399A9D2FD9F583D74F7ADE
-	    
-	    //BasicConfigurator.configure();
-	    //DFSDatabase db = new DFSDatabase( "./Servers/Resources6/", "./Servers/Database6/", null );
-	    /*DistributedFile file = db.getFile( "chord_sigcomm.pdf" );
-	    System.out.println( "FILE: " + file );
-	    db.saveFile( file.getName(), null, file.getVersion().incremented( "pipp" ), "pippo franco", false );
-	    file = db.getFile( "chord_sigcomm.pdf" );
-	    System.out.println( "FILE: " + file );*/
-	    //System.out.println( "FILES: " + db.getKeysInRange( "AA3592473714D61449399A9D2FD9F583D74F7ADE", "496D95264EC975412E55AC8EBA12F93B7AA834DF" ) );
-	    
-	    //db.close();
-        
 	    new Tests();
 	}
 	
@@ -92,11 +75,11 @@ public class Tests
 		//DFSService service = new DFSService( myIpAddress, 9002, true, members, null, null, null );
         //service.start();
 		
-		//testNoLoadBalancers( myIpAddress );
-		testSingleClient();
-		stressTest();
-		testAntiEntropy();
-		testHintedHandoff();
+		testNoLoadBalancers( myIpAddress );
+		//testSingleClient();
+		//stressTest();
+		//testAntiEntropy();
+		//testHintedHandoff();
 		
 		close();
 		
@@ -149,7 +132,7 @@ public class Tests
 		// Start the storage nodes.
 		for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
 			GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
-			System.out.println( "Port: " + member.getPort() + ", Resources: " + "./Resources" + (i+2) + "/" );
+			System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
 			StorageNode node = new StorageNode( members, member.getId(), i + 2, myIpAddress, member.getPort(),
 												resources + (i+2) + "/", database + (i+2) + "/" );
 			if(disableAntiEntropy)
@@ -182,14 +165,17 @@ public class Tests
 	@Test
 	public void testNoLoadBalancers( final String ipAddress ) throws IOException, JSONException, DFSException, InterruptedException
 	{
-	    DFSService service = new DFSService( ipAddress, 9002, false, members, null, null, null );
+	    DFSService service = new DFSService( ipAddress, 9002, false, members, "./Clients/ResourcesClient/", "./Clients/DatabaseClient/", null );
 	    service.start();
 	    
 	    Thread.sleep( 2000 );
-	    service.get( "test2.txt" );
-	    service.get( "chord_sigcomm.pdf" );
-	    service.delete( "test2.txt" );
-	    service.put( "chord_sigcomm.pdf" );
+	    DFSUtils.existFile( "./Clients/ResourcesClient/test.txt", true );
+	    assertTrue( service.put( "test.txt" ) );
+	    assertNotNull( service.get( "test.txt" ) );
+	    DFSUtils.existFile( "./Clients/ResourcesClient/chord_sigcomm2.pdf", true );
+	    assertTrue( service.put( "chord_sigcomm2.pdf" ) );
+	    assertTrue( service.delete( "test.txt" ) );
+	    assertTrue( service.delete( "chord_sigcomm2.pdf" ) );
 	    
 	    service.shutDown();
 	}
@@ -306,6 +292,7 @@ public class Tests
 	{
 		PrintWriter writer = new PrintWriter( file, StandardCharsets.UTF_8.name() );
 		writer.println( new Date().toString() );
+		writer.flush();
 		writer.close();
 	}
 	

@@ -22,7 +22,7 @@ import distributed_fs.client.manager.DFSManager;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
-import distributed_fs.overlay.manager.QuorumSession;
+import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
@@ -473,6 +473,7 @@ public class DFSService extends DFSManager implements IDFSService
             nodes = getNodesFromPreferenceList( nodeId, node );
         }
         
+        boolean nodeDown = false;
         if(nodes != null) {
             hintedHandoff = null;
             for(GossipMember member : nodes) {
@@ -485,12 +486,20 @@ public class DFSService extends DFSManager implements IDFSService
                 catch( IOException e ) {
                     // Ignored.
                     //e.printStackTrace();
+                    if(!nodeDown)
+                        nodeDown = true;
+                    
                     if((opType == Message.PUT || opType == Message.DELETE) &&
                        hintedHandoff == null)
                         hintedHandoff = member.getHost() + ":" + member.getPort();
                 }
             }
         }
+        
+        // Start the background thread
+        // for the membership.
+        if(nodeDown)
+            listMgr_t.wakeUp();
         
         LOGGER.error( "Sorry, but the service is not available. Retry later." );
         return false;

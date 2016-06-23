@@ -6,6 +6,7 @@ package distributed_fs.anti_entropy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,7 +21,7 @@ import java.util.concurrent.Executors;
 import distributed_fs.anti_entropy.MerkleTree.Node;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.Networking.TCPSession;
-import distributed_fs.overlay.manager.QuorumSession;
+import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
@@ -129,7 +130,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				else {
 					// Get the virtual destination node identifier.
-				    String destId = new String( DFSUtils.getNextBytes( data ) );
+				    String destId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				    String fromId = cHasher.getPreviousBucket( destId );
 					LOGGER.debug( "Node: " + me.getPort() +
 					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
@@ -191,7 +192,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		{
 			ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 			// Get the source node identifier.
-			sourceId = new String( DFSUtils.getNextBytes( data ) );
+			sourceId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
 			sourceNode = cHasher.getBucket( sourceId );
 			if(sourceNode == null) {
 				session.close();

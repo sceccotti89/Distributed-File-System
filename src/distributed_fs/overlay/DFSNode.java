@@ -134,7 +134,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 		this._net = net;
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
-		//DFSUtils.createDirectory( DFSDatabase.RESOURCES_LOCATION );
 	}
 	
 	/**

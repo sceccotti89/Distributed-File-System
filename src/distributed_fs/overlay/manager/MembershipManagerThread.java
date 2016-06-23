@@ -13,7 +13,7 @@ import gossiping.GossipMember;
 import gossiping.LocalGossipMember;
 import gossiping.manager.GossipManager;
 
-public class ListManagerThread extends Thread
+public class MembershipManagerThread extends Thread
 {
     private final String address;
     private final int port;
@@ -27,7 +27,7 @@ public class ListManagerThread extends Thread
      * Constructor used when the list of members may vary,
      * according to the gossiping protocol.
     */
-    public ListManagerThread( final String address, final int port,
+    public MembershipManagerThread( final String address, final int port,
                               final GossipMember me, final GossipManager manager )
     {
         this.address = address;
@@ -42,7 +42,7 @@ public class ListManagerThread extends Thread
     /**
      * Constructor used when the list of members is fixed.
     */
-    public ListManagerThread( final String address, final int port,
+    public MembershipManagerThread( final String address, final int port,
                               final List<GossipMember> members )
     {
         this.address = address;
@@ -75,7 +75,6 @@ public class ListManagerThread extends Thread
                     members = this.members;
                 
                 MessageResponse message = new MessageResponse();
-                
                 for(GossipMember member : members)
                     message.addObject( DFSUtils.serializeObject( member ) );
                 session.sendMessage( message, true );

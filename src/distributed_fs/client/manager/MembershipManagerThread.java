@@ -15,7 +15,7 @@ import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
-public class ListManagerThread extends Thread
+public class MembershipManagerThread extends Thread
 {
     private final Random random;
     private final TCPnet net;
@@ -23,10 +23,10 @@ public class ListManagerThread extends Thread
     
     private boolean closed = false;
     
-    private static final Logger LOGGER = Logger.getLogger( ListManagerThread.class );
-    private static final int TIMER_REQUEST = 10000;
+    private static final Logger LOGGER = Logger.getLogger( MembershipManagerThread.class );
+    private static final int TIMER_REQUEST = 10000; // 10 seconds.
     
-    public ListManagerThread( final TCPnet net,
+    public MembershipManagerThread( final TCPnet net,
                               final ConsistentHasherImpl<GossipMember, String> cHasher )
     {
         this.net = net;
@@ -52,34 +52,43 @@ public class ListManagerThread extends Thread
                 List<byte[]> nodes = message.getObjects();
                 
                 // Create the list of members.
-                List<GossipMember> servers = new ArrayList<>( nodes.size() );
-                for(byte[] node : nodes) {
-                    GossipMember member = DFSUtils.deserializeObject( node );
-                    if(member.getNodeType() == GossipMember.STORAGE)
-                        servers.add( member );
-                }
-                
-                if(servers != null) {
+                if(nodes != null) {
+                    List<GossipMember> servers = new ArrayList<>( nodes.size() );
+                    for(byte[] node : nodes) {
+                        GossipMember member = DFSUtils.deserializeObject( node );
+                        if(member.getNodeType() == GossipMember.STORAGE)
+                            servers.add( member );
+                    }
+                    
                     LOGGER.debug( "[CLIENT] received: " + servers );
                     // Update the consistent hashing structure, putting the nodes on it.
                     synchronized( cHasher ) {
-                        // TODO usare questo metodo?
-                        // TODO oppure usare una tecnica un po' piu' sofisticata
-                        //cHasher.clear();
+                        cHasher.clear();
+                        // TODO usare una tecnica un po' piu' sofisticata..
+                        // TODO per farlo occorre che i nodi durante il gossiping abbiano assegnato un timestamp
                         for(GossipMember member : servers)
                             cHasher.addBucket( member, member.getVirtualNodes() );
                     }
                 }
                 
                 session.close();
+                
+                sleep( TIMER_REQUEST );
             }
-            catch( IOException e ){
-                e.printStackTrace();
+            catch( IOException | InterruptedException e ){
+                if(e instanceof IOException)
+                    e.printStackTrace();
             }
-            
-            try { sleep( TIMER_REQUEST ); }
-            catch( InterruptedException e ) { break; }
         }
+    }
+    
+    /**
+     * Wake up the node to start immediately
+     * the membership poll request.
+    */
+    public void wakeUp()
+    {
+        interrupt();
     }
     
     public void close()

@@ -47,7 +47,7 @@ public abstract class DFSManager
 	protected String destId;
 	
     protected ConsistentHasherImpl<GossipMember, String> cHasher;
-    protected ListManagerThread listMgr_t;
+    protected MembershipManagerThread listMgr_t;
 	
 	private static final String DISTRIBUTED_FS_CONFIG = "./Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
@@ -98,7 +98,7 @@ public abstract class DFSManager
         
         if(!useLoadBalancer) {
             cHasher = new ConsistentHasherImpl<>();
-            listMgr_t = new ListManagerThread( net, cHasher );
+            listMgr_t = new MembershipManagerThread( net, cHasher );
         }
 		
 		if(members != null) {

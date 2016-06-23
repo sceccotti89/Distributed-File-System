@@ -27,10 +27,10 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
-import distributed_fs.overlay.manager.ListManagerThread;
-import distributed_fs.overlay.manager.QuorumSession;
+import distributed_fs.overlay.manager.MembershipManagerThread;
 import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
+import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.storage.DistributedFile;
@@ -61,7 +61,7 @@ public class StorageNode extends DFSNode
 	private QuorumSession qSession;
 	// =========================================== //
 	
-	private ListManagerThread lMgr_t;
+	private MembershipManagerThread lMgr_t;
 	private List<Thread> threadsList;
 	
 	/**
@@ -88,7 +88,7 @@ public class StorageNode extends DFSNode
 		if(runner != null) {
 			me = runner.getGossipService().getGossipManager().getMyself();
 			this.port = me.getPort();
-			lMgr_t = new ListManagerThread( _address, this.port, me,
+			lMgr_t = new MembershipManagerThread( _address, this.port, me,
 			                                runner.getGossipService().getGossipManager() );
 		}
 		else {
@@ -102,7 +102,7 @@ public class StorageNode extends DFSNode
 			GossipService gossipService = new GossipService( _address, me.getPort(), me.getId(), me.getVirtualNodes(),
 															 me.getNodeType(), startupMembers, settings, this );
 			gossipService.start();
-			lMgr_t = new ListManagerThread( _address, this.port, me,
+			lMgr_t = new MembershipManagerThread( _address, this.port, me,
 			                                gossipService.getGossipManager() );
 		}
 		
@@ -143,7 +143,7 @@ public class StorageNode extends DFSNode
 		fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
 		netMonitor = new NetworkMonitorSenderThread( _address, this );
 		
-		lMgr_t = new ListManagerThread( address, port, startupMembers );
+		lMgr_t = new MembershipManagerThread( address, port, startupMembers );
 		threadsList = new ArrayList<>( MAX_USERS );
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 		

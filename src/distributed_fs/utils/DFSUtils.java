@@ -229,19 +229,19 @@ public class DFSUtils
 	/**
      * Checks whether a file exists.
      * 
-     * @param f                     the file
+     * @param file                  the file to check
      * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
      *                              {@code false} otherwise
     */
-    public static boolean existFile( final File f, final boolean createIfNotExists ) throws IOException
+    public static boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
     {
-        return existFile( f.getAbsolutePath(), createIfNotExists );
+        return existFile( file.getAbsolutePath(), createIfNotExists );
     }
 	
 	/**
 	 * Checks whether a file exists.
 	 * 
-	 * @param filePath				path to the file
+	 * @param filePath				path to the file to check
 	 * @param createIfNotExists		setting it to {@code true} the file will be created if it shouldn't exists,
 	 * 								{@code false} otherwise
 	*/
@@ -251,7 +251,8 @@ public class DFSUtils
 		File file = new File( filePath );
 		boolean exists = file.exists();
 		if(!exists && createIfNotExists) {
-			file.getParentFile().mkdirs();
+		    if(file.getParent() != null)
+		        file.getParentFile().mkdirs();
 			file.createNewFile();
 		}
 		

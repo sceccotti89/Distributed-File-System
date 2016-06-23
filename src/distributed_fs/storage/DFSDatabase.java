@@ -294,7 +294,6 @@ public class DFSDatabase implements Closeable
 		database.put( file.getId(), file );
 		db.commit();
 		
-		System.out.println( "SALVO SU DISCO: " + root + file.getName() );
 		if(saveOnDisk) {
 			if(disableAsyncWrites)
 			    DFSUtils.saveFileOnDisk( root + file.getName(), content );
