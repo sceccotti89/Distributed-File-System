@@ -167,7 +167,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				if(filesToSend.size() > 0)
-					fMgr.sendFiles( sourceNode.getPort() + 1, filesToSend, srcAddress, false, sourceId, null );
+					fMgr.sendFiles( srcAddress, sourceNode.getPort() + 1, filesToSend, false, sourceId, null );
 				else // No differences.
 					removeFromSynch( sourceId );
 				filesSent = true;
@@ -390,7 +390,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			// send the files to delete
 			if(filesToRemove.size() > 0) {
 				addToSynch( sourceNodeId );
-				fMgr.sendFiles( port/*, Message.DELETE*/, filesToRemove, address, false, sourceNodeId, null );
+				fMgr.sendFiles( address, port, filesToRemove, false, sourceNodeId, null );
 			}
 			
 			return filesToSend;

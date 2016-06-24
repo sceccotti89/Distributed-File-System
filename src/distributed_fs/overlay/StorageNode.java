@@ -59,10 +59,14 @@ public class StorageNode extends DFSNode
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
 	private QuorumSession qSession;
+	private boolean replacedThread;
 	// =========================================== //
 	
 	private MembershipManagerThread lMgr_t;
 	private List<Thread> threadsList;
+	
+	// Used to create the list of actions done by the node.
+	private static final Object DONE = new Object();
 	
 	/**
 	 * Constructor with the default settings.<br>
@@ -178,8 +182,8 @@ public class StorageNode extends DFSNode
 				        if(threadPool.isShutdown())
 				            break;
 				        
-				        StorageNode node = new StorageNode( getNextThreadID(), resourcesLocation, fMgr, quorum_t,
-				                                            cHasher, _net, session, netMonitor );
+				        StorageNode node = new StorageNode( getNextThreadID(), false, resourcesLocation, fMgr,
+				                                            quorum_t, cHasher, _net, session, netMonitor );
 				        monitor_t.addThread( node );
 				        
 				        threadPool.execute( node );
@@ -213,17 +217,19 @@ public class StorageNode extends DFSNode
      * @param netMonitor            the network monitor
     */
     private StorageNode( final long id,
+                         final boolean replacedThread,
                          final String resourcesLocation,
-    					 final FileTransferThread fMgr,
-    					 final QuorumThread quorum_t,
-    					 final ConsistentHasherImpl<GossipMember, String> cHasher,
-    					 final TCPnet net,
-    					 final TCPSession session,
-    					 final NetworkMonitor netMonitor ) throws IOException, JSONException
+                         final FileTransferThread fMgr,
+                         final QuorumThread quorum_t,
+                         final ConsistentHasherImpl<GossipMember, String> cHasher,
+                         final TCPnet net,
+                         final TCPSession session,
+                         final NetworkMonitor netMonitor ) throws IOException, JSONException
     {
     	super( net, fMgr, cHasher );
     	setId( id );
     	
+    	this.replacedThread = replacedThread;
     	this.resourcesLocation = resourcesLocation;
     	this.quorum_t = quorum_t;
     	this.session = session;
@@ -237,18 +243,35 @@ public class StorageNode extends DFSNode
 	public void run()
 	{
 		LOGGER.info( "[SN] Received a connection from: " + session.getSrcAddress() );
-		stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );
+		if(!actionsList.isEmpty())
+		    actionsList.removeFirst();
+		else {
+		    stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );
+		    actionsList.addLast( DONE );
+		}
 		
 		// TODO GENERARE LA MACCHINA A STATI FINITI, ricordandosi di salvare tutti i dati nell'apposito threadState
 		
+		// TODO usare il controllo "if(!replacedThread || actionsList.isEmpty())" per testare se deve leggere dalla sessione
+		
 		try {
-			MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
-			byte opType = data.getType();
-			String fileName = data.getFileName();
-			boolean isCoordinator = data.startQuorum();
-			long fileId = (opType == Message.GET_ALL || isCoordinator) ?
-			              -1 : DFSUtils.bytesToLong( data.getPayload() );
-			Metadata meta = data.getMetadata();
+		    MessageRequest data;
+		    // TODO usare una giusta chiave per il messaggio
+		    if(!replacedThread || actionsList.isEmpty()) {
+		        data = DFSUtils.deserializeObject( session.receiveMessage() );
+		        state.addValue( "", data );
+		    }
+		    else {
+		        data = (MessageRequest) state.getValue( "" );
+		        actionsList.removeFirst();
+		    }
+		    
+            byte opType = data.getType();
+            String fileName = data.getFileName();
+            boolean isCoordinator = data.startQuorum();
+            long fileId = (opType == Message.GET_ALL || isCoordinator) ?
+                          -1 : DFSUtils.bytesToLong( data.getPayload() );
+            Metadata meta = data.getMetadata();
 			
 			LOGGER.debug( "[SN] Received (TYPE, COORD) = ('" + getCodeString( opType ) + ":" + isCoordinator + "')" );
 			
@@ -331,7 +354,7 @@ public class StorageNode extends DFSNode
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
-				fMgr.sendFiles( node.getPort() + 1, files, node.getHost(), false, null, qNode );
+				fMgr.sendFiles( node.getHost(), node.getPort() + 1, files, false, null, qNode );
 			}
 		}
 		
@@ -489,7 +512,7 @@ public class StorageNode extends DFSNode
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
-				fMgr.sendFiles( node.getPort() + 1, files, node.getHost(), false, null, qNode );
+				fMgr.sendFiles( node.getHost(), node.getPort() + 1, files, false, null, qNode );
 			}
 		}
 		
@@ -578,6 +601,7 @@ public class StorageNode extends DFSNode
 	{
 		StorageNode node =
 		        new StorageNode( state.getId(),
+		                         true,
 		                         null,// TODO per adesso e' null, ma poi metterci quello corretto
 		                         state.getFileManager(),
 		                         state.getQuorumThread(),

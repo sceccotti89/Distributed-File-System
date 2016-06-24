@@ -28,7 +28,7 @@ public class MembershipManagerThread extends Thread
      * according to the gossiping protocol.
     */
     public MembershipManagerThread( final String address, final int port,
-                              final GossipMember me, final GossipManager manager )
+                                    final GossipMember me, final GossipManager manager )
     {
         this.address = address;
         this.port = port + 4;
@@ -43,7 +43,7 @@ public class MembershipManagerThread extends Thread
      * Constructor used when the list of members is fixed.
     */
     public MembershipManagerThread( final String address, final int port,
-                              final List<GossipMember> members )
+                                    final List<GossipMember> members )
     {
         this.address = address;
         this.port = port + 4;
@@ -64,15 +64,15 @@ public class MembershipManagerThread extends Thread
                 
                 // Get the list of members and send it to the user.
                 List<GossipMember> members;
-                if(manager != null) {
+                if(manager == null)
+                    members = this.members;
+                else {
                     List<LocalGossipMember> localMembers = manager.getMemberList();
                     members = new ArrayList<>( localMembers.size() + 1 );
                     for(LocalGossipMember member : localMembers)
                         members.add( member );
                     members.add( me );
                 }
-                else
-                    members = this.members;
                 
                 MessageResponse message = new MessageResponse();
                 for(GossipMember member : members)

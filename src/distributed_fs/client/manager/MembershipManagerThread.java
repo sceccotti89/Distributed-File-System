@@ -27,7 +27,7 @@ public class MembershipManagerThread extends Thread
     private static final int TIMER_REQUEST = 10000; // 10 seconds.
     
     public MembershipManagerThread( final TCPnet net,
-                              final ConsistentHasherImpl<GossipMember, String> cHasher )
+                                    final ConsistentHasherImpl<GossipMember, String> cHasher )
     {
         this.net = net;
         this.cHasher = cHasher;
@@ -83,7 +83,7 @@ public class MembershipManagerThread extends Thread
     }
     
     /**
-     * Wake up the node to start immediately
+     * Wakes up the node to start immediately
      * the membership poll request.
     */
     public void wakeUp()

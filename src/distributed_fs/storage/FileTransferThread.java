@@ -217,18 +217,18 @@ public class FileTransferThread extends Thread
 	/** 
 	 * Sends the list of files, for saving or deleting operation, to the destination address.
 	 * 
+	 * @param address           destination IP address
 	 * @param port				destination port
 	 * @param files				list of files
-	 * @param address			destination IP address
 	 * @param wait_response		{@code true} if the process have to wait the response, {@code false} otherwise
 	 * @param synchNodeId		identifier of the synchronizing node (used during the anti-entropy phase)
 	 * @param node			    
 	 * 
 	 * @return {@code true} if the files are successfully transmitted, {@code false} otherwise
 	*/
-	public boolean sendFiles( final int port,
+	public boolean sendFiles( final String address,
+	                          final int port,
 							  final List<DistributedFile> files,
-							  final String address,
 							  final boolean wait_response,
 							  final String synchNodeId,
 							  final QuorumNode node )

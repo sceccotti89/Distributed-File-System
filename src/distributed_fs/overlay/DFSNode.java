@@ -65,7 +65,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	
 	protected ThreadState state;
 	// Actions performed by the thread, during the request processing.
-	protected Deque<Integer> actionsList;
+	protected Deque<Object> actionsList;
 	
 	protected long id;
 	protected boolean completed = false; // Used to check if the thread has completed the job.

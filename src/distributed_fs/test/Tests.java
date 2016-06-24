@@ -52,6 +52,8 @@ public class Tests
 	
 	public static void main( final String[] args ) throws Exception
 	{
+	    // TODO fare dei test sulla chiusura di LoadBalancer, StorageNode e DFSService
+	    
 	    new Tests();
 	}
 	

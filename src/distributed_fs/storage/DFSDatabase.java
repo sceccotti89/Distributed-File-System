@@ -705,7 +705,7 @@ public class DFSDatabase implements Closeable
 					String host = data[0];
 					int port = Integer.parseInt( data[1] ) + 1;
 					
-					if(_fileMgr.sendFiles( port, files, host, true, null, null ) ) {
+					if(_fileMgr.sendFiles( host, port, files, true, null, null ) ) {
 					    // If all the files have been successfully delivered,
 					    // they are removed for the current database.
 						for(DistributedFile file : files) {

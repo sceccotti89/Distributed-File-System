@@ -421,7 +421,6 @@ public class DFSUtils
 	public static byte[] getNextBytes( final ByteBuffer buffer )
 	{
 		byte[] data = new byte[buffer.getInt()];
-		//System.out.println( "LENGTH: " + data.length + ", REMAINING: " + buffer.remaining() );
 		buffer.get( data );
 		return data;
 	}

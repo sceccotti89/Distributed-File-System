@@ -156,7 +156,7 @@ public class Networking
 				throw e;
 			}
 		}
-
+		
 		/** 
 		 * Receives a new message.
 		*/
@@ -290,7 +290,7 @@ public class Networking
 		 * 
 		 * @param address	the remote address
 		 * @param port		the remote port
-		 * @param timeOut	the connection will reamin blocked
+		 * @param timeOut	the connection will remain blocked
 		 * 					for a maximum of {@code timeOut} milliseconds.
 		 * 					0 means infinite time.
 		*/

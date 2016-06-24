@@ -478,12 +478,11 @@ public class DFSService extends DFSManager implements IDFSService
             hintedHandoff = null;
             for(GossipMember member : nodes) {
                 LOGGER.debug( "[CLIENT] Contacting: " + member );
-                try{
+                try {
                     session = net.tryConnect( member.getHost(), member.getPort(), 2000 );
                     destId = member.getId();
                     return true;
-                }
-                catch( IOException e ) {
+                } catch( IOException e ) {
                     // Ignored.
                     //e.printStackTrace();
                     if(!nodeDown)

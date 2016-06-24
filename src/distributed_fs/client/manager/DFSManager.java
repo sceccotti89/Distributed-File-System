@@ -82,8 +82,6 @@ public abstract class DFSManager
 		
 		LOGGER.info( "Starting the system..." );
 		
-		//java.util.logging.Logger.getLogger( "udt" ).setLevel( java.util.logging.Level.WARNING );
-		
 		JSONObject file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
@@ -151,15 +149,15 @@ public abstract class DFSManager
 	private String getNetworkAddress( final String inet, final int IPversion ) throws IOException
 	{
 		String _address = null;
-		// Enumerate all the network intefaces.
+		// Enumerate all the network interfaces.
 		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
 		for(NetworkInterface netint : Collections.list( nets )) {
 			if(netint.getName().equals( inet )) {
 				// Enumerate all the IP address associated with it.
 				for(InetAddress inetAddress : Collections.list( netint.getInetAddresses() )) {
 					if(!inetAddress.isLoopbackAddress() &&
-							((IPversion == 4 && inetAddress instanceof Inet4Address) ||
-							(IPversion == 6 && inetAddress instanceof Inet6Address))) {
+					  ((IPversion == 4 && inetAddress instanceof Inet4Address) ||
+					  (IPversion == 6 && inetAddress instanceof Inet6Address))) {
 						_address = inetAddress.getHostAddress();
 						if(inetAddress instanceof Inet6Address) {
 							int index = _address.indexOf( '%' );
@@ -194,7 +192,6 @@ public abstract class DFSManager
 		    message.putMetadata( address + ":" + port, null );
 		}
 		else {
-		    //String destId = DFSUtils.getId( file.getName() );
 	        Metadata meta = new Metadata( null, hintedHandoff );
 	        message = new MessageRequest( Message.PUT, file.getName(), file.read(), true, destId, meta );
 		}
@@ -213,7 +210,6 @@ public abstract class DFSManager
             message.putMetadata( address + ":" + port, null );
 		}
         else {
-            //String destId = DFSUtils.getId( fileName );
             Metadata meta = new Metadata( null, null );
             message = new MessageRequest( Message.GET, fileName, null, true, destId, meta );
         }
@@ -253,7 +249,6 @@ public abstract class DFSManager
         List<byte[]> objects = message.getObjects();
         if(objects != null) {
             for(byte[] file : objects)
-                //files.add( Utils.deserializeObject( file ) );
                 files.add( new RemoteFile( file ) );
         }
         
@@ -268,14 +263,11 @@ public abstract class DFSManager
 		
 		MessageRequest message;
         if(useLoadBalancer) {
-            //message = new MessageRequest( Message.DELETE, file.getName(), file.read() );
             message = new MessageRequest( Message.DELETE, file.getName(), DFSUtils.serializeObject( file ) );
             message.putMetadata( address + ":" + port, null );
         }
         else {
-            //String destId = DFSUtils.getId( file.getName() );
             Metadata meta = new Metadata( null, hintedHandoff );
-            //message = new MessageRequest( Message.DELETE, file.getName(), file.read(), true, destId, meta );
             message = new MessageRequest( Message.DELETE, file.getName(), DFSUtils.serializeObject( file ), true, destId, meta );
         }
 		
@@ -307,7 +299,8 @@ public abstract class DFSManager
 	    closed = true;
 	    if(listMgr_t != null) {
     	    listMgr_t.close();
-    	    // TODO fare la join sul thread?
+    	    try { listMgr_t.join(); }
+    	    catch( InterruptedException e ) {}
 	    }
 	}
 }
