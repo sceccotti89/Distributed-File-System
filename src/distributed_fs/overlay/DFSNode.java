@@ -71,6 +71,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected boolean completed = false; // Used to check if the thread has completed the job.
 	private long nextThreadID; // Next unique identifier associated to the Thread.
 	
+	// Used to create the list of actions done by the node.
+    public static final Object DONE = new Object();
+	
 	protected static final int MAX_USERS = 64; // Maximum number of accepted connections.
 	public static final int WAIT_CLOSE = 200;
 	public static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );

@@ -113,7 +113,8 @@ public class LoadBalancer extends DFSNode
                         if(threadPool.isShutdown())
                             break;
                         
-                        LoadBalancer node = new LoadBalancer( _net, session, cHasher, netMonitor );
+                        LoadBalancer node = new LoadBalancer( false, _net, session,
+                                                              cHasher, netMonitor );
                         monitor_t.addThread( node );
                         
                         threadPool.execute( node );
@@ -135,12 +136,14 @@ public class LoadBalancer extends DFSNode
 	/**
 	 * Constructor used to handle an incoming request.
 	 * 
-	 * @param net          the net it is connected to
-	 * @param srcSession   the input request
-	 * @param cHasher      the consistent hashing
-	 * @param netMonitor   the network monitor   
+	 * @param replacedThread   
+	 * @param net              the net it is connected to
+	 * @param srcSession       the input request
+	 * @param cHasher          the consistent hashing
+	 * @param netMonitor       the network monitor   
 	*/
-	private LoadBalancer( final TCPnet net,
+	private LoadBalancer( final boolean replacedThread,
+	                      final TCPnet net,
 						  final TCPSession srcSession,
 						  final ConsistentHasherImpl<GossipMember, String> cHasher,
 						  final NetworkMonitor netMonitor ) throws JSONException, IOException
@@ -151,7 +154,8 @@ public class LoadBalancer extends DFSNode
 		session = srcSession;
 		
 		actionsList = new ArrayDeque<>( 16 );// TODO per adesso e' 16 poi si vedra'
-        state = new ThreadState( id, actionsList, fMgr, null, cHasher, this.netMonitor );
+        state = new ThreadState( id, replacedThread, actionsList,
+                                 fMgr, null, cHasher, this.netMonitor );
 	}
 	
 	@Override
@@ -328,7 +332,8 @@ public class LoadBalancer extends DFSNode
     public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
     {
         LoadBalancer node =
-                new LoadBalancer( state.getNet(),
+                new LoadBalancer( true,
+                                  state.getNet(),
                                   state.getSession(),
                                   state.getHashing(),
                                   state.getNetMonitor() );

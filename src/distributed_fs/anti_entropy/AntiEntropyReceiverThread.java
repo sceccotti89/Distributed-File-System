@@ -56,7 +56,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	    
 	    threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
 	    addToSynch( me.getId() );
-	    Net.setSoTimeout( 2000 );
+	    net.setSoTimeout( 2000 );
 	}
 	
 	@Override
@@ -67,7 +67,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	    while(!shoutDown) {
 	        try {
 	            //System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + 2) );
-	            TCPSession session = Net.waitForConnection( me.getHost(), me.getPort() + 2 );
+	            TCPSession session = net.waitForConnection( me.getHost(), me.getPort() + 2 );
 	            if(session == null)
 	                continue;
 	            threadPool.execute( new AntiEntropyNode( session ) );

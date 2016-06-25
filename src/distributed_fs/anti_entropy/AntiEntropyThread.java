@@ -29,7 +29,7 @@ public abstract class AntiEntropyThread extends Thread
 	protected final ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected final FileTransferThread fMgr;
 	protected final DFSDatabase database;
-	protected final TCPnet Net;
+	protected final TCPnet net;
 	protected GossipMember me;
 	private final Random random;
 	protected boolean shoutDown = false;
@@ -53,7 +53,7 @@ public abstract class AntiEntropyThread extends Thread
 		this.me = _me;
 		this.fMgr = fMgr;
 		this.database = database;
-		Net = new TCPnet();
+		net = new TCPnet();
 		cHasher = _cHasher;
 		random = new Random();
 	}

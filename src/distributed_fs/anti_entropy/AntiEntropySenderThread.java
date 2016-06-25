@@ -158,14 +158,14 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	*/
 	private void handShake( final GossipMember node, final byte msg_type, final String sourceId, final String destId ) throws IOException
 	{
-	    session = Net.tryConnect( node.getHost(), node.getPort() + 2, 2000 );
+	    session = net.tryConnect( node.getHost(), node.getPort() + 2, 2000 );
 	    
-		byte[] data = Net.createMessage( null, sourceId.getBytes( StandardCharsets.UTF_8 ), true );
-		data = Net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
+		byte[] data = net.createMessage( null, sourceId.getBytes( StandardCharsets.UTF_8 ), true );
+		data = net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
 		if(m_tree != null)
-			data = Net.createMessage( data, DFSUtils.intToByteArray( m_tree.getHeight() ), true );
+			data = net.createMessage( data, DFSUtils.intToByteArray( m_tree.getHeight() ), true );
 		if(msg_type == MERKLE_FROM_REPLICA)
-			data = Net.createMessage( data, destId.getBytes( StandardCharsets.UTF_8 ), true );
+			data = net.createMessage( data, destId.getBytes( StandardCharsets.UTF_8 ), true );
 		session.sendMessage( data, true );
 	}
 	
@@ -275,7 +275,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			
 			DistributedFile file = files.get( i );
 			byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
-			msg = Net.createMessage( msg, vClock, true );
+			msg = net.createMessage( msg, vClock, true );
 		}
 		
 		return msg;
