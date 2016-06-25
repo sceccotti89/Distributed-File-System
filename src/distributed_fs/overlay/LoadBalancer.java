@@ -154,7 +154,7 @@ public class LoadBalancer extends DFSNode
 		this.netMonitor = netMonitor;
 		session = srcSession;
 		
-		actionsList = new ArrayDeque<>( 32 );// TODO forse qui ne andrebbero messi un po' meno...tipo 16
+		actionsList = new ArrayDeque<>( 8 );
         state = new ThreadState( id, replacedThread, actionsList,
                                  fMgr, null, cHasher, this.netMonitor );
 	}
@@ -179,13 +179,13 @@ public class LoadBalancer extends DFSNode
 			
 			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
 			
-			// Get the id and the node associated to the file.
-			String nodeId = state.getValue( ThreadState.NODE_ID );
+			// Get the unique identifier associated to the file.
+			String nodeId = state.getValue( ThreadState.GOSSIP_NODE_ID );
 			if(nodeId == null) {
 			    nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
-			    state.setValue( ThreadState.NODE_ID, nodeId );
+			    state.setValue( ThreadState.GOSSIP_NODE_ID, nodeId );
 			}
-			
+			// Get the node associated to the file.
 			GossipMember node = null;
 			if(nodeId != null) {
 			    node = state.getValue( ThreadState.GOSSIP_NODE );
@@ -211,8 +211,16 @@ public class LoadBalancer extends DFSNode
 					
 					// Contact the target node.
 					LOGGER.debug( "[LB] Contacting: " + targetNode );
-					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
-					catch( IOException e ){ /* Ignored. // e.printStackTrace();*/ }
+					if(!replacedThread || actionsList.isEmpty()) {
+    					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
+    					catch( IOException e ){ /* Ignored. // e.printStackTrace();*/ }
+    					state.setValue( ThreadState.BALANCED_NODE_CONN, newSession );
+    					actionsList.addLast( DONE );
+					}
+					else {
+					    newSession = state.getValue( ThreadState.BALANCED_NODE_CONN );
+					    actionsList.removeFirst();
+					}
 					
 					if(newSession != null) {
 					    // Notify the client that a remote node is available.

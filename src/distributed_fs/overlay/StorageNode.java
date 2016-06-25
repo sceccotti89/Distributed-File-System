@@ -58,7 +58,7 @@ public class StorageNode extends DFSNode
 	private TCPSession session;
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
-	private QuorumSession qSession;
+	//private QuorumSession qSession;
 	private boolean replacedThread;
 	// =========================================== //
 	
@@ -273,8 +273,8 @@ public class StorageNode extends DFSNode
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				qSession = new QuorumSession( resourcesLocation, id );
-				agreedNodes = quorum_t.checkQuorum( state, session, qSession, opType, fileName, destId );
+				//qSession = new QuorumSession( resourcesLocation, id );
+				agreedNodes = quorum_t.checkQuorum( state, session, opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
 				
 				// Check if the quorum has been completed successfully.
@@ -344,7 +344,7 @@ public class StorageNode extends DFSNode
 		LOGGER.debug( "[SN] UPDATED: " + (clock != null) );
 		
 		if(clock == null) // Not updated.
-			quorum_t.closeQuorum( state, qSession, agreedNodes );
+			quorum_t.closeQuorum( state, agreedNodes );
 		else {
 			file.setVersion( clock );
 			
@@ -411,7 +411,7 @@ public class StorageNode extends DFSNode
         						
         						// Update the list of agreedNodes.
         						agreedNodes.remove( index - offset );
-        						qSession.saveState( agreedNodes );
+        						//qSession.saveState( agreedNodes );
         						state.setValue( ThreadState.QUORUM_OFFSET, ++offset );
         					}
         					actionsList.add( DONE );
@@ -422,7 +422,7 @@ public class StorageNode extends DFSNode
     				catch( IOException e ) {
     					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
     						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-    						quorum_t.cancelQuorum( state, this.session, qSession, agreedNodes );
+    						quorum_t.cancelQuorum( state, this.session, agreedNodes );
     						return;
     					}
     					state.setValue( ThreadState.QUORUM_ERRORS, errors );
@@ -554,7 +554,7 @@ public class StorageNode extends DFSNode
 		LOGGER.debug( "[SN] UPDATED: " + (clock != null) );
 		
 		if(clock == null)
-			quorum_t.closeQuorum( state, qSession, agreedNodes );
+			quorum_t.closeQuorum( state, agreedNodes );
 		else {
 		    LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
 			file.setVersion( clock );
@@ -674,8 +674,8 @@ public class StorageNode extends DFSNode
 	*/
 	public void closeWorker()
 	{
-		if(qSession != null)
-		    qSession.closeQuorum();
+		//if(qSession != null)
+		    //qSession.closeQuorum();
 		session.close();
 		
 		if(!replacedThread || actionsList.isEmpty()) {

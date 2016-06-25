@@ -6,13 +6,9 @@ package distributed_fs.overlay.manager;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -22,10 +18,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import javax.swing.Timer;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
@@ -33,7 +25,6 @@ import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
-import gossiping.RemoteGossipMember;
 
 /**
  * Class used to receive the quorum requests.
@@ -172,7 +163,6 @@ public class QuorumThread extends Thread
      * 
      * @param state             
      * @param session           the actual TCP connection
-     * @param quorum            
      * @param opType            
      * @param fileName          
      * @param destId            
@@ -181,7 +171,6 @@ public class QuorumThread extends Thread
     */
     public List<QuorumNode> checkQuorum( final ThreadState state,
                                          final TCPSession session,
-                                         final QuorumSession quorum,
                                          final byte opType,
                                          final String fileName,
                                          final String destId ) throws IOException
@@ -203,7 +192,7 @@ public class QuorumThread extends Thread
             return new ArrayList<>();
         }
         else {
-            List<QuorumNode> agreedNodes = contactNodes( state, session, quorum, opType, fileName, nodes );
+            List<QuorumNode> agreedNodes = contactNodes( state, session, opType, fileName, nodes );
             return agreedNodes;
         }
     }
@@ -213,7 +202,6 @@ public class QuorumThread extends Thread
      * 
      * @param state     
      * @param session   
-     * @param quorum    
      * @param opType    
      * @param fileName  
      * @param nodes     
@@ -222,7 +210,6 @@ public class QuorumThread extends Thread
     */
     private List<QuorumNode> contactNodes( final ThreadState state,
                                            final TCPSession session,
-                                           final QuorumSession quorum,
                                            final byte opType,
                                            final String fileName,
                                            final List<GossipMember> nodes ) throws IOException
@@ -277,10 +264,10 @@ public class QuorumThread extends Thread
                     DFSNode.LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
                     // Not blocked => node agrees to the quorum.
                     if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
-                        QuorumNode qNode = new QuorumNode( quorum, node, fileName, opType, data.getLong() );
+                        QuorumNode qNode = new QuorumNode( node, fileName, opType, data.getLong() );
                         qNode.addAgreedNodes( agreedNodes );
                         agreedNodes.add( qNode );
-                        quorum.saveState( agreedNodes );
+                        //quorum.saveState( agreedNodes );
                         state.getActionsList().addLast( DFSNode.DONE );
                     }
                     else
@@ -290,13 +277,13 @@ public class QuorumThread extends Thread
                     // Blocked => the node doesn't agree to the quorum.
                     DFSNode.LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
                     if(QuorumSession.unmakeQuorum( ++errors, opType )) {
-                        cancelQuorum( state, session, quorum, agreedNodes );
+                        cancelQuorum( state, session, agreedNodes );
                         break;
                     }
                     state.setValue( ThreadState.QUORUM_ERRORS, errors );
                 }
             }
-            catch( IOException | JSONException e ) {
+            catch( IOException e ) {
                 // Ignored.
                 e.printStackTrace();
                 
@@ -305,7 +292,7 @@ public class QuorumThread extends Thread
                 
                 DFSNode.LOGGER.info( "[SN] Node " + node + " is not reachable." );
                 if(QuorumSession.unmakeQuorum( ++errors, opType )) {
-                    cancelQuorum( state, session, quorum, agreedNodes );
+                    cancelQuorum( state, session, agreedNodes );
                     break;
                 }
                 state.setValue( ThreadState.QUORUM_ERRORS, errors );
@@ -327,13 +314,12 @@ public class QuorumThread extends Thread
     */
     public void cancelQuorum( final ThreadState state,
                               final TCPSession session,
-                              final QuorumSession quorum,
                               final List<QuorumNode> agreedNodes ) throws IOException
     {
         if(session != null)
             DFSNode.LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
         
-        closeQuorum( state, quorum, agreedNodes );
+        closeQuorum( state, agreedNodes );
         // send to the client the negative response
         sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
     }
@@ -342,11 +328,9 @@ public class QuorumThread extends Thread
      * Closes an open quorum session.
      * 
      * @param state         
-     * @param quorum        
      * @param agreedNodes   
     */
     public void closeQuorum( final ThreadState state,
-                             final QuorumSession quorum,
                              final List<QuorumNode> agreedNodes )
     {
         //UDPnet net = new UDPnet();
@@ -374,9 +358,9 @@ public class QuorumThread extends Thread
                     state.getActionsList().removeFirst();
                 
                 agreedNodes.remove( i );
-                quorum.saveState( agreedNodes );
+                //quorum.saveState( agreedNodes );
             }
-            catch( IOException | JSONException e ) {
+            catch( IOException e ) {
                 // Ignored.
                 //e.printStackTrace();
             }
@@ -472,25 +456,19 @@ public class QuorumThread extends Thread
 	*/
 	public static class QuorumNode
 	{
-		private final QuorumSession quorum;
 		private final GossipMember node;
 		private List<QuorumNode> nodes;
 		private final String fileName;
 		private final byte opType;
 		private final long id;
 		
-		public QuorumNode( final QuorumSession quorum, final GossipMember node,
-						   final String fileName, final byte opType, final long id )
+		public QuorumNode( final GossipMember node, final String fileName,
+		                   final byte opType, final long id )
 		{
-			this.quorum = quorum;
 			this.node = node;
 			this.fileName = fileName;
 			this.opType = opType;
 			this.id = id;
-		}
-		
-		public QuorumSession getQuorum() {
-			return quorum;
 		}
 		
 		public GossipMember getNode() {
@@ -581,15 +559,17 @@ public class QuorumThread extends Thread
 	// TODO ha senso usare la classe per scrivere su file?? secondo me a sto punto no
 	public static class QuorumSession
 	{
-	    private long timeElapsed;
-	    private String quorumFile;
+	    //private long timeElapsed;
+	    //private String quorumFile;
 	    
-	    /** Parameters of the quorum protocol (like Dynamo). */
-	    private static final short N = 3, W = 2, R = 2;
+	    /* Parameters of the quorum protocol (like Dynamo). */
+	    private static final short N = 3; // Total number of nodes.
+	    private static final short W = 2; // Number of writers.
+	    private static final short R = 2; // Number of readers.
 	    /** The location of the quorum file. */
-	    private static final String QUORUM_LOCATION = "QuorumSessions/";
+	    //private static final String QUORUM_LOCATION = "QuorumSessions/";
 	    /** The quorum file status location. */
-	    public static final String QUORUM_FILE = "QuorumStatus_";
+	    //public static final String QUORUM_FILE = "QuorumStatus_";
 	    
 	    /**
 	     * Construct a new quorum session.
@@ -597,7 +577,7 @@ public class QuorumThread extends Thread
 	     * @param fileLocation     specify the location of the quorum files. If {@code null} the default location will be used
 	     * @param id               identifier used to reference in a unique way the associated quorum file
 	    */
-	    public QuorumSession( final String fileLocation, final long id ) throws IOException, JSONException
+	    /*public QuorumSession( final String fileLocation, final long id ) throws IOException, JSONException
 	    {
 	        if(fileLocation == null)
 	            quorumFile = QUORUM_LOCATION + "QuorumSession_" + id + ".json";
@@ -606,14 +586,14 @@ public class QuorumThread extends Thread
 	        System.out.println( "QUORUM FILE: " + quorumFile );
 	        if(!DFSUtils.existFile( quorumFile, true ))
 	            saveState( null );
-	    }
+	    }*/
 	    
 	    /**
 	     * Loads from disk the quorum status.
 	     * 
 	     * @return the list of nodes to cancel the quorum
 	    */
-	    public List<QuorumNode> loadState() throws IOException, JSONException
+	    /*public List<QuorumNode> loadState() throws IOException, JSONException
 	    {
 	        List<QuorumNode> nodes = new ArrayList<>();
 	        
@@ -634,14 +614,14 @@ public class QuorumThread extends Thread
 	        }
 	        
 	        return nodes;
-	    }
+	    }*/
 	    
 	    /**
 	     * Saves on disk the actual status of the quorum.
 	     * 
 	     * @param nodes     list of nodes to be contacted
 	    */
-	    public void saveState( final List<QuorumNode> nodes ) throws IOException, JSONException
+	    /*public void saveState( final List<QuorumNode> nodes ) throws IOException, JSONException
 	    {
 	        JSONObject file = new JSONObject();
 	        
@@ -666,17 +646,17 @@ public class QuorumThread extends Thread
 	        writer.print( file.toString() );
 	        writer.flush();
 	        writer.close();
-	    }
+	    }*/
 	    
 	    // TODO implementare dall'esterno questa funzione
-	    public long getTimeElapsed() {
+	    /*public long getTimeElapsed() {
 	        return timeElapsed;
-	    }
+	    }*/
 	    
 	    /**
 	     * Close the quorum session.
 	    */
-	    public void closeQuorum()
+	    /*public void closeQuorum()
 	    {
 	        if(quorumFile != null) {
 	            System.out.println( "FILE DA CHIUDERE: " + quorumFile );
@@ -691,7 +671,7 @@ public class QuorumThread extends Thread
                     e.printStackTrace();
                 }
 	        }
-	    }
+	    }*/
 	    
 	    /**
 	     * Gets the maximum number of nodes to contact

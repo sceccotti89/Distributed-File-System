@@ -79,9 +79,8 @@ public class ThreadState
 	            FILES_TO_SEND        = "K",
 	            REPLICA_FILE         = "L",
 	            QUORUM_OFFSET        = "M",
-	            NODES_INDEX         = "N";
-	
-	public static final String
-	            NODE_ID              = "O",
-	            GOSSIP_NODE          = "P";
+	            NODES_INDEX          = "N",
+	            GOSSIP_NODE_ID       = "O",
+	            GOSSIP_NODE          = "P",
+	            BALANCED_NODE_CONN   = "Q";
 }

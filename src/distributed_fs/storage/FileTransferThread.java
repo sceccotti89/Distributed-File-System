@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.log4j.Logger;
-import org.json.JSONException;
 
 import distributed_fs.anti_entropy.AntiEntropyReceiverThread;
 import distributed_fs.anti_entropy.AntiEntropySenderThread;
@@ -290,10 +289,8 @@ public class FileTransferThread extends Thread
 				DistributedFile dFile = files.get( i );
 				if(dFile.isDeleted())
 					msg = net.createMessage( new byte[]{ Message.DELETE }, DFSUtils.serializeObject( dFile ), true );
-					//msg = net.createMessage( new byte[]{ Message.DELETE }, dFile.read(), true );
 				else {
 					RemoteFile file = new RemoteFile( dFile, database.getFileSystemRoot() );
-					//msg = net.createMessage( new byte[]{ Message.PUT }, DFSUtils.serializeObject( file ), true );
 					msg = net.createMessage( new byte[]{ Message.PUT }, file.read(), true );
 				}
 				
@@ -310,15 +307,13 @@ public class FileTransferThread extends Thread
 			if(node != null)
 				updateQuorum( node );
 		}
-		catch( IOException | JSONException e ) {
+		catch( IOException e ) {
 			//e.printStackTrace();
 			complete = false;
 			if(synchNodeId != null) {
 				receiveAE_t.removeFromSynch( synchNodeId );
-				if(node != null) {
-					try { updateQuorum( node ); }
-					catch( IOException | JSONException ex ) {}
-				}
+				if(node != null)
+					updateQuorum( node );
 			}
 		}
 		
@@ -328,11 +323,15 @@ public class FileTransferThread extends Thread
 		return complete;
 	}
 	
-	private synchronized void updateQuorum( final QuorumNode node ) throws IOException, JSONException
+	/**
+	 * Updates the quorum state.
+	 * 
+	 * @param node    the quorum node
+	*/
+	private synchronized void updateQuorum( final QuorumNode node )
 	{
 		List<QuorumNode> nodes = node.getList();
 		nodes.remove( node );
-		node.getQuorum().saveState( nodes );
 	}
 	
 	/**
