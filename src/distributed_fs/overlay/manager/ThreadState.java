@@ -66,7 +66,7 @@ public class ThreadState
 	
 	/* Keys used to save the objects for the recovery phase. */
 	public static final String
-	            MSG_FROM_CLIENT      = "A",
+	            NEW_MSG_REQUEST      = "A",
 	            SUCCESSOR_NODES      = "B",
 	            AGREED_NODES         = "C",
 	            QUORUM_ERRORS        = "D",
@@ -79,5 +79,9 @@ public class ThreadState
 	            FILES_TO_SEND        = "K",
 	            REPLICA_FILE         = "L",
 	            QUORUM_OFFSET        = "M",
-	            QUORUM_INDEX         = "N";
+	            NODES_INDEX         = "N";
+	
+	public static final String
+	            NODE_ID              = "O",
+	            GOSSIP_NODE          = "P";
 }

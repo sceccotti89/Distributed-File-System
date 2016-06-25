@@ -39,6 +39,7 @@ public class LoadBalancer extends DFSNode
 	// ===== used by the private constructor ===== //
 	private TCPSession session;
 	private String clientAddress;
+	private boolean replacedThread;
 	// =========================================== //
 	
 	private List<Thread> threadsList;
@@ -113,8 +114,7 @@ public class LoadBalancer extends DFSNode
                         if(threadPool.isShutdown())
                             break;
                         
-                        LoadBalancer node = new LoadBalancer( false, _net, session,
-                                                              cHasher, netMonitor );
+                        LoadBalancer node = new LoadBalancer( false, _net, session, cHasher, netMonitor );
                         monitor_t.addThread( node );
                         
                         threadPool.execute( node );
@@ -150,10 +150,11 @@ public class LoadBalancer extends DFSNode
 	{
 		super( net, null, cHasher );
 		
+		this.replacedThread = replacedThread;
 		this.netMonitor = netMonitor;
 		session = srcSession;
 		
-		actionsList = new ArrayDeque<>( 32 );
+		actionsList = new ArrayDeque<>( 32 );// TODO forse qui ne andrebbero messi un po' meno...tipo 16
         state = new ThreadState( id, replacedThread, actionsList,
                                  fMgr, null, cHasher, this.netMonitor );
 	}
@@ -161,15 +162,15 @@ public class LoadBalancer extends DFSNode
 	@Override
 	public void run()
 	{
-		//LOGGER.info( "[LB] Handling an incoming connection..." );
-	    
-	    // TODO usare il controllo "if(!replacedThread || actionsList.isEmpty())" per testare se deve leggere dalla sessione corrente
-		
-		//while(true) {
-		TCPSession newSession = null;
+		LOGGER.info( "[LB] New request arrived..." );
 		
 		try {
-		    MessageRequest data = DFSUtils.deserializeObject( session.receiveMessage() );
+		    MessageRequest data = state.getValue( ThreadState.NEW_MSG_REQUEST );
+            if(data == null) {
+                data = DFSUtils.deserializeObject( session.receiveMessage() );
+                state.setValue( ThreadState.NEW_MSG_REQUEST, data );
+            }
+            
 			// Get the operation type.
 			byte opType = data.getType();
 			clientAddress = data.getMetadata().getClientAddress();
@@ -178,77 +179,79 @@ public class LoadBalancer extends DFSNode
 			
 			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
 			
-			// Get the node associated to the file.
-			String nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
-			if(nodeId != null) {
-				GossipMember node = cHasher.getBucket( nodeId );
-				if(node != null) {
-					System.out.println( "OWNER: " + node );
-					
-					// Send the request to the "best" node, based on load informations.
-					String hintedHandoff = null;
-					List<GossipMember> nodes = getNodesFromPreferenceList( nodeId, node );
-					LOGGER.debug( "[LB] Nodes: " + nodes );
-					
-					for(int i = nodes.size() - 1; i >= 0; i--) {
-						GossipMember targetNode = getBalancedNode( nodes );
-						
-						// Contact the target node.
-						LOGGER.debug( "[LB] Contacting: " + targetNode );
-						try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
-						catch( IOException e ){
-						    // Ignored.
-							//e.printStackTrace();
-						}
-						
-						if(newSession == null) {
-							LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
-							
-							if(opType == Message.PUT && hintedHandoff == null)
-								hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
-							LOGGER.debug( "Hinted Handoff: " + hintedHandoff );
-							
-							nodes.remove( targetNode );
-						}
-						else {
-							// Notify the client that a remote node is available.
-							MessageResponse response = new MessageResponse( Message.TRANSACTION_OK );
-							session.sendMessage( response, true );
-							
-							// Send the message to the target node.
-							forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getPayload() );
-							newSession.close();
-							LOGGER.info( "[LB] Request forwarded to: " + targetNode );
-							break;
-						}
-					}
-					
-					if(newSession == null) {
-						MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
-						session.sendMessage( response, true );
-					}
-				}
-			}
-			else {
-				LOGGER.info( "There are no available nodes. The transaction will be closed." );
-				MessageResponse response = new MessageResponse( Message.TRANSACTION_FAILED );
-				session.sendMessage( response, true );
+			// Get the id and the node associated to the file.
+			String nodeId = state.getValue( ThreadState.NODE_ID );
+			if(nodeId == null) {
+			    nodeId = cHasher.getNextBucket( DFSUtils.getId( fileName ) );
+			    state.setValue( ThreadState.NODE_ID, nodeId );
 			}
 			
-			//session.close();
+			GossipMember node = null;
+			if(nodeId != null) {
+			    node = state.getValue( ThreadState.GOSSIP_NODE );
+	            if(node == null) {
+	                node = cHasher.getBucket( nodeId );
+	                state.setValue( ThreadState.GOSSIP_NODE, node );
+	            }
+			}
+			
+			if(node != null) {
+			    LOGGER.debug( "[LB] Owner: " + node );
+				
+				List<GossipMember> nodes = getNodesFromPreferenceList( nodeId, node );
+				LOGGER.debug( "[LB] Nodes: " + nodes );
+				
+				String hintedHandoff = null;
+				TCPSession newSession = null;
+				Integer index = state.getValue( ThreadState.NODES_INDEX );
+				if(index == null) index = nodes.size();
+				for(int i = index - 1; i >= 0; i--) {
+				    // Send the request to the "best" node, based on load informations.
+					GossipMember targetNode = getBalancedNode( nodes );
+					
+					// Contact the target node.
+					LOGGER.debug( "[LB] Contacting: " + targetNode );
+					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
+					catch( IOException e ){ /* Ignored. // e.printStackTrace();*/ }
+					
+					if(newSession != null) {
+					    // Notify the client that a remote node is available.
+                        sendClientResponse( Message.TRANSACTION_OK );
+                        
+                        // Send the message to the target node.
+                        forwardRequest( newSession, opType, targetNode.getId(), hintedHandoff, fileName, data.getPayload() );
+                        newSession.close();
+                        LOGGER.info( "[LB] Request forwarded to: " + targetNode );
+                        break;
+					}
+					else {
+					    LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
+                        
+                        if(opType == Message.PUT && hintedHandoff == null)
+                            hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
+                        LOGGER.debug( "[LB] Hinted Handoff: " + hintedHandoff );
+                        
+                        nodes.remove( targetNode );
+					}
+					
+					state.setValue( ThreadState.NODES_INDEX, i );
+				}
+				
+				if(newSession == null)
+				    sendClientResponse( Message.TRANSACTION_FAILED );
+			}
+			else
+			    sendClientResponse( Message.TRANSACTION_FAILED );
 		}
 		catch( IOException e ){
+		    // Ignored.
 			//e.printStackTrace();
-			//session.close();
-			if(newSession != null)
-				newSession.close();
-			
-			//break;
 		}
-		//}
 		
 		session.close();
 		LOGGER.info( "[LB] Closed request from: " + clientAddress );
+		
+		System.out.println( "ACTIONS_LIST_SIZE: " + actionsList.size() + ", VALUES_SIZE: " + state.getValuesSize() );
 	}
 	
 	/**
@@ -265,8 +268,12 @@ public class LoadBalancer extends DFSNode
 	private List<GossipMember> getNodesFromPreferenceList( final String id, final GossipMember sourceNode )
 	{
 		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
-		List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
-		nodes.add( sourceNode );
+		List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
+		if(nodes == null) {
+		    nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
+		    nodes.add( sourceNode );
+		    state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
+		}
 		return nodes;
 	}
 
@@ -310,19 +317,43 @@ public class LoadBalancer extends DFSNode
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
 	                             final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
 	{
-		MessageRequest message;
-		Metadata meta = new Metadata( clientAddress, hintedHandoff );
-		
-		if(opType == Message.GET_ALL)
-			message = new MessageRequest( opType, fileName, null, false, null, meta );
-		else {
-    		if(opType != Message.GET) // PUT and DELETE operations
-    		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
-    		else // GET operation
-    		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
-		}
-		
-		session.sendMessage( DFSUtils.serializeObject( message ), true );
+	    if(!replacedThread || actionsList.isEmpty()) {
+    		MessageRequest message;
+    		Metadata meta = new Metadata( clientAddress, hintedHandoff );
+    		
+    		if(opType == Message.GET_ALL)
+    			message = new MessageRequest( opType, fileName, null, false, null, meta );
+    		else {
+        		if(opType != Message.GET) // PUT and DELETE operations
+        		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
+        		else // GET operation
+        		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
+    		}
+    		
+    		session.sendMessage( DFSUtils.serializeObject( message ), true );
+    		actionsList.addLast( DONE );
+        }
+        else
+            actionsList.removeFirst();
+	}
+	
+	/**
+	 * Sends to the client the response.
+	 * 
+	 * @param state
+	*/
+	private void sendClientResponse( final byte state ) throws IOException
+	{
+	    if(state == Message.TRANSACTION_FAILED)
+	        LOGGER.info( "There are no available nodes. The transaction will be closed." );
+	    
+	    if(!replacedThread || actionsList.isEmpty()) {
+            MessageResponse response = new MessageResponse( state );
+            session.sendMessage( response, true );
+            actionsList.addLast( DONE );
+	    }
+	    else
+	        actionsList.removeFirst();
 	}
 	
 	/**
@@ -334,11 +365,11 @@ public class LoadBalancer extends DFSNode
     public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
     {
         LoadBalancer node =
-                new LoadBalancer( true,
-                                  state.getNet(),
-                                  state.getSession(),
-                                  state.getHashing(),
-                                  state.getNetMonitor() );
+        new LoadBalancer( true,
+                          state.getNet(),
+                          state.getSession(),
+                          state.getHashing(),
+                          state.getNetMonitor() );
         
         synchronized( threadPool ) {
             if(threadPool.isShutdown())

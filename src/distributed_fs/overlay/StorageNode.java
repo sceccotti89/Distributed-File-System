@@ -250,10 +250,10 @@ public class StorageNode extends DFSNode
 		}
 		
 		try {
-		    MessageRequest data = state.getValue( ThreadState.MSG_FROM_CLIENT );
+		    MessageRequest data = state.getValue( ThreadState.NEW_MSG_REQUEST );
 		    if(data == null) {
 		        data = DFSUtils.deserializeObject( session.receiveMessage() );
-		        state.setValue( ThreadState.MSG_FROM_CLIENT, data );
+		        state.setValue( ThreadState.NEW_MSG_REQUEST, data );
 		    }
 		    
             byte opType = data.getType();
@@ -385,7 +385,7 @@ public class StorageNode extends DFSNode
 			if(errors == null) errors = 0;
 			Integer offset = state.getValue( ThreadState.QUORUM_OFFSET );
             if(offset == null) offset = 0;
-            Integer toIndex = state.getValue( ThreadState.QUORUM_INDEX );
+            Integer toIndex = state.getValue( ThreadState.NODES_INDEX );
             if(toIndex == null) toIndex = 0; toIndex = toIndex - offset;
 			int index = 0;
 			
@@ -428,7 +428,7 @@ public class StorageNode extends DFSNode
     					state.setValue( ThreadState.QUORUM_ERRORS, errors );
     				}
     				
-    				state.setValue( ThreadState.QUORUM_INDEX, ++toIndex );
+    				state.setValue( ThreadState.NODES_INDEX, ++toIndex );
 			    }
 				
 				index++;
