@@ -674,8 +674,6 @@ public class StorageNode extends DFSNode
 	*/
 	public void closeWorker()
 	{
-		//if(qSession != null)
-		    //qSession.closeQuorum();
 		session.close();
 		
 		if(!replacedThread || actionsList.isEmpty()) {

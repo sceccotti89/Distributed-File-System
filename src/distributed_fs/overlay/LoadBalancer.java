@@ -75,8 +75,6 @@ public class LoadBalancer extends DFSNode
 		netMonitor = new NetworkMonitorReceiverThread( _address );
 		threadsList = new ArrayList<>( MAX_USERS );
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
-		
-		launch();
 	}
 	
 	/** Testing. */
@@ -367,8 +365,8 @@ public class LoadBalancer extends DFSNode
 	/**
      * Start a thread, replacing an inactive one.
      * 
-     * @param threadPool
-     * @param state
+     * @param threadPool    
+     * @param state         
     */
     public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
     {
@@ -397,6 +395,7 @@ public class LoadBalancer extends DFSNode
 		int port = ArgumentsParser.getPort();
 		List<GossipMember> members = ArgumentsParser.getNodes();
 		
-		new LoadBalancer( ipAddress, port, members );
+		LoadBalancer balancer = new LoadBalancer( ipAddress, port, members );
+		balancer.launch();
 	}
 }

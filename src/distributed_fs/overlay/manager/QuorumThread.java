@@ -122,7 +122,7 @@ public class QuorumThread extends Thread
                         String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
                         boolean locked = setLocked( true, fileName, 0, opType );
                         
-                        DFSNode.LOGGER.info( "Received a MAKE_QUORUM request for '" + fileName +
+                        DFSNode.LOGGER.info( "[QUORUM] Received a MAKE_QUORUM request for '" + fileName +
                                              "'. Request status: " + (!locked ? "BLOCKED" : "FREE") );
                         
                         // Send the current blocked state.
@@ -135,7 +135,7 @@ public class QuorumThread extends Thread
                         break;
                     
                     case( RELEASE_QUORUM ):
-                        DFSNode.LOGGER.info( "Received a RELEASE_QUORUM request" );
+                        DFSNode.LOGGER.info( "[QUORUM] Received a RELEASE_QUORUM request" );
                         long id = data.getLong();
                         fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
                         setLocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
@@ -182,7 +182,7 @@ public class QuorumThread extends Thread
             state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
         }
         
-        DFSNode.LOGGER.debug( "Neighbours: " + nodes.size() );
+        DFSNode.LOGGER.debug( "[SN] Neighbours: " + nodes.size() );
         if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
             DFSNode.LOGGER.info( "[SN] Quorum failed: " + nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
             
@@ -226,26 +226,31 @@ public class QuorumThread extends Thread
         
         Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
         if(errors == null) errors = 0;
-        
         for(GossipMember node : nodes) {
-            DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
             TCPSession mySession = null;
             try {
-                mySession = state.getValue( ThreadState.AGREED_NODE_CONN );
-                if(mySession == null || mySession.isClosed()) {
+                // Build the remote connection.
+                if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
                     mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
                     state.setValue( ThreadState.AGREED_NODE_CONN, mySession );
+                    state.getActionsList().addLast( DFSNode.DONE );
+                }
+                else {
+                    mySession = state.getValue( ThreadState.AGREED_NODE_CONN );
+                    state.getActionsList().removeFirst();
                 }
                 
                 // Send the message.
-                byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
                     mySession.sendMessage( msg, true );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
                 else
                     state.getActionsList().remove();
                 
+                // Wait for the response message.
                 DFSNode.LOGGER.info( "[SN] Waiting the response..." );
                 ByteBuffer data;
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
@@ -260,28 +265,29 @@ public class QuorumThread extends Thread
                 
                 mySession.close();
                 
-                if(data.get() == ACCEPT_QUORUM_REQUEST) {
-                    DFSNode.LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
-                    // Not blocked => node agrees to the quorum.
-                    if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                // Read the response.
+                if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    if(data.get() == ACCEPT_QUORUM_REQUEST) {
+                        // Not blocked => node agrees to the quorum.
+                        DFSNode.LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
                         QuorumNode qNode = new QuorumNode( node, fileName, opType, data.getLong() );
                         qNode.addAgreedNodes( agreedNodes );
                         agreedNodes.add( qNode );
-                        //quorum.saveState( agreedNodes );
-                        state.getActionsList().addLast( DFSNode.DONE );
                     }
-                    else
-                        state.getActionsList().removeFirst();
-                }
-                else {
-                    // Blocked => the node doesn't agree to the quorum.
-                    DFSNode.LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
-                    if(QuorumSession.unmakeQuorum( ++errors, opType )) {
-                        cancelQuorum( state, session, agreedNodes );
-                        break;
+                    else {
+                        // Blocked => the node doesn't agree to the quorum.
+                        DFSNode.LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
+                        if(QuorumSession.unmakeQuorum( ++errors, opType )) {
+                            cancelQuorum( state, session, agreedNodes );
+                            break;
+                        }
+                        state.setValue( ThreadState.QUORUM_ERRORS, errors );
                     }
-                    state.setValue( ThreadState.QUORUM_ERRORS, errors );
+                    
+                    state.getActionsList().addLast( DFSNode.DONE );
                 }
+                else
+                    state.getActionsList().removeFirst();
             }
             catch( IOException e ) {
                 // Ignored.
@@ -309,7 +315,6 @@ public class QuorumThread extends Thread
      * 
      * @param state         
      * @param session       network channel with the client
-     * @param quorum        the actual quorum session
      * @param agreedNodes   list of contacted nodes
     */
     public void cancelQuorum( final ThreadState state,
@@ -330,8 +335,7 @@ public class QuorumThread extends Thread
      * @param state         
      * @param agreedNodes   
     */
-    public void closeQuorum( final ThreadState state,
-                             final List<QuorumNode> agreedNodes )
+    public void closeQuorum( final ThreadState state, final List<QuorumNode> agreedNodes )
     {
         //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
@@ -358,7 +362,6 @@ public class QuorumThread extends Thread
                     state.getActionsList().removeFirst();
                 
                 agreedNodes.remove( i );
-                //quorum.saveState( agreedNodes );
             }
             catch( IOException e ) {
                 // Ignored.
@@ -556,122 +559,12 @@ public class QuorumThread extends Thread
 		}
 	}
 	
-	// TODO ha senso usare la classe per scrivere su file?? secondo me a sto punto no
 	public static class QuorumSession
 	{
-	    //private long timeElapsed;
-	    //private String quorumFile;
-	    
 	    /* Parameters of the quorum protocol (like Dynamo). */
 	    private static final short N = 3; // Total number of nodes.
 	    private static final short W = 2; // Number of writers.
 	    private static final short R = 2; // Number of readers.
-	    /** The location of the quorum file. */
-	    //private static final String QUORUM_LOCATION = "QuorumSessions/";
-	    /** The quorum file status location. */
-	    //public static final String QUORUM_FILE = "QuorumStatus_";
-	    
-	    /**
-	     * Construct a new quorum session.
-	     * 
-	     * @param fileLocation     specify the location of the quorum files. If {@code null} the default location will be used
-	     * @param id               identifier used to reference in a unique way the associated quorum file
-	    */
-	    /*public QuorumSession( final String fileLocation, final long id ) throws IOException, JSONException
-	    {
-	        if(fileLocation == null)
-	            quorumFile = QUORUM_LOCATION + "QuorumSession_" + id + ".json";
-	        else
-	            quorumFile = fileLocation + "QuorumSession_" + id + ".json";
-	        System.out.println( "QUORUM FILE: " + quorumFile );
-	        if(!DFSUtils.existFile( quorumFile, true ))
-	            saveState( null );
-	    }*/
-	    
-	    /**
-	     * Loads from disk the quorum status.
-	     * 
-	     * @return the list of nodes to cancel the quorum
-	    */
-	    /*public List<QuorumNode> loadState() throws IOException, JSONException
-	    {
-	        List<QuorumNode> nodes = new ArrayList<>();
-	        
-	        JSONObject file = DFSUtils.parseJSONFile( quorumFile );
-	        
-	        long timestamp = file.getLong( "timestamp" );
-	        timeElapsed = System.currentTimeMillis() - timestamp;
-	        
-	        JSONArray members = file.getJSONArray( "members" );
-	        for(int i = 0; i < members.length(); i++) {
-	            JSONObject member = members.getJSONObject( i );
-	            String hostname = member.getString( "host" );
-	            int port = member.getInt( "port" );
-	            String fileName = member.getString( "file" );
-	            byte opType = (byte) member.getInt( "opType" );
-	            long id = member.getLong( "id" );
-	            nodes.add( new QuorumNode( this, new RemoteGossipMember( hostname, port, "", 0, 0 ), fileName, opType, id ) );
-	        }
-	        
-	        return nodes;
-	    }*/
-	    
-	    /**
-	     * Saves on disk the actual status of the quorum.
-	     * 
-	     * @param nodes     list of nodes to be contacted
-	    */
-	    /*public void saveState( final List<QuorumNode> nodes ) throws IOException, JSONException
-	    {
-	        JSONObject file = new JSONObject();
-	        
-	        JSONArray members = new JSONArray();
-	        if(nodes != null && nodes.size() > 0) {
-	            for(int i = 0; i < nodes.size(); i++) {
-	                GossipMember node = nodes.get( i ).getNode();
-	                JSONObject member = new JSONObject();
-	                member.put( "host", node.getHost() );
-	                member.put( "port", node.getPort() );
-	                member.put( "file" , nodes.get( i ).getFileName() );
-	                member.put( "opType", nodes.get( i ).getOpType() );
-	                member.put( "id", nodes.get( i ).getId() );
-	                members.put( member );
-	            }
-	        }
-	        
-	        file.put( "members", members );
-	        file.put( "timestamp", System.currentTimeMillis() );
-	        
-	        PrintWriter writer = new PrintWriter( quorumFile, StandardCharsets.UTF_8.name() );
-	        writer.print( file.toString() );
-	        writer.flush();
-	        writer.close();
-	    }*/
-	    
-	    // TODO implementare dall'esterno questa funzione
-	    /*public long getTimeElapsed() {
-	        return timeElapsed;
-	    }*/
-	    
-	    /**
-	     * Close the quorum session.
-	    */
-	    /*public void closeQuorum()
-	    {
-	        if(quorumFile != null) {
-	            System.out.println( "FILE DA CHIUDERE: " + quorumFile );
-	            File f = new File( quorumFile );
-	            //f.delete();
-	            System.out.println( "EXISTS: " + f.exists() );
-	            
-	            try {
-                    // TODO alcuni file non vengono rimossi...
-                    Files.delete( Paths.get( quorumFile ) );
-                } catch( IOException e ) {
-                    e.printStackTrace();
-                }
-	        }
-	    }*/
 	    
 	    /**
 	     * Gets the maximum number of nodes to contact
