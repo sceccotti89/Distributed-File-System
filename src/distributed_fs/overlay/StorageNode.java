@@ -208,6 +208,7 @@ public class StorageNode extends DFSNode
      * Constructor used to handle an incoming request.
      * 
      * @param id                    the associated identifier
+     * @param replacedThread        {@code true} if the thread replace an old one, {@code false} otherwise
      * @param resourcesLocation     the resource location path
      * @param fMgr                  the file manager thread
      * @param quorum_t              the quorum thread
