@@ -136,7 +136,7 @@ public class LoadBalancer extends DFSNode
 	/**
 	 * Constructor used to handle an incoming request.
 	 * 
-	 * @param replacedThread   
+	 * @param replacedThread   {@code true} if the thread replace an old one, {@code false} otherwise
 	 * @param net              the net it is connected to
 	 * @param srcSession       the input request
 	 * @param cHasher          the consistent hashing
@@ -153,7 +153,7 @@ public class LoadBalancer extends DFSNode
 		this.netMonitor = netMonitor;
 		session = srcSession;
 		
-		actionsList = new ArrayDeque<>( 16 );// TODO per adesso e' 16 poi si vedra'
+		actionsList = new ArrayDeque<>( 32 );
         state = new ThreadState( id, replacedThread, actionsList,
                                  fMgr, null, cHasher, this.netMonitor );
 	}
@@ -162,6 +162,8 @@ public class LoadBalancer extends DFSNode
 	public void run()
 	{
 		//LOGGER.info( "[LB] Handling an incoming connection..." );
+	    
+	    // TODO usare il controllo "if(!replacedThread || actionsList.isEmpty())" per testare se deve leggere dalla sessione corrente
 		
 		//while(true) {
 		TCPSession newSession = null;

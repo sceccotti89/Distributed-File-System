@@ -187,15 +187,10 @@ public class QuorumThread extends Thread
                                          final String destId ) throws IOException
     {
         // Get the list of successor nodes.
-        List<GossipMember> nodes;
-        if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+        List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
+        if(nodes == null) {
             nodes = node.getSuccessorNodes( destId, address, QuorumSession.getMaxNodes() );
             state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
-            state.getActionsList().addLast( DFSNode.DONE );
-        }
-        else {
-            nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
-            state.getActionsList().remove();
         }
         
         DFSNode.LOGGER.debug( "Neighbours: " + nodes.size() );
@@ -208,8 +203,8 @@ public class QuorumThread extends Thread
             return new ArrayList<>();
         }
         else {
-            List<QuorumNode> nodeAddress = contactNodes( state, session, quorum, opType, fileName, nodes );
-            return nodeAddress;
+            List<QuorumNode> agreedNodes = contactNodes( state, session, quorum, opType, fileName, nodes );
+            return agreedNodes;
         }
     }
 
@@ -232,38 +227,64 @@ public class QuorumThread extends Thread
                                            final String fileName,
                                            final List<GossipMember> nodes ) throws IOException
     {
-        int errors = 0;
-        List<QuorumNode> agreedNodes = new ArrayList<>();
-        state.setValue( ThreadState.AGREED_NODES, agreedNodes );
+        List<QuorumNode> agreedNodes = state.getValue( ThreadState.AGREED_NODES );
+        if(agreedNodes == null) {
+            agreedNodes = new ArrayList<>( QuorumSession.getMaxNodes() );
+            state.setValue( ThreadState.AGREED_NODES, agreedNodes );
+        }
         
         //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
         //net.setSoTimeout( 2000 );
         
-        // get the index of the cycle.
-        Integer index = state.getValue( ThreadState.SUCC_NODE_INDEX );
-        if(index == null) index = -1;
-        int size = nodes.size();
-        for(int i = index + 1; i < size; i++) {
-            GossipMember node = nodes.get( i );
+        Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
+        if(errors == null) errors = 0;
+        
+        for(GossipMember node : nodes) {
             DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
             TCPSession mySession = null;
             try {
-                mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
+                mySession = state.getValue( ThreadState.AGREED_NODE_CONN );
+                if(mySession == null || mySession.isClosed()) {
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
+                    state.setValue( ThreadState.AGREED_NODE_CONN, mySession );
+                }
+                
+                // Send the message.
                 byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
-                mySession.sendMessage( msg, true );
+                if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    mySession.sendMessage( msg, true );
+                    state.getActionsList().addLast( DFSNode.DONE );
+                }
+                else
+                    state.getActionsList().remove();
                 
                 DFSNode.LOGGER.info( "[SN] Waiting the response..." );
-                ByteBuffer data = ByteBuffer.wrap( mySession.receiveMessage() );
+                ByteBuffer data;
+                if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    data = ByteBuffer.wrap( mySession.receiveMessage() );
+                    state.setValue( ThreadState.QUORUM_MSG_RESPONSE, data );
+                    state.getActionsList().addLast( DFSNode.DONE );
+                }
+                else {
+                    data = state.getValue( ThreadState.QUORUM_MSG_RESPONSE );
+                    state.getActionsList().remove();
+                }
+                
                 mySession.close();
                 
                 if(data.get() == ACCEPT_QUORUM_REQUEST) {
                     DFSNode.LOGGER.info( "[SN] Node " + node + " agree to the quorum." );
-                    // Not blocked => agree to the quorum.
-                    QuorumNode qNode = new QuorumNode( quorum, node, fileName, opType, data.getLong() );
-                    qNode.addAgreedNodes( agreedNodes );
-                    agreedNodes.add( qNode );
-                    quorum.saveState( agreedNodes );
+                    // Not blocked => node agrees to the quorum.
+                    if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                        QuorumNode qNode = new QuorumNode( quorum, node, fileName, opType, data.getLong() );
+                        qNode.addAgreedNodes( agreedNodes );
+                        agreedNodes.add( qNode );
+                        quorum.saveState( agreedNodes );
+                        state.getActionsList().addLast( DFSNode.DONE );
+                    }
+                    else
+                        state.getActionsList().removeFirst();
                 }
                 else {
                     // Blocked => the node doesn't agree to the quorum.
@@ -272,11 +293,12 @@ public class QuorumThread extends Thread
                         cancelQuorum( state, session, quorum, agreedNodes );
                         break;
                     }
+                    state.setValue( ThreadState.QUORUM_ERRORS, errors );
                 }
             }
             catch( IOException | JSONException e ) {
                 // Ignored.
-                //e.printStackTrace();
+                e.printStackTrace();
                 
                 if(mySession != null)
                     mySession.close();
@@ -286,15 +308,11 @@ public class QuorumThread extends Thread
                     cancelQuorum( state, session, quorum, agreedNodes );
                     break;
                 }
+                state.setValue( ThreadState.QUORUM_ERRORS, errors );
             }
-            
-            // Save the current cycle.
-            state.setValue( ThreadState.SUCC_NODE_INDEX, i );
         }
         
         net.close();
-        
-        // TODO aggiungere un DONE qui
         
         return agreedNodes;
     }
@@ -315,18 +333,21 @@ public class QuorumThread extends Thread
         if(session != null)
             DFSNode.LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
         
-        closeQuorum( quorum, agreedNodes );
+        closeQuorum( state, quorum, agreedNodes );
         // send to the client the negative response
         sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
     }
     
     /**
-     * Close an opened quorum.
+     * Closes an open quorum session.
      * 
+     * @param state         
      * @param quorum        
      * @param agreedNodes   
     */
-    public void closeQuorum( final QuorumSession quorum, final List<QuorumNode> agreedNodes )
+    public void closeQuorum( final ThreadState state,
+                             final QuorumSession quorum,
+                             final List<QuorumNode> agreedNodes )
     {
         //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
@@ -335,17 +356,28 @@ public class QuorumThread extends Thread
             GossipMember node = agreedNodes.get( i ).getNode();
             TCPSession mySession = null;
             try {
-                mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
-                byte[] msg = net.createMessage( new byte[]{ RELEASE_QUORUM },
-                                                DFSUtils.longToByteArray( agreedNodes.get( i ).getId() ),
-                                                false );
+                mySession = state.getValue( ThreadState.RELEASE_QUORUM_CONN );
+                if(mySession == null || mySession.isClosed()) {
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
+                    state.setValue( ThreadState.RELEASE_QUORUM_CONN, mySession );
+                }
+                
+                // Create the message.
+                byte[] msg = net.createMessage( new byte[]{ RELEASE_QUORUM }, DFSUtils.longToByteArray( agreedNodes.get( i ).getId() ), false );
                 msg = net.createMessage( msg, agreedNodes.get( i ).getFileName().getBytes( StandardCharsets.UTF_8 ), true );
-                mySession.sendMessage( msg, true );
+                
+                if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                    mySession.sendMessage( msg, true );
+                    state.getActionsList().addLast( DFSNode.DONE );
+                }
+                else
+                    state.getActionsList().removeFirst();
                 
                 agreedNodes.remove( i );
                 quorum.saveState( agreedNodes );
             }
             catch( IOException | JSONException e ) {
+                // Ignored.
                 //e.printStackTrace();
             }
             
@@ -373,6 +405,8 @@ public class QuorumThread extends Thread
                 session.sendMessage( message, true );
                 state.getActionsList().addLast( DFSNode.DONE );
             }
+            else
+                state.getActionsList().removeFirst();
         }
     }
     

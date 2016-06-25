@@ -44,7 +44,7 @@ public class ThreadState
 		this.replacedThread = replacedThread;
 		this.actionsList = actionsList;
 		
-		values = new HashMap<>( 8 );//TODO per adesso e' 8 poi vediamo (basta contare i messaggi)
+		values = new HashMap<>( 16 );
 	}
 	
 	public FileTransferThread getFileManager() { return fMgr; }
@@ -60,12 +60,23 @@ public class ThreadState
 	
 	@SuppressWarnings("unchecked")
     public <T> T getValue( final String key ) { return (T) values.get( key ); }
-	public void setValue( final String key, final Object value ) { values.put( key, value ); }
+	public void setValue( final String key, final Object value ) { if(value != null) values.put( key, value ); }
+	public void removeValue( final String key ) { values.remove( key ); }
+	public int getValuesSize() { return values.size(); }
 	
 	/* Keys used to save the objects for the recovery phase. */
 	public static final String
-	            MSG_FROM_CLIENT = "A",
-	            SUCCESSOR_NODES = "B",
-	            AGREED_NODES    = "C",
-	            SUCC_NODE_INDEX = "D";
+	            MSG_FROM_CLIENT      = "A",
+	            SUCCESSOR_NODES      = "B",
+	            AGREED_NODES         = "C",
+	            QUORUM_ERRORS        = "D",
+	            AGREED_NODE_CONN     = "E",
+	            QUORUM_MSG_RESPONSE  = "F",
+	            RELEASE_QUORUM_CONN  = "G",
+	            UPDATE_CLOCK_DB      = "H",
+	            OPENED_SESSIONS      = "I",
+	            REPLICA_REQUEST_CONN = "J",
+	            FILES_TO_SEND        = "K",
+	            REPLICA_FILE         = "L",
+	            QUORUM_OFFSET        = "M";
 }

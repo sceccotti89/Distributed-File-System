@@ -76,8 +76,8 @@ public class Tests
 		//DFSService service = new DFSService( myIpAddress, 9002, true, members, null, null, null );
         //service.start();
 		
-		testNoLoadBalancers( myIpAddress );
-		//testSingleClient();
+		//testNoLoadBalancers( myIpAddress );
+		testSingleClient();
 		//stressTest();
 		//testAntiEntropy();
 		//testHintedHandoff();
