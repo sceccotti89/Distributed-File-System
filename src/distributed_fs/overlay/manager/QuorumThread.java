@@ -578,6 +578,7 @@ public class QuorumThread extends Thread
 		}
 	}
 	
+	// TODO ha senso usare la classe per scrivere su file?? secondo me a sto punto no
 	public static class QuorumSession
 	{
 	    private long timeElapsed;

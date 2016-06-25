@@ -380,48 +380,56 @@ public class StorageNode extends DFSNode
 			    state.setValue( ThreadState.FILES_TO_SEND, filesToSend );
 			}
 			
-			// Get the replica versions.
+			// Get the value of the indexes.
 			Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
 			if(errors == null) errors = 0;
 			Integer offset = state.getValue( ThreadState.QUORUM_OFFSET );
             if(offset == null) offset = 0;
+            Integer toIndex = state.getValue( ThreadState.QUORUM_INDEX );
+            if(toIndex == null) toIndex = 0; toIndex = toIndex - offset;
 			int index = 0;
+			
+			// Get the replica versions.
 			for(TCPSession session : openSessions) {
-				try{
-					ByteBuffer data;
-					if(!replacedThread || actionsList.isEmpty()) {
-					    data = ByteBuffer.wrap( session.receiveMessage() );
-					    state.setValue( ThreadState.REPLICA_FILE, data );
-					    actionsList.addLast( DONE );
-					}
-					else {
-					    data = state.getValue( ThreadState.REPLICA_FILE );
-					    actionsList.removeFirst();
-					}
-					
-					if(data.get() == (byte) 0x1) { // Replica node owns the requested file.
-					    byte[] file = DFSUtils.getNextBytes( data );
-					    if(!replacedThread || actionsList.isEmpty()) {
-    					    filesToSend.put( new RemoteFile( file ), file );
-    						
-    						// Update the list of agreedNodes.
-    						agreedNodes.remove( index - offset );
-    						qSession.saveState( agreedNodes );
-    						state.setValue( ThreadState.QUORUM_OFFSET, ++offset );
-    						actionsList.add( DONE );
-					    }
+			    if(index == toIndex) {
+    				try{
+    					ByteBuffer data;
+    					if(!replacedThread || actionsList.isEmpty()) {
+    					    data = ByteBuffer.wrap( session.receiveMessage() );
+    					    state.setValue( ThreadState.REPLICA_FILE, data );
+    					    actionsList.addLast( DONE );
+    					}
+    					else {
+    					    data = state.getValue( ThreadState.REPLICA_FILE );
+    					    actionsList.removeFirst();
+    					}
+    					
+    					if(!replacedThread || actionsList.isEmpty()) {
+        					if(data.get() == (byte) 0x1) { // Replica node owns the requested file.
+        					    byte[] file = DFSUtils.getNextBytes( data );
+        					    filesToSend.put( new RemoteFile( file ), file );
+        						
+        						// Update the list of agreedNodes.
+        						agreedNodes.remove( index - offset );
+        						qSession.saveState( agreedNodes );
+        						state.setValue( ThreadState.QUORUM_OFFSET, ++offset );
+        					}
+        					actionsList.add( DONE );
+    					}
 					    else
 					        actionsList.removeFirst();
-					}
-				}
-				catch( IOException e ) {
-					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
-						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-						quorum_t.cancelQuorum( state, this.session, qSession, agreedNodes );
-						return;
-					}
-					state.setValue( ThreadState.QUORUM_ERRORS, errors );
-				}
+    				}
+    				catch( IOException e ) {
+    					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
+    						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
+    						quorum_t.cancelQuorum( state, this.session, qSession, agreedNodes );
+    						return;
+    					}
+    					state.setValue( ThreadState.QUORUM_ERRORS, errors );
+    				}
+    				
+    				state.setValue( ThreadState.QUORUM_INDEX, ++toIndex );
+			    }
 				
 				index++;
 				session.close();

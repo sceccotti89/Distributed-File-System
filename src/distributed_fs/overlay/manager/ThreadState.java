@@ -78,5 +78,6 @@ public class ThreadState
 	            REPLICA_REQUEST_CONN = "J",
 	            FILES_TO_SEND        = "K",
 	            REPLICA_FILE         = "L",
-	            QUORUM_OFFSET        = "M";
+	            QUORUM_OFFSET        = "M",
+	            QUORUM_INDEX         = "N";
 }
