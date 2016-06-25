@@ -337,7 +337,7 @@ public class DFSUtils
 	}
 	
 	/**
-	 * Deletes an entire directory.<br>
+	 * Deletes all the content of a directory.<br>
 	 * If it contains other folders inside, them will be deleted too
 	 * in a recursive manner.
 	 * 

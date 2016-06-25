@@ -85,7 +85,7 @@ public class ThreadMonitor extends Thread
                 }
                 else {
                     DFSNode node = (DFSNode) thread;
-                    
+                    // TODO lo stesso thread viene riavviato fino a un massimo di 3 volte
                     if(!node.isCompleted()) {
                         // The current thread is dead due to some internal error.
                         // A new thread is started to replace this one.

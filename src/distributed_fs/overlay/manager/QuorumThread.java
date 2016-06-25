@@ -170,21 +170,33 @@ public class QuorumThread extends Thread
     /**
      * Starts the quorum phase.
      * 
-     * @param session   the actual TCP connection
-     * @param quorum    
-     * @param opType    
-     * @param fileName  
-     * @param destId    
+     * @param state             
+     * @param session           the actual TCP connection
+     * @param quorum            
+     * @param opType            
+     * @param fileName          
+     * @param destId            
      * 
-     * @return list of contacted nodes, that have agreed to the quorum
+     * @return list of contacted nodes that have agreed to the quorum
     */
-    public List<QuorumNode> checkQuorum( final TCPSession session,
-    									 final QuorumSession quorum,
+    public List<QuorumNode> checkQuorum( final ThreadState state,
+                                         final TCPSession session,
+                                         final QuorumSession quorum,
                                          final byte opType,
                                          final String fileName,
                                          final String destId ) throws IOException
     {
-        List<GossipMember> nodes = node.getSuccessorNodes( destId, address, QuorumSession.getMaxNodes() );
+        // Get the list of successor nodes.
+        List<GossipMember> nodes;
+        if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+            nodes = node.getSuccessorNodes( destId, address, QuorumSession.getMaxNodes() );
+            state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
+            state.getActionsList().addLast( DFSNode.DONE );
+        }
+        else {
+            nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
+            state.getActionsList().remove();
+        }
         
         DFSNode.LOGGER.debug( "Neighbours: " + nodes.size() );
         if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
@@ -192,11 +204,11 @@ public class QuorumThread extends Thread
             
             // If there is a number of nodes less than the quorum,
             // we neither start the protocol.
-            sendQuorumResponse( session, Message.TRANSACTION_FAILED );
+            sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
             return new ArrayList<>();
         }
         else {
-            List<QuorumNode> nodeAddress = contactNodes( session, quorum, opType, fileName, nodes );
+            List<QuorumNode> nodeAddress = contactNodes( state, session, quorum, opType, fileName, nodes );
             return nodeAddress;
         }
     }
@@ -204,6 +216,7 @@ public class QuorumThread extends Thread
     /**
      * Contacts the nodes to complete the quorum phase.
      * 
+     * @param state     
      * @param session   
      * @param quorum    
      * @param opType    
@@ -212,20 +225,27 @@ public class QuorumThread extends Thread
      * 
      * @return list of contacted nodes, that have agreed to the quorum
     */
-    private List<QuorumNode> contactNodes( final TCPSession session,
-    									   final QuorumSession quorum,
+    private List<QuorumNode> contactNodes( final ThreadState state,
+                                           final TCPSession session,
+                                           final QuorumSession quorum,
                                            final byte opType,
                                            final String fileName,
                                            final List<GossipMember> nodes ) throws IOException
     {
         int errors = 0;
         List<QuorumNode> agreedNodes = new ArrayList<>();
+        state.setValue( ThreadState.AGREED_NODES, agreedNodes );
         
         //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
         //net.setSoTimeout( 2000 );
         
-        for(GossipMember node : nodes) {
+        // get the index of the cycle.
+        Integer index = state.getValue( ThreadState.SUCC_NODE_INDEX );
+        if(index == null) index = -1;
+        int size = nodes.size();
+        for(int i = index + 1; i < size; i++) {
+            GossipMember node = nodes.get( i );
             DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
             TCPSession mySession = null;
             try {
@@ -249,7 +269,7 @@ public class QuorumThread extends Thread
                     // Blocked => the node doesn't agree to the quorum.
                     DFSNode.LOGGER.info( "[SN] Node " + node + " doesn't agree to the quorum." );
                     if(QuorumSession.unmakeQuorum( ++errors, opType )) {
-                        cancelQuorum( session, quorum, agreedNodes );
+                        cancelQuorum( state, session, quorum, agreedNodes );
                         break;
                     }
                 }
@@ -263,13 +283,18 @@ public class QuorumThread extends Thread
                 
                 DFSNode.LOGGER.info( "[SN] Node " + node + " is not reachable." );
                 if(QuorumSession.unmakeQuorum( ++errors, opType )) {
-                    cancelQuorum( session, quorum, agreedNodes );
+                    cancelQuorum( state, session, quorum, agreedNodes );
                     break;
                 }
             }
+            
+            // Save the current cycle.
+            state.setValue( ThreadState.SUCC_NODE_INDEX, i );
         }
         
         net.close();
+        
+        // TODO aggiungere un DONE qui
         
         return agreedNodes;
     }
@@ -277,18 +302,22 @@ public class QuorumThread extends Thread
     /**
      * Closes the opened quorum requests.
      * 
+     * @param state         
      * @param session       network channel with the client
      * @param quorum        the actual quorum session
      * @param agreedNodes   list of contacted nodes
     */
-    public void cancelQuorum( final TCPSession session, final QuorumSession quorum, final List<QuorumNode> agreedNodes ) throws IOException
+    public void cancelQuorum( final ThreadState state,
+                              final TCPSession session,
+                              final QuorumSession quorum,
+                              final List<QuorumNode> agreedNodes ) throws IOException
     {
         if(session != null)
             DFSNode.LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
         
         closeQuorum( quorum, agreedNodes );
         // send to the client the negative response
-        sendQuorumResponse( session, Message.TRANSACTION_FAILED );
+        sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
     }
     
     /**
@@ -330,14 +359,20 @@ public class QuorumThread extends Thread
     /**
      * Sends to the client the quorum response.
      * 
+     * @param state     
      * @param session   
      * @param response  
     */
-    public void sendQuorumResponse( final TCPSession session, final byte response ) throws IOException
+    public void sendQuorumResponse( final ThreadState state,
+                                    final TCPSession session,
+                                    final byte response ) throws IOException
     {
         if(session != null) {
-            MessageResponse message = new MessageResponse( response );
-            session.sendMessage( message, true );
+            if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
+                MessageResponse message = new MessageResponse( response );
+                session.sendMessage( message, true );
+                state.getActionsList().addLast( DFSNode.DONE );
+            }
         }
     }
     

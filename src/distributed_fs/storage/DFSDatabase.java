@@ -244,9 +244,9 @@ public class DFSDatabase implements Closeable
 		fileName = normalizeFileName( fileName );
 		String fileId = DFSUtils.getId( fileName );
 		
-		System.out.println( "IN ATTESA DEL LOCK " + LOCK_WRITERS.getHoldCount() );
+		//System.out.println( "IN ATTESA DEL LOCK " + LOCK_WRITERS.getHoldCount() );
 		LOCK_WRITERS.lock();
-		System.out.println( "LOCK ACQUISITO: " + db.isClosed() );
+		//System.out.println( "LOCK ACQUISITO: " + !db.isClosed() );
 		if(db.isClosed()) {
 		    LOCK_WRITERS.unlock();
 		    return null;

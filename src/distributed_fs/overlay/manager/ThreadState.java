@@ -20,16 +20,15 @@ public class ThreadState
 	private final NetworkMonitor netMonitor;
 	
 	private final long id;
+	private final boolean replacedThread;
 	private final Deque<Object> actionsList;
 	private TCPnet net;
 	private TCPSession session;
 	
 	private Map<String, Object> values;
 	
-	// TODO aggiungere i metodi e i campi per la gestione delle varie fasi del nodo
-	// TODO potrei usare una hash map in cui ad ogni stringa associo un oggetto
-	
 	public ThreadState( final long id,
+	                    final boolean replacedThread,
 						final Deque<Object> actionsList,
 						final FileTransferThread fMgr,
 						final QuorumThread quorum_t,
@@ -42,9 +41,10 @@ public class ThreadState
 		this.netMonitor = netMonitor;
 		
 		this.id = id;
+		this.replacedThread = replacedThread;
 		this.actionsList = actionsList;
 		
-		values = new HashMap<>( 8 );//TODO per adesso e' 8 poi vediamo
+		values = new HashMap<>( 8 );//TODO per adesso e' 8 poi vediamo (basta contare i messaggi)
 	}
 	
 	public FileTransferThread getFileManager() { return fMgr; }
@@ -53,10 +53,19 @@ public class ThreadState
 	public NetworkMonitor getNetMonitor(){ return netMonitor; }
 	
 	public long getId(){ return id; }
+	public boolean isReplacedThread() { return replacedThread; }
 	public Deque<Object> getActionsList(){ return actionsList; }
 	public TCPnet getNet(){ return net; }
 	public TCPSession getSession(){ return session; }
 	
-	public void addValue( final String key, final Object value ) { values.put( key, value ); }
-	public Object getValue( final String key ) { return values.get( key ); }
+	@SuppressWarnings("unchecked")
+    public <T> T getValue( final String key ) { return (T) values.get( key ); }
+	public void setValue( final String key, final Object value ) { values.put( key, value ); }
+	
+	/* Keys used to save the objects for the recovery phase. */
+	public static final String
+	            MSG_FROM_CLIENT = "A",
+	            SUCCESSOR_NODES = "B",
+	            AGREED_NODES    = "C",
+	            SUCC_NODE_INDEX = "D";
 }

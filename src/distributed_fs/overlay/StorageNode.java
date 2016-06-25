@@ -65,9 +65,6 @@ public class StorageNode extends DFSNode
 	private MembershipManagerThread lMgr_t;
 	private List<Thread> threadsList;
 	
-	// Used to create the list of actions done by the node.
-	private static final Object DONE = new Object();
-	
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
@@ -236,7 +233,8 @@ public class StorageNode extends DFSNode
     	this.netMonitor = netMonitor;
     	
     	actionsList = new ArrayDeque<>( 16 );// TODO per adesso e' 16 poi si vedra'
-    	state = new ThreadState( id, actionsList, fMgr, quorum_t, cHasher, this.netMonitor );
+    	state = new ThreadState( id, replacedThread, actionsList,
+    	                         fMgr, quorum_t, cHasher, this.netMonitor );
     }
 
     @Override
@@ -251,18 +249,16 @@ public class StorageNode extends DFSNode
 		}
 		
 		// TODO GENERARE LA MACCHINA A STATI FINITI, ricordandosi di salvare tutti i dati nell'apposito threadState
-		
 		// TODO usare il controllo "if(!replacedThread || actionsList.isEmpty())" per testare se deve leggere dalla sessione
 		
 		try {
 		    MessageRequest data;
-		    // TODO usare una giusta chiave per il messaggio
 		    if(!replacedThread || actionsList.isEmpty()) {
 		        data = DFSUtils.deserializeObject( session.receiveMessage() );
-		        state.addValue( "", data );
+		        state.setValue( ThreadState.MSG_FROM_CLIENT, data );
 		    }
 		    else {
-		        data = (MessageRequest) state.getValue( "" );
+		        data = state.getValue( ThreadState.MSG_FROM_CLIENT );
 		        actionsList.removeFirst();
 		    }
 		    
@@ -284,7 +280,8 @@ public class StorageNode extends DFSNode
 				
 				LOGGER.info( "[SN] Start the quorum..." );
 				qSession = new QuorumSession( resourcesLocation, id );
-				agreedNodes = quorum_t.checkQuorum( session, qSession, opType, fileName, destId );
+				agreedNodes = quorum_t.checkQuorum( state, session, qSession,
+				                                    opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
 				
 				// Check if the quorum has been completed successfully.
@@ -297,7 +294,7 @@ public class StorageNode extends DFSNode
 					if(opType != Message.GET) {
 					    // The successfull transaction will be sent later for the GET operation.
 						LOGGER.info( "[SN] Quorum completed successfully: " + replicaNodes + "/" + QuorumSession.getMinQuorum( opType ) );
-						quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
+						quorum_t.sendQuorumResponse( state, session, Message.TRANSACTION_OK );
 					}
 				}
 			}
@@ -398,7 +395,7 @@ public class StorageNode extends DFSNode
 				catch( IOException e ) {
 					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
 						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-						quorum_t.cancelQuorum( this.session, qSession, agreedNodes );
+						quorum_t.cancelQuorum( state, this.session, qSession, agreedNodes );
 						return;
 					}
 				}
@@ -409,7 +406,7 @@ public class StorageNode extends DFSNode
 			
 			// Send the positive notification to the client.
 			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-			quorum_t.sendQuorumResponse( session, Message.TRANSACTION_OK );
+			quorum_t.sendQuorumResponse( state, session, Message.TRANSACTION_OK );
 			
 			// Put in the list the file present in the database of this node.
 			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
@@ -568,11 +565,15 @@ public class StorageNode extends DFSNode
 	{
 	    if(clientAddress != null) {
 	        // If the address is not null means that it's a LoadBalancer address.
-	        session.close();
-    		
-    		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-    		String[] host = clientAddress.split( ":" );
-    		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
+	        if(!replacedThread || actionsList.isEmpty()) {
+    	        session.close();
+        		
+        		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
+        		String[] host = clientAddress.split( ":" );
+        		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
+        		
+        		actionsList.addLast( DONE );
+	        }
 	    }
 	}
 	
