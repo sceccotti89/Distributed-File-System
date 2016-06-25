@@ -53,6 +53,7 @@ public class Tests
 	public static void main( final String[] args ) throws Exception
 	{
 	    // TODO fare dei test sulla chiusura di LoadBalancer, StorageNode e DFSService
+	    // TODO per capire se chiudono tutte le risorse.
 	    new Tests();
 	}
 	
@@ -69,20 +70,20 @@ public class Tests
 		//assertFalse( service.start() );
 		//service.shutDown();
 		
-		startSystem( false );
+		startSystem( true );
 		
 		//Thread.sleep( 2000 );
 		
-		//DFSService service = new DFSService( myIpAddress, 9002, true, members, null, null, null );
-        //service.start();
+		DFSService service = new DFSService( myIpAddress, 9002, false, members, null, null, null );
+        service.start();
 		
 		//testNoLoadBalancers( myIpAddress );
-		testSingleClient();
+		//testSingleClient();
 		//stressTest();
 		//testAntiEntropy();
 		//testHintedHandoff();
 		
-		close();
+		//close();
 		
 		System.out.println( "End of tests." );
 	}
@@ -91,7 +92,7 @@ public class Tests
 	public void startSystem( final boolean disableAntiEntropy ) throws IOException, JSONException, SQLException, InterruptedException, DFSException
 	{
 		runServers( disableAntiEntropy );
-		runClients( myIpAddress, 2 );
+		//runClients( myIpAddress, 2 );
 	}
 	
 	@Before

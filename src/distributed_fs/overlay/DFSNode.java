@@ -42,6 +42,7 @@ import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
+import gossiping.GossipNode;
 import gossiping.GossipRunner;
 import gossiping.LogLevel;
 import gossiping.event.GossipListener;
@@ -222,8 +223,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	@Override
-	public void gossipEvent( final GossipMember member, final GossipState state )
+	public void gossipEvent( final GossipNode node, final GossipState state )
 	{
+	    GossipMember member = node.getMember();
 		if(state == GossipState.DOWN) {
 			LOGGER.info( "Removed node: " + member.toJSONObject().toString() );
 			try{ cHasher.removeBucket( member ); }

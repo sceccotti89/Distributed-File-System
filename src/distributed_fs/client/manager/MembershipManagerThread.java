@@ -3,8 +3,11 @@ package distributed_fs.client.manager;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -14,17 +17,20 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
+import gossiping.GossipNode;
 
 public class MembershipManagerThread extends Thread
 {
     private final Random random;
     private final TCPnet net;
+    private List<GossipNode> members;
     private final ConsistentHasherImpl<GossipMember, String> cHasher;
     
     private boolean closed = false;
     
     private static final Logger LOGGER = Logger.getLogger( MembershipManagerThread.class );
     private static final int TIMER_REQUEST = 10000; // 10 seconds.
+    private static final int MAX_POOL_SIZE = 20; // Maximum number of nodes.
     
     public MembershipManagerThread( final TCPnet net,
                                     final ConsistentHasherImpl<GossipMember, String> cHasher )
@@ -32,6 +38,7 @@ public class MembershipManagerThread extends Thread
         this.net = net;
         this.cHasher = cHasher;
         random = new Random();
+        members = new ArrayList<>();
     }
     
     @Override
@@ -53,21 +60,20 @@ public class MembershipManagerThread extends Thread
                 
                 // Create the list of members.
                 if(nodes != null) {
-                    List<GossipMember> servers = new ArrayList<>( nodes.size() );
+                    List<GossipNode> remoteNodes = new ArrayList<>( nodes.size() );
                     for(byte[] node : nodes) {
-                        GossipMember member = DFSUtils.deserializeObject( node );
-                        if(member.getNodeType() == GossipMember.STORAGE)
-                            servers.add( member );
+                        GossipNode member = DFSUtils.deserializeObject( node );
+                        if(member.getMember().getNodeType() == GossipMember.STORAGE)
+                            remoteNodes.add( member );
                     }
                     
-                    LOGGER.debug( "[CLIENT] received: " + servers );
+                    LOGGER.debug( "[CLIENT] Received: " + remoteNodes );
+                    mergeLists( remoteNodes );
                     // Update the consistent hashing structure, putting the nodes on it.
                     synchronized( cHasher ) {
                         cHasher.clear();
-                        // TODO usare una tecnica un po' piu' sofisticata..
-                        // TODO per farlo occorre che i nodi durante il gossiping abbiano assegnato un timestamp
-                        for(GossipMember member : servers)
-                            cHasher.addBucket( member, member.getVirtualNodes() );
+                        for(GossipNode node : this.members)
+                            cHasher.addBucket( node.getMember(), node.getMember().getVirtualNodes() );
                     }
                 }
                 
@@ -80,6 +86,21 @@ public class MembershipManagerThread extends Thread
                     e.printStackTrace();
             }
         }
+    }
+    
+    /**
+     * Merge the received list with the owned one.
+     * 
+     * @param remoteNodes   the remote list
+    */
+    private void mergeLists( final List<GossipNode> remoteNodes )
+    {
+        Set<GossipNode> nodeSet = new HashSet<>( members );
+        nodeSet.addAll( remoteNodes );
+        members = new ArrayList<>( nodeSet );
+        Collections.sort( members );
+        if(nodeSet.size() > MAX_POOL_SIZE)
+            members = members.subList( 0, MAX_POOL_SIZE );
     }
     
     /**

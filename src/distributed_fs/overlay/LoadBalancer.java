@@ -29,6 +29,7 @@ import distributed_fs.overlay.manager.ThreadState;
 import distributed_fs.utils.ArgumentsParser;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
+import gossiping.GossipNode;
 import gossiping.GossipService;
 import gossiping.GossipSettings;
 import gossiping.event.GossipState;
@@ -88,7 +89,7 @@ public class LoadBalancer extends DFSNode
 		
 		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
-				gossipEvent( member, GossipState.UP );
+				gossipEvent( new GossipNode( member ), GossipState.UP );
 		}
 		
 		netMonitor = new NetworkMonitorReceiverThread( _address );

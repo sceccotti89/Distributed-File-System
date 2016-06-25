@@ -10,7 +10,7 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
-import gossiping.LocalGossipMember;
+import gossiping.GossipNode;
 import gossiping.manager.GossipManager;
 
 public class MembershipManagerThread extends Thread
@@ -21,7 +21,7 @@ public class MembershipManagerThread extends Thread
     private GossipMember me;
     
     private GossipManager manager;
-    private List<GossipMember> members;
+    private List<GossipNode> members;
     
     /**
      * Constructor used when the list of members may vary,
@@ -48,8 +48,11 @@ public class MembershipManagerThread extends Thread
         this.address = address;
         this.port = port + 4;
         
-        this.members = new ArrayList<>( members );
+        this.members = new ArrayList<>( members.size() );
+        for(GossipMember member : members)
+            this.members.add( new GossipNode( member ) );
         
+        // TODO rimuovere
         setDaemon( true );
     }
     
@@ -63,25 +66,25 @@ public class MembershipManagerThread extends Thread
                 TCPSession session = net.waitForConnection( address, port );
                 
                 // Get the list of members and send it to the user.
-                List<GossipMember> members;
+                List<GossipNode> members;
                 if(manager == null)
                     members = this.members;
                 else {
-                    List<LocalGossipMember> localMembers = manager.getMemberList();
+                    List<GossipNode> localMembers = manager.getMemberList();
                     members = new ArrayList<>( localMembers.size() + 1 );
-                    for(LocalGossipMember member : localMembers)
+                    for(GossipNode member : localMembers)
                         members.add( member );
-                    members.add( me );
+                    members.add( new GossipNode( me ) );
                 }
                 
                 MessageResponse message = new MessageResponse();
-                for(GossipMember member : members)
+                for(GossipNode member : members)
                     message.addObject( DFSUtils.serializeObject( member ) );
                 session.sendMessage( message, true );
                 
                 session.close();
             }
-            catch ( IOException e ) {
+            catch( IOException e ) {
                 e.printStackTrace();
                 break;
             }

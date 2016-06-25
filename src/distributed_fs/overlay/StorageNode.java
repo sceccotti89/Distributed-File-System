@@ -42,6 +42,7 @@ import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
+import gossiping.GossipNode;
 import gossiping.GossipService;
 import gossiping.GossipSettings;
 import gossiping.RemoteGossipMember;
@@ -134,7 +135,7 @@ public class StorageNode extends DFSNode
 		
 		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
-				gossipEvent( member, GossipState.UP );
+				gossipEvent( new GossipNode( member ), GossipState.UP );
 		}
 		
 		// Used for the quorum location.
