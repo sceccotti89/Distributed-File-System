@@ -212,9 +212,8 @@ public class DFSService extends DFSManager implements IDFSService
 				
 				id = syncClient.makeReconciliation( fileName, versions );
 				// Send back the reconciled version.
-				if(!put( files.get( id ).getName() )) {
+				if(!put( files.get( id ).getName() ))
 					throw new IOException();
-				}
 			}
 			
 			// Update the database.
@@ -295,7 +294,7 @@ public class DFSService extends DFSManager implements IDFSService
 			// Update the file's vector clock.
 			MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
             if(message.getType() == (byte) 0x1) {
-                LOGGER.debug( "Updating the clock of the file '" + fileName + "'..." );
+                LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
                 VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
     			database.saveFile( rFile, newClock, null, true );
             }
@@ -367,7 +366,7 @@ public class DFSService extends DFSManager implements IDFSService
 			// Update the file's vector clock.
 			MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
 			if(message.getType() == (byte) 0x1) {
-			    LOGGER.debug( "Updating the clock of the file '" + fileName + "'..." );
+			    LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
     			VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
     			database.removeFile( fileName, newClock, null );
 			}
@@ -401,7 +400,7 @@ public class DFSService extends DFSManager implements IDFSService
     */
 	private boolean contactRemoteNode( final String fileName, final byte opType )
 	{
-	    if(useLoadBalancer && contactLoadBalancerNode())
+	    if(useLoadBalancer && contactLoadBalancerNode( opType ))
 	        return true;
 	    
 	    if(!useLoadBalancer && contactStorageNode( fileName, opType ))
@@ -413,12 +412,15 @@ public class DFSService extends DFSManager implements IDFSService
 	/**
 	 * Try a connection with the first available LoadBalancer node.
 	 * 
+	 * @param opType   type of the operation
+	 * 
 	 * @return {@code true} if at least one remote node is available,
 	 * 		   {@code false} otherwise.
 	*/
-	private boolean contactLoadBalancerNode()
+	private boolean contactLoadBalancerNode( final byte opType )
 	{
-		LOGGER.info( "Contacting a balancer node..." );
+	    if(opType != Message.GET_ALL)
+	        LOGGER.info( "Contacting a balancer node..." );
 		
 		session = null;
 		HashSet<String> filterAddress = new HashSet<>();
@@ -433,7 +435,8 @@ public class DFSService extends DFSManager implements IDFSService
 				nodes.remove( partner );
 			else {
 				filterAddress.add( partner.getHost() );
-				LOGGER.info( "Contacting " + partner + "..." );
+				if(opType != Message.GET_ALL)
+				    LOGGER.info( "Contacting " + partner + "..." );
 				try{ session = net.tryConnect( partner.getHost(), partner.getPort(), 2000 ); }
 				catch( IOException e ) {
 					//e.printStackTrace();
@@ -444,7 +447,8 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		
 		if(session == null) {
-			LOGGER.error( "Sorry, but the service is not available. Retry later." );
+		    if(opType != Message.GET_ALL)
+		        LOGGER.error( "Sorry, but the service is not available. Retry later." );
 			return false;
 		}
 		
@@ -462,7 +466,8 @@ public class DFSService extends DFSManager implements IDFSService
     */
     private boolean contactStorageNode( final String fileName, final byte opType )
     {
-        LOGGER.info( "Contacting a storage node..." );
+        if(opType != Message.GET_ALL)
+            LOGGER.info( "Contacting a storage node..." );
         
         String fileId = DFSUtils.getId( fileName );
         session = null;
@@ -477,7 +482,8 @@ public class DFSService extends DFSManager implements IDFSService
         if(nodes != null) {
             hintedHandoff = null;
             for(GossipMember member : nodes) {
-                LOGGER.debug( "[CLIENT] Contacting: " + member );
+                if(opType != Message.GET_ALL)
+                    LOGGER.debug( "[CLIENT] Contacting: " + member );
                 try {
                     session = net.tryConnect( member.getHost(), member.getPort(), 2000 );
                     destId = member.getId();
@@ -495,12 +501,13 @@ public class DFSService extends DFSManager implements IDFSService
             }
         }
         
-        // Start the background thread
+        // Start now the background thread
         // for the membership.
         if(nodeDown)
             listMgr_t.wakeUp();
         
-        LOGGER.error( "Sorry, but the service is not available. Retry later." );
+        if(opType != Message.GET_ALL)
+            LOGGER.error( "Sorry, but the service is not available. Retry later." );
         return false;
     }
     

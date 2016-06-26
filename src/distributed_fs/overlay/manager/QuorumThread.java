@@ -83,17 +83,8 @@ public class QuorumThread extends Thread
     @Override
     public void run()
     {
-        /*UDPnet net;
-        
-        //try{ net = new UDPnet( _address, QUORUM_PORT ); }
-        try{ net = new UDPnet( _address, port ); }
-        catch( IOException e ) {
-            return;
-        }*/
-        
         TCPnet net;
         
-        //try{ net = new UDPnet( _address, QUORUM_PORT ); }
         try{
             net = new TCPnet( address, port );
             net.setSoTimeout( DFSNode.WAIT_CLOSE );
@@ -103,7 +94,7 @@ public class QuorumThread extends Thread
             return;
         }
         
-        //System.out.println( "[QUORUM] Waiting on " + address + ":" + port );
+        //DFSNode.LOGGER.info( "[QUORUM] Waiting on " + address + ":" + port );
         
         byte[] msg;
         while(!shutDown) {
@@ -161,11 +152,11 @@ public class QuorumThread extends Thread
     /**
      * Starts the quorum phase.
      * 
-     * @param state             
+     * @param state             state of the caller thread
      * @param session           the actual TCP connection
-     * @param opType            
-     * @param fileName          
-     * @param destId            
+     * @param opType            the operation type
+     * @param fileName          name of the file
+     * @param destId            the destination virtual node
      * 
      * @return list of contacted nodes that have agreed to the quorum
     */
@@ -184,10 +175,10 @@ public class QuorumThread extends Thread
         
         DFSNode.LOGGER.debug( "[SN] Neighbours: " + nodes.size() );
         if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
-            DFSNode.LOGGER.info( "[SN] Quorum failed: " + nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
-            
             // If there is a number of nodes less than the quorum,
             // we neither start the protocol.
+            DFSNode.LOGGER.info( "[SN] Quorum failed, due to insufficient replicas: " +
+                                 nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
             sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
             return new ArrayList<>();
         }
@@ -200,13 +191,13 @@ public class QuorumThread extends Thread
     /**
      * Contacts the nodes to complete the quorum phase.
      * 
-     * @param state     
-     * @param session   
-     * @param opType    
-     * @param fileName  
-     * @param nodes     
+     * @param state            state of the caller thread
+     * @param session          the actual TCP connection
+     * @param opType           the operation type
+     * @param fileName         name of the file
+     * @param nodes            list of contacted nodes
      * 
-     * @return list of contacted nodes, that have agreed to the quorum
+     * @return list of nodes that agreed to the quorum
     */
     private List<QuorumNode> contactNodes( final ThreadState state,
                                            final TCPSession session,
@@ -220,19 +211,17 @@ public class QuorumThread extends Thread
             state.setValue( ThreadState.AGREED_NODES, agreedNodes );
         }
         
-        //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
-        //net.setSoTimeout( 2000 );
         
         Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
         if(errors == null) errors = 0;
         for(GossipMember node : nodes) {
             TCPSession mySession = null;
             try {
-                // Build the remote connection.
+                // Start the remote connection.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
                     DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
-                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3, 2000 );
                     state.setValue( ThreadState.AGREED_NODE_CONN, mySession );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
@@ -313,7 +302,7 @@ public class QuorumThread extends Thread
     /**
      * Closes the opened quorum requests.
      * 
-     * @param state         
+     * @param state         state of the caller thread
      * @param session       network channel with the client
      * @param agreedNodes   list of contacted nodes
     */
@@ -332,14 +321,12 @@ public class QuorumThread extends Thread
     /**
      * Closes an open quorum session.
      * 
-     * @param state         
-     * @param agreedNodes   
+     * @param state         state of the caller thread
+     * @param agreedNodes   list of agreed nodes
     */
     public void closeQuorum( final ThreadState state, final List<QuorumNode> agreedNodes )
     {
-        //UDPnet net = new UDPnet();
         TCPnet net = new TCPnet();
-        //System.out.println( "[SN] NODES:" + agreedNodes );
         for(int i = agreedNodes.size() - 1; i >= 0; i--) {
             GossipMember node = agreedNodes.get( i ).getNode();
             TCPSession mySession = null;
@@ -378,9 +365,9 @@ public class QuorumThread extends Thread
     /**
      * Sends to the client the quorum response.
      * 
-     * @param state     
-     * @param session   
-     * @param response  
+     * @param state     state of the caller thread
+     * @param session   the actual TCP connection
+     * @param response  the quorum response
     */
     public void sendQuorumResponse( final ThreadState state,
                                     final TCPSession session,
@@ -451,7 +438,6 @@ public class QuorumThread extends Thread
         shutDown = true;
         timer.stop();
         interrupt();
-        fileLock.clear();
     }
 
     /**
@@ -561,7 +547,7 @@ public class QuorumThread extends Thread
 	
 	public static class QuorumSession
 	{
-	    /* Parameters of the quorum protocol (like Dynamo). */
+	    // Parameters of the quorum protocol (like Dynamo).
 	    private static final short N = 3; // Total number of nodes.
 	    private static final short W = 2; // Number of writers.
 	    private static final short R = 2; // Number of readers.
@@ -595,6 +581,7 @@ public class QuorumThread extends Thread
 	    }
 	    
 	    public static boolean isQuorum( final byte opType, final int replicaNodes ) {
+	        //return true;
 	        if(opType == Message.PUT || opType == Message.DELETE)
 	            return isWriteQuorum( replicaNodes );
 	        else
@@ -609,6 +596,7 @@ public class QuorumThread extends Thread
 	    }
 	    
 	    public static int getMinQuorum( final byte opType ) {
+	        //return 0;
 	        if(opType == Message.GET)
 	            return R;
 	        else

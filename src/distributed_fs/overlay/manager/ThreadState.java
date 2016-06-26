@@ -62,7 +62,7 @@ public class ThreadState
     public <T> T getValue( final String key ) { return (T) values.get( key ); }
 	public void setValue( final String key, final Object value ) { if(value != null) values.put( key, value ); }
 	public void removeValue( final String key ) { values.remove( key ); }
-	public int getValuesSize() { return values.size(); }
+	//public int getValuesSize() { return values.size(); }
 	
 	/* Keys used to save the objects for the recovery phase. */
 	public static final String

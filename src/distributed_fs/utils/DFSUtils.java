@@ -44,7 +44,7 @@ public class DFSUtils
 	public static final String DISTRIBUTED_FS_CONFIG = "./Settings/Settings.json";
 	
 	/** The logger level. */
-	public static Level logLevel;
+	public static Level logLevel = Level.DEBUG;
 	
 	/** Port used to send/receive data in the service. */
 	public static final int SERVICE_PORT = 9000;

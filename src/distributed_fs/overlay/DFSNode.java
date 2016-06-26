@@ -52,15 +52,18 @@ public abstract class DFSNode extends Thread implements GossipListener
 {
 	protected static String _address;
 	protected int port;
-	protected NetworkMonitor netMonitor;
+	
 	protected static NodeStatistics stats;
-	protected ExecutorService threadPool;
-	protected ThreadMonitor monitor_t;
 	protected TCPnet _net;
-	protected FileTransferThread fMgr;
+	
 	protected ConsistentHasherImpl<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
+	
+	protected ExecutorService threadPool;
+	protected NetworkMonitor netMonitor;
+	protected ThreadMonitor monitor_t;
+	protected FileTransferThread fMgr;
 	
 	protected boolean shutDown = false;
 	
@@ -233,7 +236,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		else {
 		    // TODO RIMETTERE
-			//TODO LOGGER.info( "Added node: " + member.toJSONObject().toString() );
+			LOGGER.info( "Added node: " + member.toJSONObject().toString() );
 			cHasher.addBucket( member, member.getVirtualNodes() );
 			if(fMgr != null) {
 				fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
@@ -416,8 +419,12 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		if(fMgr != null)
 			fMgr.shutDown();
+		monitor_t.close();
 		
-		try{ netMonitor.join(); }
+		try{
+		    netMonitor.join();
+		    monitor_t.join();
+		}
 		catch( InterruptedException e ) {}
 	}
 }

@@ -32,6 +32,7 @@ import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
+import gossiping.LogLevel;
 import gossiping.RemoteGossipMember;
 
 public abstract class DFSManager
@@ -82,10 +83,16 @@ public abstract class DFSManager
 		
 		LOGGER.info( "Starting the system..." );
 		
+		// Read the informations from the configuration file.
 		JSONObject file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
 		JSONArray inetwork = file.getJSONArray( "network_interface" );
 		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
 		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
+		int logLevel = LogLevel.fromString( file.getString( "log_level" ) );
+        DFSUtils.logLevel = LogLevel.getLogLevel( logLevel );
+        
+        LOGGER.setLevel( DFSUtils.logLevel );
+        
 		address = ipAddress;
 		if(address == null)
 			address = getNetworkAddress( inet, IPversion );
@@ -142,7 +149,7 @@ public abstract class DFSManager
 		
 		// Some checks...
 		if((!useLoadBalancer && cHasher.getSize() == 0) ||
-		    (useLoadBalancer && loadBalancers.isEmpty()))
+		   (useLoadBalancer && loadBalancers.isEmpty()))
 		    throw new DFSException( "The list of members cannot be empty." );
 	}
 	

@@ -35,9 +35,6 @@ public class Client implements DBListener
 	
 	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "help", "exit" };
 	public static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
-	//private static final String PUT_REGEX	 = "put(?:\\s+\\w*)?";
-	//private static final String GET_REGEX	 = "get(?:\\s+\\w*)?";
-	//private static final String DELETE_REGEX = "delete[ ]{0,1}";
 	private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
 	public static void main( final String args[] ) throws ParseException
@@ -48,7 +45,7 @@ public class Client implements DBListener
 	public Client( String[] args ) throws ParseException
 	{
 		// Parse the command options.
-		ArgumentsParser.parseArgs( args, -1 );
+		ArgumentsParser.parseArgs( args );
 		
 		String ipAddress = ArgumentsParser.getIpAddress();
 		int port = ArgumentsParser.getPort();
@@ -56,8 +53,6 @@ public class Client implements DBListener
 		String resourceLocation = ArgumentsParser.getResourceLocation();
 		String databaseLocation = ArgumentsParser.getDatabaseLocation();
 		List<GossipMember> members = ArgumentsParser.getNodes();
-		
-		//checkInput();
 		
 		try {
 			service = new DFSService( ipAddress, port, useLoadBalancers, members,
@@ -99,8 +94,7 @@ public class Client implements DBListener
 			}
 		}
 		catch( Exception e ) {
-			// Ignored.
-			//e.printStackTrace();
+			e.printStackTrace();
 		}
 		
 		if(service != null)
@@ -114,32 +108,16 @@ public class Client implements DBListener
 		String command = null;
 		
 		while(true) {
-			//System.out.print( "[CLIENT] " );
-			
 			try{
-				/*while ((command = reader.readLine( "[CLIENT] " )) != null) {
-					
-				}*/
 				command = reader.readLine( "[CLIENT] " );
-				
-				// Wait until we have data to complete a readLine()
-				/*while(!SCAN.ready()) {
-					if(service.isClosed())
-						return null;
-					
-					Thread.sleep( 200 );
-				}
-				
-				command = SCAN.readLine();*/
+				if(command.isEmpty())
+				    continue;
 			}
 			catch( IOException e ){
 				e.printStackTrace();
 				break;
 			}
 			
-			//String command = input.toLowerCase();
-			
-			//if(command.matches( GET_REGEX )) {
 			if(command.startsWith( "get" ) || command.startsWith( "get " )) {
 				if(command.length() <= 4) {
 					System.out.println( "[CLIENT] Command error: you must specify the file." );
@@ -147,11 +125,9 @@ public class Client implements DBListener
 				}
 				
 				String file = getFile( command, 4 );
-				//String file = getFile( input, 4 );
 				if(file != null)
 					return new Operation( file, Message.GET );
 			}
-			//else if(command.matches( PUT_REGEX )) {
 			else if(command.startsWith( "put" ) || command.startsWith( "put " )) {
 				if(command.length() <= 4) {
 					System.out.println( "[CLIENT] Command error: you must specify the file." );
@@ -159,11 +135,9 @@ public class Client implements DBListener
 				}
 				
 				String file = getFile( command, 4 );
-				//String file = getFile( input, 4 );
 				if(file != null)
 					return new Operation( file, Message.PUT );
 			}
-			//else if(command.matches( DELETE_REGEX )) {
 			else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
 				if(command.length() <= 7) {
 					System.out.println( "[CLIENT] Command error: you must specify the file." );
@@ -171,7 +145,6 @@ public class Client implements DBListener
 				}
 				
 				String file = getFile( command, 7 );
-				//String file = getFile( input, 7 );
 				if(file != null)
 					return new Operation( file, Message.DELETE );
 			}
@@ -185,9 +158,9 @@ public class Client implements DBListener
 						System.out.println( "[CLIENT] " + file.getName() );
 				}
 			}
-			else if(command.trim().equals( "help" ))
+			else if(command.trim().equalsIgnoreCase( "help" ))
 				printHelp();
-			else if(command.trim().equals( "exit" ))
+			else if(command.trim().equalsIgnoreCase( "exit" ))
 				service.shutDown();
 			else
 				System.out.println( "[CLIENT] Command '" + command + "' unknown." );
@@ -213,7 +186,7 @@ public class Client implements DBListener
 	{
 		if(code == Message.GET)
 			dbFiles.add( fileName );
-		else	// DELETE
+		else // DELETE
 			dbFiles.remove( fileName );
 		
 		// Put the name of file present in the database.

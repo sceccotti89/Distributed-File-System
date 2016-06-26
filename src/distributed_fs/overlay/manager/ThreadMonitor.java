@@ -7,12 +7,15 @@ import java.util.concurrent.ExecutorService;
 
 import org.json.JSONException;
 
+import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.exception.DFSException;
 import distributed_fs.net.NetworkMonitorReceiverThread;
 import distributed_fs.net.NetworkMonitorSenderThread;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;
 import distributed_fs.storage.FileTransferThread;
+import gossiping.GossipMember;
 
 public class ThreadMonitor extends Thread
 {
@@ -22,6 +25,16 @@ public class ThreadMonitor extends Thread
 	
 	private final String address;
 	private final int port;
+	
+	// ============  Used only by the StorageNode  ============ //
+	private GossipMember me;
+    private QuorumThread quorum_t;
+    private ConsistentHasherImpl<GossipMember, String> cHasher;
+    private String resourcesLocation;
+    private String databaseLocation;
+    // ======================================================== //
+	
+	private boolean closed = false;
 	
 	public ThreadMonitor( final DFSNode parentNode,
 	                      final ExecutorService threadPool,
@@ -35,14 +48,25 @@ public class ThreadMonitor extends Thread
 		
 		this.address = address;
 		this.port = port;
-		
-		setDaemon( true );
+	}
+	
+	public void addElements( final GossipMember me,
+                             final QuorumThread quorum_t,
+                             final ConsistentHasherImpl<GossipMember, String> cHasher,
+                             final String resourcesLocation,
+                             final String databaseLocation )
+	{
+	    this.me = me;
+	    this.quorum_t = quorum_t;
+	    this.cHasher = cHasher;
+	    this.resourcesLocation = resourcesLocation;
+	    this.databaseLocation = databaseLocation;
 	}
 	
 	@Override
 	public void run()
 	{
-		while(true) {
+		while(!closed) {
 			try{ sleep( 200 ); }
 			catch( InterruptedException e1 ) { break; }
 			
@@ -69,9 +93,13 @@ public class ThreadMonitor extends Thread
                         quorum_t.start();
                     }
                     else if(thread instanceof FileTransferThread) {
-                        // TODO per questo stronzo dovrei aggiungere un bel po' di roba
-                        //FileTransferThread fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
-                        //fMgr.start();
+                        FileTransferThread fMgr;
+                        try {
+                            fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
+                            fMgr.start();
+                        } catch( DFSException e ) {
+                            e.printStackTrace();
+                        }
                     }
                     else if(thread instanceof NetworkMonitorReceiverThread){
                         NetworkMonitorReceiverThread netMonitor = new NetworkMonitorReceiverThread( address );
@@ -110,12 +138,18 @@ public class ThreadMonitor extends Thread
 	}
 	
 	public List<Thread> getThreadsList() {
-	    // Used by the StorageNode (or BalancerNode) if it crash.
+	    // Used by the StorageNode (or LoadBalancer) if it crashes.
 	    return threads;
 	}
 	
 	public synchronized void addThread( final Thread node )
 	{
 		threads.add( node );
+	}
+	
+	public void close()
+	{
+	    closed = true;
+	    interrupt();
 	}
 }

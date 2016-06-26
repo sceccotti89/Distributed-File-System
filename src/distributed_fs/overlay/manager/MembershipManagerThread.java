@@ -23,6 +23,8 @@ public class MembershipManagerThread extends Thread
     private GossipManager manager;
     private List<GossipNode> members;
     
+    private boolean closed = false;
+    
     /**
      * Constructor used when the list of members may vary,
      * according to the gossiping protocol.
@@ -35,8 +37,6 @@ public class MembershipManagerThread extends Thread
         
         this.me = me;
         this.manager = manager;
-        
-        setDaemon( true );
     }
     
     /**
@@ -51,19 +51,19 @@ public class MembershipManagerThread extends Thread
         this.members = new ArrayList<>( members.size() );
         for(GossipMember member : members)
             this.members.add( new GossipNode( member ) );
-        
-        // TODO rimuovere
-        setDaemon( true );
     }
     
     @Override
     public void run()
     {
         TCPnet net = new TCPnet();
+        net.setSoTimeout( 500 );
         
-        while(true) {
+        while(!closed) {
             try {
                 TCPSession session = net.waitForConnection( address, port );
+                if(session == null)
+                    continue;
                 
                 // Get the list of members and send it to the user.
                 List<GossipNode> members;
@@ -91,5 +91,10 @@ public class MembershipManagerThread extends Thread
         }
         
         net.close();
+    }
+    
+    public void close()
+    {
+        closed = true;
     }
 }

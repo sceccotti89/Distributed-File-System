@@ -56,7 +56,6 @@ public class RemoteFile implements IOSerializable//, Serializable
 		if(removed || directory)
 			this.content = null;
 		else {
-		    System.out.println( "NAME: " + name + ", DIR: " + directory );
 			byte[] file = DFSUtils.readFileFromDisk( dbRoot + name );
 			// Store the content in compressed form.
 			this.content = DFSUtils.compressData( file );

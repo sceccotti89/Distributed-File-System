@@ -39,6 +39,8 @@ public class MembershipManagerThread extends Thread
         this.cHasher = cHasher;
         random = new Random();
         members = new ArrayList<>();
+        
+        LOGGER.setLevel( DFSUtils.logLevel );
     }
     
     @Override
@@ -89,7 +91,7 @@ public class MembershipManagerThread extends Thread
     }
     
     /**
-     * Merge the received list with the owned one.
+     * Merges the received list with the owned one.
      * 
      * @param remoteNodes   the remote list
     */

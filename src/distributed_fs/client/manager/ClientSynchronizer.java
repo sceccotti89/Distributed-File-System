@@ -55,7 +55,7 @@ public class ClientSynchronizer extends Thread
     }
     
     /**
-     * The downloaded files are merged with the own files.
+     * The downloaded files are merged with the own ones.
      * 
      * @param files   the list of files
     */

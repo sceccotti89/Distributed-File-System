@@ -30,6 +30,11 @@ public class ArgumentsParser
 								NODES = "n", RESOURCES = "r",
 								DATABASE = "d", LOAD_BALANCERS = "l", HELP = "h";
 	
+	public static void parseArgs( final String[] args ) throws ParseException
+    {
+	    parseArgs( args, -1 );
+    }
+	
 	public static void parseArgs( final String[] args, final int nodeType ) throws ParseException
 	{
 		if(nodeType != GossipMember.STORAGE)
@@ -72,7 +77,7 @@ public class ArgumentsParser
 	public static boolean getLoadBalancers()
 	{
 	    if(!cmd.hasOption( LOAD_BALANCERS ))
-	        return false;
+	        return true;
 	    
 	    return Boolean.parseBoolean( cmd.getOptionValue( LOAD_BALANCERS ) );
 	}

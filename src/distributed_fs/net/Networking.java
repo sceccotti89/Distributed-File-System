@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -231,10 +232,12 @@ public class Networking
 		 * The option must be enabled prior to entering the blocking operation to have effect.
 		 * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
 		*/
-		public void setSoTimeout( final int timeout ) throws IOException {
+		public void setSoTimeout( final int timeout ) {
 			soTimeout = timeout;
-			if(servSocket != null)
-				servSocket.setSoTimeout( timeout );
+			if(servSocket != null) {
+				try { servSocket.setSoTimeout( timeout ); }
+				catch( SocketException e ) { e.printStackTrace(); }
+			}
 		}
 		
 		/**

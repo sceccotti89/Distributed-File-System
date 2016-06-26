@@ -52,8 +52,6 @@ public class Tests
 	
 	public static void main( final String[] args ) throws Exception
 	{
-	    // TODO fare dei test sulla chiusura di LoadBalancer, StorageNode e DFSService
-	    // TODO per capire se chiudono tutte le risorse.
 	    new Tests();
 	}
 	
@@ -73,9 +71,6 @@ public class Tests
 		startSystem( true );
 		
 		//Thread.sleep( 2000 );
-		
-		DFSService service = new DFSService( myIpAddress, 9002, false, members, null, null, null );
-        service.start();
 		
 		//testNoLoadBalancers( myIpAddress );
 		//testSingleClient();
@@ -125,7 +120,7 @@ public class Tests
 			nodes.add( node );
 			new Thread() {
 				@Override
-				public void run() { try { node.launch(); } catch (JSONException e) {e.printStackTrace();} }
+				public void run() { try { node.launch( false ); } catch (JSONException e) {e.printStackTrace();} }
 			}.start();
 		}
 		
@@ -135,14 +130,14 @@ public class Tests
 		for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
 			GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
 			System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
-			StorageNode node = new StorageNode( members, member.getId(), i + 2, myIpAddress, member.getPort(),
+			StorageNode node = new StorageNode( members, member.getId(), myIpAddress, member.getPort(),
 												resources + (i+2) + "/", database + (i+2) + "/" );
 			if(disableAntiEntropy)
 			    node.disableAntiEntropy();
 			nodes.add( node );
 			new Thread() {
 				@Override
-				public void run() { try { node.launch(); } catch (JSONException e) {e.printStackTrace();} }
+				public void run() { try { node.launch( false ); } catch (JSONException e) {e.printStackTrace();} }
 			}.start();
 		}
 		

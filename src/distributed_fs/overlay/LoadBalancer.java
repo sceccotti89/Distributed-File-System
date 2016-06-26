@@ -60,7 +60,9 @@ public class LoadBalancer extends DFSNode
 						 final int port,
 						 final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
 	{
-		super( GossipMember.LOAD_BALANCER, ipAddress, startupMembers ); 
+		super( GossipMember.LOAD_BALANCER, ipAddress, startupMembers );
+		
+		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
 		
 		if(startupMembers != null) {
 			// Start the gossiping from the input list.
@@ -71,11 +73,9 @@ public class LoadBalancer extends DFSNode
 			gossipService.start();
 		}
 		
-		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
-		
 		netMonitor = new NetworkMonitorReceiverThread( _address );
 		threadsList = new ArrayList<>( MAX_USERS );
-		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port );
 	}
 	
 	/** Testing. */
@@ -99,7 +99,34 @@ public class LoadBalancer extends DFSNode
 		this.port = port;
 	}
 	
-	public void launch() throws JSONException
+	/**
+     * Starts the node.<br>
+     * It can be launched in an asynchronous way, creating a new Thread that
+     * runs this process.
+     * 
+     * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
+    */
+    public void launch( final boolean launchAsynch ) throws JSONException
+    {
+        if(launchAsynch) {
+            new Thread() {
+                @Override
+                public void run()
+                {
+                    try {
+                        startProcess();
+                    } catch( JSONException e ) {
+                        e.printStackTrace();
+                    }
+                }
+            }.start();
+        }
+        else {
+            startProcess();
+        }
+    }
+	
+	private void startProcess() throws JSONException
 	{
 	    netMonitor.start();
 	    
@@ -115,7 +142,6 @@ public class LoadBalancer extends DFSNode
                         
                         LoadBalancer node = new LoadBalancer( false, _net, session, cHasher, netMonitor );
                         monitor_t.addThread( node );
-                        
                         threadPool.execute( node );
                     }
 				}
@@ -212,7 +238,7 @@ public class LoadBalancer extends DFSNode
 					LOGGER.debug( "[LB] Contacting: " + targetNode );
 					if(!replacedThread || actionsList.isEmpty()) {
     					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
-    					catch( IOException e ){ /* Ignored. // e.printStackTrace();*/ }
+    					catch( IOException e ){ /* Ignored. e.printStackTrace();*/ }
     					state.setValue( ThreadState.BALANCED_NODE_CONN, newSession );
     					actionsList.addLast( DONE );
 					}
@@ -257,8 +283,6 @@ public class LoadBalancer extends DFSNode
 		
 		session.close();
 		LOGGER.info( "[LB] Closed request from: " + clientAddress );
-		
-		System.out.println( "ACTIONS_LIST_SIZE: " + actionsList.size() + ", VALUES_SIZE: " + state.getValuesSize() );
 	}
 	
 	/**
@@ -397,6 +421,6 @@ public class LoadBalancer extends DFSNode
 		List<GossipMember> members = ArgumentsParser.getNodes();
 		
 		LoadBalancer balancer = new LoadBalancer( ipAddress, port, members );
-		balancer.launch();
+		balancer.launch( true );
 	}
 }

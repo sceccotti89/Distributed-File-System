@@ -59,6 +59,10 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		if(!DFSUtils.testing)
 			addresses.add( me.getHost() );
 		
+		// Used to ensure that a request starts too soon.
+		try{ Thread.sleep( 200 ); }
+        catch( InterruptedException e ){ return; }
+		
 		while(!shoutDown) {
 		    // Each virtual node sends the Merkle tree to its successor node,
 			// and to a random predecessor node.
@@ -297,7 +301,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		if(!DFSUtils.testing)
 			addresses.add( me.getHost() );
 		
-		// choose the nodes whose address is different than this node
+		// Choose the nodes whose address is different than this node.
 		String currId = id, prev;
 		while(size < numNodes) {
 			prev = cHasher.getPreviousBucket( currId );
@@ -315,22 +319,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				}
 			}
 		}
-		
-		/*currId = cHasher.getLastKey();
-		if(currId != null) {
-			while(size < numNodes) {
-				currId = cHasher.getPredecessor( currId );
-				if(currId == null || currId.equals( id ))
-					break;
-				
-				GossipMember node = cHasher.getBucket( currId );
-				if(node != null && !addresses.contains( node.getHost() )) {
-					predecessors.add( currId );
-					addresses.add( node.getHost() );
-					size++;
-				}
-			}
-		}*/
 		
 		return predecessors;
 	}

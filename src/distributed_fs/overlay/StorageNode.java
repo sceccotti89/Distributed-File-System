@@ -54,17 +54,17 @@ public class StorageNode extends DFSNode
 	private static GossipMember me;
 	private QuorumThread quorum_t;
 	private String resourcesLocation;
+	private String databaseLocation;
 	
 	// ===== Used by the node instance ===== //
 	private TCPSession session;
 	private String destId; // Destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
-	//private QuorumSession qSession;
 	private boolean replacedThread;
 	// =========================================== //
 	
-	private MembershipManagerThread lMgr_t;
 	private List<Thread> threadsList;
+	private MembershipManagerThread lMgr_t;
 	
 	/**
 	 * Constructor with the default settings.<br>
@@ -91,7 +91,7 @@ public class StorageNode extends DFSNode
 			me = runner.getGossipService().getGossipManager().getMyself();
 			this.port = me.getPort();
 			lMgr_t = new MembershipManagerThread( _address, this.port, me,
-			                                runner.getGossipService().getGossipManager() );
+			                                      runner.getGossipService().getGossipManager() );
 		}
 		else {
 			// Start the gossiping from the input list.
@@ -115,14 +115,17 @@ public class StorageNode extends DFSNode
 		
 		netMonitor = new NetworkMonitorSenderThread( _address, this );
 		
+		this.resourcesLocation = resourcesLocation;
+        this.databaseLocation = databaseLocation;
+		
 		threadsList = new ArrayList<>( MAX_USERS );
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+		monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
 	}
 	
 	/** Testing. */
 	public StorageNode( final List<GossipMember> startupMembers,
 						final String id,
-						final int nodeIndex,
 						final String address,
 						final int port,
 						final String resourcesLocation,
@@ -131,25 +134,25 @@ public class StorageNode extends DFSNode
 		super();
 		
 		_address = address;
-		me = new RemoteGossipMember( _address, port, id, 3, GossipMember.STORAGE );
+		this.port = port;
+		this.resourcesLocation = resourcesLocation;
+		this.databaseLocation = databaseLocation;
+		
+		me = new RemoteGossipMember( _address, this.port, id, 3, GossipMember.STORAGE );
 		
 		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
 				gossipEvent( new GossipNode( member ), GossipState.UP );
 		}
 		
-		// Used for the quorum location.
-		this.resourcesLocation = "./Servers/QuorumSessions" + nodeIndex + "/";
-		
 		quorum_t = new QuorumThread( port, _address, this );
 		fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
 		netMonitor = new NetworkMonitorSenderThread( _address, this );
 		
-		lMgr_t = new MembershipManagerThread( address, port, startupMembers );
+		lMgr_t = new MembershipManagerThread( _address, this.port, startupMembers );
 		threadsList = new ArrayList<>( MAX_USERS );
-		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
-		
-		this.port = port;
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port );
+		monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
 	}
 	
 	/**
@@ -160,11 +163,36 @@ public class StorageNode extends DFSNode
 	}
 	
 	/**
-	 * Start the node.
+	 * Starts the node.<br>
+	 * It can be launched in an asynchronous way, creating a new Thread that
+	 * runs this process.
+	 * 
+	 * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
 	*/
-	public void launch() throws JSONException
+	public void launch( final boolean launchAsynch ) throws JSONException
 	{
-		fMgr.start();
+	    if(launchAsynch) {
+	        // Create a new Thread.
+	        new Thread() {
+	            @Override
+	            public void run()
+	            {
+	                try {
+                        startProcess();
+                    } catch( JSONException e ) {
+                        e.printStackTrace();
+                    }
+	            }
+	        }.start();
+	    }
+	    else {
+	        startProcess();
+	    }
+	}
+	
+	private void startProcess() throws JSONException
+	{
+	    fMgr.start();
 		netMonitor.start();
 		quorum_t.start();
 		monitor_t.start();
@@ -180,10 +208,9 @@ public class StorageNode extends DFSNode
 				        if(threadPool.isShutdown())
 				            break;
 				        
-				        StorageNode node = new StorageNode( getNextThreadID(), false, resourcesLocation, fMgr,
+				        StorageNode node = new StorageNode( getNextThreadID(), false, fMgr,
 				                                            quorum_t, cHasher, _net, session, netMonitor );
 				        monitor_t.addThread( node );
-				        
 				        threadPool.execute( node );
 				    }
 				}
@@ -191,6 +218,7 @@ public class StorageNode extends DFSNode
 			    // Check if the monitor thread is alive: if not a new instance is activated.
 			    if(!monitor_t.isAlive()) {
 			        monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+			        monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
 			        monitor_t.start();
 			    }
 			}
@@ -217,7 +245,6 @@ public class StorageNode extends DFSNode
     */
     private StorageNode( final long id,
                          final boolean replacedThread,
-                         final String resourcesLocation,
                          final FileTransferThread fMgr,
                          final QuorumThread quorum_t,
                          final ConsistentHasherImpl<GossipMember, String> cHasher,
@@ -229,7 +256,6 @@ public class StorageNode extends DFSNode
     	setId( id );
     	
     	this.replacedThread = replacedThread;
-    	this.resourcesLocation = resourcesLocation;
     	this.quorum_t = quorum_t;
     	this.session = session;
     	this.netMonitor = netMonitor;
@@ -440,26 +466,26 @@ public class StorageNode extends DFSNode
 			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
 			quorum_t.sendQuorumResponse( state, session, Message.TRANSACTION_OK );
 			
-			// Put in the list the file present in the database of this node.
-			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
-			if(dFile != null) {
-				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
-				filesToSend.put( rFile, rFile.read() );
-			}
-			
-			// Try a first reconciliation.
-			LOGGER.debug( "Files: " + filesToSend.size() );
-			List<RemoteFile> reconciledFiles = makeReconciliation( filesToSend );
-			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
-			
-			// Send the files directly to the client.
-			MessageResponse message = new MessageResponse();
-			for(int i = 0; i < reconciledFiles.size(); i++) {
-				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
-				message.addObject( data );
-			}
-			
 			if(!replacedThread || actionsList.isEmpty()) {
+    			// Put in the list the file present in the database of this node.
+    			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
+    			if(dFile != null) {
+    				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
+    				filesToSend.put( rFile, rFile.read() );
+    			}
+    			
+    			// Try a first reconciliation.
+    			LOGGER.debug( "Files: " + filesToSend.size() );
+    			List<RemoteFile> reconciledFiles = makeReconciliation( filesToSend );
+    			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
+    			
+    			// Send the files directly to the client.
+    			MessageResponse message = new MessageResponse();
+    			for(int i = 0; i < reconciledFiles.size(); i++) {
+    				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
+    				message.addObject( data );
+    			}
+    			
 			    session.sendMessage( message, true );
 			    actionsList.removeFirst();
 			    LOGGER.info( "Files sent to the client." );
@@ -699,7 +725,6 @@ public class StorageNode extends DFSNode
 		StorageNode node =
 		        new StorageNode( state.getId(),
 		                         true,
-		                         null,// TODO per adesso e' null, ma poi metterci quello corretto
 		                         state.getFileManager(),
 		                         state.getQuorumThread(),
 		                         state.getHashing(),
@@ -717,6 +742,13 @@ public class StorageNode extends DFSNode
 		return node;
 	}
 	
+	@Override
+	public void closeResources()
+	{
+	    lMgr_t.close();
+	    super.closeResources();
+	}
+	
 	public static void main( String args[] ) throws Exception
 	{
 		ArgumentsParser.parseArgs( args, GossipMember.STORAGE );
@@ -727,6 +759,6 @@ public class StorageNode extends DFSNode
 		String databaseLocation = ArgumentsParser.getDatabaseLocation();
 		
 		StorageNode node = new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
-		node.launch();
+		node.launch( true );
 	}
 }
