@@ -90,8 +90,7 @@ public class StorageNode extends DFSNode
 		if(runner != null) {
 			me = runner.getGossipService().getGossipManager().getMyself();
 			this.port = me.getPort();
-			lMgr_t = new MembershipManagerThread( _address, this.port, me,
-			                                      runner.getGossipService().getGossipManager() );
+			lMgr_t = new MembershipManagerThread( _address, this.port, me, runner.getGossipService().getGossipManager() );
 		}
 		else {
 			// Start the gossiping from the input list.
@@ -104,8 +103,7 @@ public class StorageNode extends DFSNode
 			GossipService gossipService = new GossipService( _address, me.getPort(), me.getId(), me.getVirtualNodes(),
 															 me.getNodeType(), startupMembers, settings, this );
 			gossipService.start();
-			lMgr_t = new MembershipManagerThread( _address, this.port, me,
-			                                gossipService.getGossipManager() );
+			lMgr_t = new MembershipManagerThread( _address, this.port, me, gossipService.getGossipManager() );
 		}
 		
 		cHasher.addBucket( me, me.getVirtualNodes() );
@@ -125,7 +123,6 @@ public class StorageNode extends DFSNode
 	
 	/** Testing. */
 	public StorageNode( final List<GossipMember> startupMembers,
-						final String id,
 						final String address,
 						final int port,
 						final String resourcesLocation,
@@ -138,6 +135,8 @@ public class StorageNode extends DFSNode
 		this.resourcesLocation = resourcesLocation;
 		this.databaseLocation = databaseLocation;
 		
+		// TODO mettere a tutti indirizzo + porta nella creazione dell'ID??
+		String id = DFSUtils.getNodeId( 1, _address + ":" + port );
 		me = new RemoteGossipMember( _address, this.port, id, 3, GossipMember.STORAGE );
 		
 		for(GossipMember member : startupMembers) {
@@ -215,7 +214,7 @@ public class StorageNode extends DFSNode
 				    }
 				}
 				
-			    // Check if the monitor thread is alive: if not a new instance is activated.
+			    // Check whether the monitor thread is alive: if not a new instance is activated.
 			    if(!monitor_t.isAlive()) {
 			        monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
 			        monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
@@ -751,6 +750,7 @@ public class StorageNode extends DFSNode
 	
 	public static void main( String args[] ) throws Exception
 	{
+	    args = new String[]{ "-n", "127.0.0.1:9000:0" };
 		ArgumentsParser.parseArgs( args, GossipMember.STORAGE );
 		
 		String ipAddress = ArgumentsParser.getIpAddress();
