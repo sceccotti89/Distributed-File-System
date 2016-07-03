@@ -5,15 +5,12 @@
 package distributed_fs.overlay;
 
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import org.json.JSONException;
-
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.NetworkMonitorReceiverThread;
 import distributed_fs.net.Networking.TCPSession;
@@ -25,14 +22,11 @@ import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.ThreadMonitor;
-import distributed_fs.overlay.manager.ThreadState;
-import distributed_fs.utils.ArgumentsParser;
+import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
-import gossiping.GossipNode;
 import gossiping.GossipService;
 import gossiping.GossipSettings;
-import gossiping.event.GossipState;
 import gossiping.manager.GossipManager;
 
 public class LoadBalancer extends DFSNode
@@ -58,7 +52,7 @@ public class LoadBalancer extends DFSNode
 	*/
 	public LoadBalancer( final String ipAddress,
 						 final int port,
-						 final List<GossipMember> startupMembers ) throws IOException, JSONException, InterruptedException
+						 final List<GossipMember> startupMembers ) throws IOException, InterruptedException
 	{
 		super( GossipMember.LOAD_BALANCER, ipAddress, startupMembers );
 		
@@ -81,7 +75,7 @@ public class LoadBalancer extends DFSNode
 	/** Testing. */
 	public LoadBalancer( final List<GossipMember> startupMembers,
 						 final int port,
-						 final String address ) throws IOException, JSONException, SQLException
+						 final String address ) throws IOException
 	{
 		super();
 		
@@ -89,7 +83,7 @@ public class LoadBalancer extends DFSNode
 		
 		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
-				gossipEvent( new GossipNode( member ), GossipState.UP );
+			    cHasher.addBucket( member, member.getVirtualNodes() );
 		}
 		
 		netMonitor = new NetworkMonitorReceiverThread( _address );
@@ -106,18 +100,14 @@ public class LoadBalancer extends DFSNode
      * 
      * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
     */
-    public void launch( final boolean launchAsynch ) throws JSONException
+    public void launch( final boolean launchAsynch )
     {
         if(launchAsynch) {
             new Thread() {
                 @Override
                 public void run()
                 {
-                    try {
-                        startProcess();
-                    } catch( JSONException e ) {
-                        e.printStackTrace();
-                    }
+                    startProcess();
                 }
             }.start();
         }
@@ -126,7 +116,7 @@ public class LoadBalancer extends DFSNode
         }
     }
 	
-	private void startProcess() throws JSONException
+	private void startProcess()
 	{
 	    netMonitor.start();
 	    
@@ -155,7 +145,7 @@ public class LoadBalancer extends DFSNode
 		}
 		catch( IOException e ) {}
 		
-		System.out.println( "[LB] Closed." );
+		LOGGER.info( "[LB] '" + _address + ":" + port + "' Closed." );
 	}
 	
 	/**
@@ -170,8 +160,8 @@ public class LoadBalancer extends DFSNode
 	private LoadBalancer( final boolean replacedThread,
 	                      final TCPnet net,
 						  final TCPSession srcSession,
-						  final ConsistentHasherImpl<GossipMember, String> cHasher,
-						  final NetworkMonitor netMonitor ) throws JSONException, IOException
+						  final ConsistentHasher<GossipMember, String> cHasher,
+						  final NetworkMonitor netMonitor ) throws IOException
 	{
 		super( net, null, cHasher );
 		
@@ -393,7 +383,7 @@ public class LoadBalancer extends DFSNode
      * @param threadPool    
      * @param state         
     */
-    public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
+    public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException
     {
         LoadBalancer node =
         new LoadBalancer( true,
@@ -412,9 +402,11 @@ public class LoadBalancer extends DFSNode
         return node;
     }
 	
-	public static void main( String args[] ) throws Exception
+	/*public static void main( final String args[] ) throws Exception
 	{
-		ArgumentsParser.parseArgs( args, GossipMember.LOAD_BALANCER );
+		ArgumentsParser.parseArgs( args );
+		if(ArgumentsParser.hasOnlyHelpOptions())
+            return;
 		
 		String ipAddress = ArgumentsParser.getIpAddress();
 		int port = ArgumentsParser.getPort();
@@ -422,5 +414,5 @@ public class LoadBalancer extends DFSNode
 		
 		LoadBalancer balancer = new LoadBalancer( ipAddress, port, members );
 		balancer.launch( true );
-	}
+	}*/
 }

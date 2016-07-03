@@ -55,7 +55,6 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 		this.version = version;
 		this.HintedHandoff = hintedHandoff;
 		
-		//isDirectory = new File( root + name ).isDirectory();
 		this.isDirectory = isDirectory;
 		if(isDirectory && !name.endsWith( "/" ))
 			this.name += "/";

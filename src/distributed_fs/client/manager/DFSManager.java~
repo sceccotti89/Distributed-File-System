@@ -98,6 +98,11 @@ public abstract class DFSManager
         		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
         		address = getNetworkAddress( inet, IPversion );
     		}
+    		
+    		//int logLevel = LogLevel.fromString( file.getString( "log_level" ) );
+            //DFSUtils.logLevel = LogLevel.getLogLevel( logLevel );
+            
+            //LOGGER.setLevel( DFSUtils.logLevel );
 		}
 		catch( IOException e ) {
 		    // The file is not found.

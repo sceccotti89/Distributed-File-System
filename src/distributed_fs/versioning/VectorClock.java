@@ -22,8 +22,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import com.google.common.collect.Maps;
-
+import distributed_fs.utils.Utils;
 import distributed_fs.utils.VersioningUtils;
 
 /**
@@ -92,8 +91,8 @@ public class VectorClock implements Version, Serializable
     private VectorClock( final TreeMap<String, Long> versionMap, final TreeMap<String, Long> timestampMap,
     					 final long timestamp ) 
     {
-        this.versionMap = VersioningUtils.notNull( versionMap );
-        this.timestampMap = VersioningUtils.notNull( timestampMap );
+        this.versionMap = Utils.checkNotNull( versionMap );
+        this.timestampMap = Utils.checkNotNull( timestampMap );
         this.timestamp = timestamp;
     }
     
@@ -157,11 +156,6 @@ public class VectorClock implements Version, Serializable
     	copyClock.incrementVersion( nodeId );
         return copyClock;
     }
-    
-    /*public VectorClock( final byte[] data )
-	{
-		write( data );
-	}*/
 	
 	public TreeMap<String, Long> getVersionMap() 
 	{
@@ -171,8 +165,8 @@ public class VectorClock implements Version, Serializable
 	@Override
     public VectorClock clone() 
     {
-        return new VectorClock( Maps.newTreeMap( versionMap ),
-        						Maps.newTreeMap( timestampMap ),
+        return new VectorClock( new TreeMap<>( versionMap ),
+        						new TreeMap<>( timestampMap ),
         						this.timestamp );
     }
 	
@@ -256,27 +250,4 @@ public class VectorClock implements Version, Serializable
     {
         return this.timestamp;
     }
-    
-	/*@Override
-	public byte[] read()
-	{
-		byte[] vMap = Utils.serializeObject( versionMap );
-		byte[] tMap = Utils.serializeObject( timestampMap );
-		
-		ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 2 + vMap.length + tMap.length + Long.BYTES );
-		buffer.putInt( vMap.length ).put( vMap );
-		buffer.putInt( tMap.length ).put( tMap );
-		buffer.putLong( timestamp );
-		
-		return buffer.array();
-	}
-	
-	@Override
-	public void write( byte[] data )
-	{
-		ByteBuffer buffer = ByteBuffer.wrap( data );
-		versionMap = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
-		timestampMap = Utils.deserializeObject( Utils.getNextBytes( buffer ) );
-		timestamp = buffer.getLong();
-	}*/
 }

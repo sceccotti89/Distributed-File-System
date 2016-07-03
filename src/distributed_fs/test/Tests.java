@@ -15,13 +15,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import org.apache.log4j.BasicConfigurator;
-import org.json.JSONException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +39,7 @@ import gossiping.RemoteGossipMember;
 
 public class Tests
 {
-	private static final String myIpAddress = "127.0.0.1";
+	private static final String IpAddress = "127.0.0.1";
 	
 	private List<DFSService> clients;
 	private List<GossipMember> members;
@@ -52,47 +50,48 @@ public class Tests
 	
 	public static void main( final String[] args ) throws Exception
 	{
+	    // 8002 => 2CCDB0A66E41511C0BC786727EB2A254CCCD39BB
+	    // 8105 => CF84B271DD59C6F89A106BBA2FE7063D1C17E00B
+	    // 8210 => E2352D531FAB14375362844A9C4516601359F49D
+	    // 8317 => 496D95264EC975412E55AC8EBA12F93B7AA834DF
+	    // 8426 => AA3592473714D61449399A9D2FD9F583D74F7ADE
+	    
 	    new Tests();
 	}
 	
 	public Tests() throws Exception
 	{
-	    DFSUtils.deleteDirectory( new File( "Servers" ) );
-	    DFSUtils.deleteDirectory( new File( "Clients" ) );
-	    
-	    System.out.println( "Start tests..." );
-		//testDatabase();
+	    //testDatabase();
 		
-		// First test when the service is down.
-		//DFSService service = new DFSService( myIpAddress, 0, false, null, null, null, null );
-		//assertFalse( service.start() );
-		//service.shutDown();
-		
-		startSystem( true );
+		setup( true );
 		
 		//Thread.sleep( 2000 );
 		
-		//testNoLoadBalancers( myIpAddress );
-		//testSingleClient();
-		//stressTest();
-		//testAntiEntropy();
-		//testHintedHandoff();
+		//testDeleteFolder();
+		testNoLoadBalancers();
+		testSingleClient();
+		stressTest();
+		testAntiEntropy();
+		testHintedHandoff();
 		
-		//close();
+		close();
 		
 		System.out.println( "End of tests." );
 	}
 	
 	@Before
-	public void startSystem( final boolean disableAntiEntropy ) throws IOException, JSONException, SQLException, InterruptedException, DFSException
+	public void setup( final boolean enableAntiEntropy ) throws IOException, InterruptedException, DFSException
 	{
-		runServers( disableAntiEntropy );
-		//runClients( myIpAddress, 2 );
+	    System.out.println( "Start tests..." );
+	    
+	    DFSUtils.deleteDirectory( new File( "Servers" ) );
+        DFSUtils.deleteDirectory( new File( "Clients" ) );
+	    
+		runServers( enableAntiEntropy );
+		runClients( IpAddress, 2 );
 	}
 	
-	@Before
-	private void runServers( final boolean disableAntiEntropy )
-	        throws IOException, JSONException, SQLException, InterruptedException, DFSException
+	private void runServers( final boolean enableAntiEntropy ) throws IOException, DFSException
 	{
 		// Create the gossip members and put them in a list.
 		members = new ArrayList<>( NUMBER_OF_BALANCERS + NUMBER_OF_STORAGES );
@@ -100,28 +99,26 @@ public class Tests
 		int k = 100;
 		for(int i = 0; i < NUMBER_OF_BALANCERS; i++, k++) {
 			int port = 8000 + (i * k);
-			String id = DFSUtils.getNodeId( 1, myIpAddress + ":" + port );
+			String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
 			//System.out.println( "ID: " + id );
-			members.add( new RemoteGossipMember( myIpAddress, port, id, 1, GossipMember.LOAD_BALANCER ) );
+			members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.LOAD_BALANCER ) );
 		}
+		
 		for(int i = 0 ; i < NUMBER_OF_STORAGES; i++, k++) {
 			int port = 8000 + (i * k) + NUMBER_OF_BALANCERS;
 			//System.out.println( "[" + i + "] = " + port );
-			String id = DFSUtils.getNodeId( 1, myIpAddress + ":" + port );
+			String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
 			//System.out.println( "ID: " + id );
-			members.add( new RemoteGossipMember( myIpAddress, port, id, 1, GossipMember.STORAGE ) );
+			members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.STORAGE ) );
 		}
 		
 		nodes = new ArrayList<>( members.size() );
 		
 		// Start the load balancer nodes.
 		for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
-			LoadBalancer node = new LoadBalancer( members, members.get( i ).getPort(), myIpAddress );
+			LoadBalancer node = new LoadBalancer( members, members.get( i ).getPort(), IpAddress );
 			nodes.add( node );
-			new Thread() {
-				@Override
-				public void run() { try { node.launch( false ); } catch (JSONException e) {e.printStackTrace();} }
-			}.start();
+			node.launch( true );
 		}
 		
 		String resources = "./Servers/Resources";
@@ -129,23 +126,16 @@ public class Tests
 		// Start the storage nodes.
 		for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
 			GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
-			System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
-			StorageNode node = new StorageNode( members, member.getId(), myIpAddress, member.getPort(),
+			//System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
+			StorageNode node = new StorageNode( members, IpAddress, member.getPort(),
 												resources + (i+2) + "/", database + (i+2) + "/" );
-			if(disableAntiEntropy)
-			    node.disableAntiEntropy();
+			node.setAntiEntropy( enableAntiEntropy );
 			nodes.add( node );
-			new Thread() {
-				@Override
-				public void run() { try { node.launch( false ); } catch (JSONException e) {e.printStackTrace();} }
-			}.start();
+			node.launch( true );
 		}
-		
-		Thread.sleep( 100 );
 	}
 	
-	@Before
-	private void runClients( final String ipAddress, final int numClients ) throws IOException, JSONException, DFSException
+	private void runClients( final String ipAddress, final int numClients ) throws IOException, DFSException
 	{
 		int port = 9000;
 		clients = new ArrayList<>( numClients );
@@ -160,9 +150,9 @@ public class Tests
 	}
 	
 	@Test
-	public void testNoLoadBalancers( final String ipAddress ) throws IOException, JSONException, DFSException, InterruptedException
+	public void testNoLoadBalancers() throws IOException, DFSException, InterruptedException
 	{
-	    DFSService service = new DFSService( ipAddress, 9002, false, members, "./Clients/ResourcesClient/", "./Clients/DatabaseClient/", null );
+	    DFSService service = new DFSService( IpAddress, 9002, false, members, "./Clients/ResourcesClient/", "./Clients/DatabaseClient/", null );
 	    service.start();
 	    
 	    Thread.sleep( 2000 );
@@ -178,13 +168,13 @@ public class Tests
 	}
 	
 	@Test
-	public void testSingleClient() throws IOException, JSONException, DFSException, InterruptedException
+	public void testSingleClient() throws IOException, DFSException, InterruptedException
 	{
 		DFSService service = clients.get( 0 );
 		
 		DFSUtils.existFile( "./Clients/ResourcesClient1/Images/photoshop.pdf", true );
 		
-		String file = "";
+		String file = "not_present.txt";
 		assertEquals( service.get( file ), service.getFile( file ) );
 		System.out.println( "\n\n" );
 		
@@ -211,12 +201,12 @@ public class Tests
 		
 		Thread.sleep( 1000 );
 		
-		assertEquals( service.put( "" ), false );
+		assertEquals( service.put( "not_present.txt" ), false );
 		System.out.println( "\n\n" );
 		
 		Thread.sleep( 1000 );
 		
-		assertEquals( service.delete( "" ), false );
+		assertEquals( service.delete( "not_present.txt" ), false );
 		System.out.println( "\n\n" );
 		
 		Thread.sleep( 1000 );
@@ -224,6 +214,18 @@ public class Tests
 		assertEquals( service.delete( file ), true );
 		assertEquals( service.getFile( file ), null );
 	}
+	
+	@Test
+	public void testDeleteFolder() throws IOException, DFSException
+	{
+	    DFSService service = clients.get( 0 );
+        
+        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
+        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
+        service.reload();
+        
+        assertTrue( service.delete( "./Clients/ResourcesClient1/ToDelete" ) );
+    }
 	
 	@Test
     public void stressTest() throws InterruptedException
@@ -246,7 +248,7 @@ public class Tests
     }
 	
     @Test
-	public void testAntiEntropy() throws IOException, JSONException, DFSException, InterruptedException, SQLException
+	public void testAntiEntropy() throws IOException, DFSException, InterruptedException
 	{
 		System.out.println( "\n\nTEST ANTI ENTROPY" );
 		
@@ -254,8 +256,6 @@ public class Tests
 		DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
 		
 		modifyTextFile( "./Clients/ResourcesClient1/" + file );
-		// TODO a volte sembra si blocchi in questo punto.
-		// TODO indagare un po' sulle cause.
 		assertTrue( clients.get( 0 ).put( file ) );
 		//assertTrue( clients.get( 0 ).put( "test4.txt" ) );
 		
@@ -294,13 +294,13 @@ public class Tests
 	}
 	
 	@Test
-    public void testHintedHandoff() throws IOException, JSONException, DFSException, InterruptedException
+    public void testHintedHandoff() throws IOException, DFSException, InterruptedException
     {
 		System.out.println( "Starting Hinted Handoff test..." );
     	String file = "chord_sigcomm.pdf";
     	DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
     	
-    	int index = 3 + NUMBER_OF_BALANCERS;
+    	int index = 4 + NUMBER_OF_BALANCERS;
     	String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
     	nodes.get( index ).closeResources();
     	System.out.println( "Node: " + members.get( index ) + " closed." );
@@ -312,8 +312,8 @@ public class Tests
     	Thread.sleep( 2000 );
     	
     	//assertEquals( service.get( file ), service.getFile( file ) );
-    	System.out.println( "HH: " + nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
-    	assertEquals( nodes.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+    	System.out.println( "HH: " + nodes.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
+    	assertEquals( nodes.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
 	
     @Test
@@ -323,7 +323,7 @@ public class Tests
 		
 		DFSUtils.existFile( "./Clients/ResourcesClient" + (index + 1) + "/Images/photoshop.pdf", true );
 		
-		service.get( "" );
+		service.get( "not_present.txt" );
 		System.out.println( "\n\n" );
 		
 		//Thread.sleep( 1000 );
@@ -356,7 +356,7 @@ public class Tests
 	}
     
 	@Test
-	public void testDatabase() throws IOException, DFSException, SQLException, InterruptedException
+	public void testDatabase() throws IOException, DFSException
 	{
 		if(clients == null && nodes == null)
 			BasicConfigurator.configure();

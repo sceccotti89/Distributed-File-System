@@ -18,10 +18,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import com.google.common.base.Preconditions;
-
 import distributed_fs.utils.DFSUtils;
+import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
+import gossiping.manager.HashFunction;
 
 /**
  * Implementation of {@link ConsistentHasher}.
@@ -47,7 +47,6 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	
 	private final ConcurrentMap<B, BucketInfo> bucketsAndLocks;
 	
-	// TODO METTERE I METODI ANCHE NELL'INTERFACCIA!!
 	/**
 	 * Contains a lock for the bucket, and also contains all virtual bucket names.
 	 * 
@@ -90,8 +89,8 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public void addBucket( final B bucketName, final int virtualNodes )
 	{
-		Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
-		Preconditions.checkNotNull( virtualNodes, "Bucket name can not be null" );
+		Utils.checkNotNull( bucketName, "Bucket name can not be null" );
+		Utils.checkNotNull( virtualNodes, "Bucket name can not be null" );
 		
 		List<String> virtBuckets = new ArrayList<>();
 		for (int virtualNodeId = 1; virtualNodeId <= virtualNodes; virtualNodeId++) {
@@ -101,7 +100,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 			virtBuckets.add( virtBucket );
 		}
 		
-		bucketsAndLocks.put( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
+		bucketsAndLocks.putIfAbsent( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
 	}
 	
 	@Override
@@ -124,7 +123,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 
 	private boolean removeBucket( final B bucketName, final long timeout, final TimeUnit unit, final boolean tryLock ) throws InterruptedException 
 	{
-		Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
+		Utils.checkNotNull( bucketName, "Bucket name can not be null" );
 		
 		BucketInfo bucketInfo = bucketsAndLocks.remove( bucketName );
 		if(bucketInfo == null)
@@ -154,22 +153,22 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public void addMember( final M memberName )
 	{
-		Preconditions.checkNotNull( memberName, "Member name can not be null" );
+		Utils.checkNotNull( memberName, "Member name can not be null" );
 		membersMap.put( DFSUtils.getId( memberName ), memberName );
 	}
 
 	@Override
 	public void removeMember( final M memberName )
 	{
-		Preconditions.checkNotNull( memberName, "Member name can not be null" );
+		Utils.checkNotNull( memberName, "Member name can not be null" );
 		membersMap.remove( DFSUtils.getId( memberName ) );
 	}
 
 	@Override
 	public List<M> getMembersFor( final B bucketName, final List<? extends M> members )
 	{
-		Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
-		Preconditions.checkNotNull( members,	    "Members can not be null." );
+		Utils.checkNotNull( bucketName, "Bucket name can not be null." );
+		Utils.checkNotNull( members,	    "Members can not be null." );
 		
 		NavigableMap<String, M> localMembersMap = new TreeMap<>();
 		members.forEach( member -> {
@@ -180,15 +179,15 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 
 	@Override
-	public List<M> getMembersFor( final B bucketName ) 
+	public List<M> getMembersFor( final B bucketName )
 	{
 		return getMembersInternal( bucketName, membersMap );
 	}
 
-	private List<M> getMembersInternal( final B bucketName, final NavigableMap<String, M> members ) 
+	private List<M> getMembersInternal( final B bucketName, final NavigableMap<String, M> members )
 	{
-		Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
-		Preconditions.checkNotNull( members,	    "Members can not be null." );
+		Utils.checkNotNull( bucketName, "Bucket name can not be null." );
+		Utils.checkNotNull( members,	    "Members can not be null." );
 		
 		BucketInfo bInfo = bucketsAndLocks.get( bucketName );
 		if (bInfo == null)
@@ -222,7 +221,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 
 	@Override
-	public Map<B, List<M>> getAllBucketsToMembersMapping() 
+	public Map<B, List<M>> getAllBucketsToMembersMapping()
 	{
 		Map<B, List<M>> result = new HashMap<>();
 		for (B bucket : bucketsAndLocks.keySet()) {
@@ -234,57 +233,46 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 
 	@Override
-	public List<B> getAllBuckets() 
+	public List<B> getAllBuckets()
 	{
 		return new ArrayList<B>( bucketsAndLocks.keySet() );
 	}
 
 	@Override
-	public List<M> getAllMembers() 
+	public List<M> getAllMembers()
 	{
 		return new ArrayList<>( membersMap.values() );
 	}
 	
+	@Override
 	public String getFirstKey()
 	{
 		try{ return bucketsMap.firstKey(); }
 		catch( NoSuchElementException e ) { return null; }
 	}
 	
+	@Override
 	public String getLastKey()
 	{
 		try{ return bucketsMap.lastKey(); }
 		catch( NoSuchElementException e ) { return null; }
 	}
 	
-	/**
-	 * Returns the successor buckets of the given bucket id.
-	 * 
-	 * @param id	the given bucket
-	*/
+	@Override
 	public ArrayList<String> getSuccessors( final String id )
 	{
-		Preconditions.checkNotNull( id, "Id can not be null" );
+		Utils.checkNotNull( id, "Id can not be null" );
 		return new ArrayList<String>( bucketsMap.tailMap( id ).keySet() );
 	}
 	
-	/**
-	 * Returns the successor bucket of the given id.
-	 * 
-	 * @param id	the given identifier
-	*/
+	@Override
 	public String getSuccessor( final String id )
 	{
-		Preconditions.checkNotNull( id, "Id cannot be null" );
+		Utils.checkNotNull( id, "Id cannot be null" );
 		return bucketsMap.higherKey( id );
 	}
 	
-	/**
-	 * Returns the successor bucket of the given bucket id.<br>
-	 * If there is no other nodes, checks it from the first key.
-	 * 
-	 * @param id	the given bucket
-	*/
+	@Override
 	public String getNextBucket( final String id )
 	{
 		String succ = getSuccessor( id );
@@ -294,34 +282,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 		return succ;
 	}
 	
-	/**
-	 * Returns the predecessor buckets of the given bucket id.
-	 * 
-	 * @param id	the given bucket
-	*/
+	@Override
 	public ArrayList<String> getPredecessors( final String id )
 	{
-		Preconditions.checkNotNull( id, "Id can not be null" );
+		Utils.checkNotNull( id, "Id can not be null" );
 		return new ArrayList<String>( bucketsMap.headMap( id ).keySet() );
 	}
 	
-	/**
-	 * Returns the predecessor bucket of the given bucket id.
-	 * 
-	 * @param id	the given bucket
-	*/
+	@Override
 	public String getPredecessor( final String id )
 	{
-		Preconditions.checkNotNull( id, "Id can not be null" );
+		Utils.checkNotNull( id, "Id can not be null" );
 		return bucketsMap.lowerKey( id );
 	}
 	
-	/**
-	 * Returns the predecessor bucket of the given bucket id.<br>
-	 * If there is no other nodes, checks it from the last key.
-	 * 
-	 * @param id	the given bucket
-	*/
+	@Override
 	public String getPreviousBucket( final String id )
 	{
 		String prev = getPredecessor( id );
@@ -334,21 +309,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public List<String> getVirtualBucketsFor( final B bucketName )
 	{
-		Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
+		Utils.checkNotNull( bucketName, "Bucket name can not be null" );
 		return bucketsAndLocks.get( bucketName ).virtBuckets;
 	}
 	
-	/**
-	 * Returns the size of the database.
-	*/
+	@Override
+	public boolean isEmpty() {
+	    return bucketsMap.isEmpty();
+	}
+	
+	@Override
 	public int getSize() {
 		return bucketsMap.size();
 	}
 
-	/**
-     * Removes all of the mappings from this map.<br>
-     * The map will be empty after this call returns.
-    */
+	@Override
     public void clear()
     {
         bucketsMap.clear();

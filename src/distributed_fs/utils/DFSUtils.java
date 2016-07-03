@@ -12,7 +12,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -26,27 +25,26 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import org.apache.log4j.Level;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.google.common.hash.HashFunction;
-
 import distributed_fs.overlay.DFSNode;
+import distributed_fs.utils.resources.ResourceLoader;
 import gossiping.StartupSettings;
+import gossiping.manager.HashFunction;
 
 public class DFSUtils
 {
 	/** Hash function used to compute the identifier of a node. */
 	public static final HashFunction _hash = StartupSettings._hash;
 	
+	/** Gossiping configuration path. */
+    public static final String GOSSIP_CONFIG = "./Settings/Settings.json";
+	
 	/** Configuration path. */
-	public static final String DISTRIBUTED_FS_CONFIG = "./Settings/Settings.json";
+	public static final String DISTRIBUTED_FS_CONFIG = "./Settings/NodeSettings.json";
 	
-	/** The logger level. */
-	public static Level logLevel = Level.DEBUG;
-	
-	/** Port used to send/receive data in the service. */
+	/** Default port used to send/receive data in the service. */
 	public static final int SERVICE_PORT = 9000;
 	
 	/** Decides whether the program is running in test mode or not. */
@@ -68,7 +66,7 @@ public class DFSUtils
 		bb.putInt( virtualNode );
 		bb.put( hostInBytes );
 		
-		return bytesToHex( _hash.hashBytes( bb.array() ).asBytes() );
+		return bytesToHex( _hash.hashBytes( bb.array() ) );
 	}
 	
 	/**
@@ -80,7 +78,7 @@ public class DFSUtils
 	public static <S extends Serializable> String getId( final S object )
 	{
 		byte[] bucketNameInBytes = serializeObject( object );
-		return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
+		return bytesToHex( _hash.hashBytes( bucketNameInBytes ) );
 	}
 	
 	/**
@@ -93,15 +91,16 @@ public class DFSUtils
 		
 		Runtime runtime = Runtime.getRuntime();
 		
-		/* Total number of processors or cores available to the JVM */
+		// Total number of processors or cores available to the JVM.
 		int cores = runtime.availableProcessors();
 		DFSNode.LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
 		virtualNodes = (short) (virtualNodes + (cores * 4));
 		
-		/* Size of the RAM */
+		// Size of the RAM.
 		long RAMsize;
 		String OS = System.getProperty( "os.name" ).toLowerCase();
-		if(OS.startsWith( "windows" )) { // windows command
+		if(OS.startsWith( "windows" )) {
+		    // Windows command.
 			ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
 			Process proc = pb.start();
             //Process proc = runtime.exec( "wmic computersystem get TotalPhysicalMemory" );
@@ -119,7 +118,8 @@ public class DFSUtils
 			//System.out.println( line );
 			RAMsize = Long.parseLong( line.trim() );
 		}
-		else { // linux command
+		else {
+		    // Linux command.
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			
@@ -137,12 +137,12 @@ public class DFSUtils
 			
 			Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
 			matcher.find();
-			// Multiply it by 1024 because the result is in kB
+			// Multiply it by 1024 because the result is in kB.
 			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
 		}
 		
 		DFSNode.LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
-		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // divide it by 250MB
+		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // Divide it by 250MB.
 		
 		DFSNode.LOGGER.debug( "Total nodes: " + virtualNodes );
 		
@@ -159,6 +159,9 @@ public class DFSUtils
 	*/
 	public static <T extends Serializable> byte[] serializeObject( final T obj )
 	{
+	    if(obj instanceof String)
+	        return ((String) obj).getBytes( StandardCharsets.UTF_8 );
+	    
 		try {
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			ObjectOutputStream os = new ObjectOutputStream( out );
@@ -227,37 +230,37 @@ public class DFSUtils
 	}
 	
 	/**
-     * Checks whether a file exists.
-     * 
-     * @param file                  the file to check
-     * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
-     *                              {@code false} otherwise
-    */
-    public static boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
-    {
-        return existFile( file.getAbsolutePath(), createIfNotExists );
-    }
-	
-	/**
 	 * Checks whether a file exists.
 	 * 
-	 * @param filePath				path to the file to check
+	 * @param filePath				absolute or relative path to the file to check
 	 * @param createIfNotExists		setting it to {@code true} the file will be created if it shouldn't exists,
 	 * 								{@code false} otherwise
 	*/
 	public static boolean existFile( final String filePath, final boolean createIfNotExists )
 	        throws IOException
 	{
-		File file = new File( filePath );
-		boolean exists = file.exists();
-		if(!exists && createIfNotExists) {
-		    if(file.getParent() != null)
-		        file.getParentFile().mkdirs();
-			file.createNewFile();
-		}
-		
-		return exists;
+		return existFile( new File( filePath ), createIfNotExists );
 	}
+	
+	/**
+     * Checks whether a file exists.
+     * 
+     * @param file                  the file to check
+     * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
+     *                              {@code false} otherwise
+    */
+    public static boolean existFile( final File file, final boolean createIfNotExists )
+            throws IOException
+    {
+        boolean exists = file.exists();
+        if(!exists && createIfNotExists) {
+            if(file.getParent() != null)
+                file.getParentFile().mkdirs();
+            file.createNewFile();
+        }
+        
+        return exists;
+    }
 	
 	/**
 	 * Checks whether a file is a directory.
@@ -307,7 +310,7 @@ public class DFSUtils
 		
 		return bytes;
 	}
-
+	
 	/** 
 	 * Saves a file on disk.
 	 * 
@@ -434,7 +437,7 @@ public class DFSUtils
     {
         return bytesToHex( buffer.array() );
     }
-
+    
     /** 
 	 * Transforms a byte array in a hexadecimal representation.
 	 * 
@@ -453,29 +456,6 @@ public class DFSUtils
 		
 		return buf.toString();
 	}
-	
-	
-	
-	/** 
-	 * Transforms an hexadecimal representation in a byte array.
-	 * 
-	 * @param s		the hexadecimal representation
-	*/
-	/*public static byte[] hexToBytes( final String s )
-	{
-		//return DatatypeConverter.parseHexBinary( s );
-		
-		assert( s.length() >= 2 );
-		
-		int len = s.length();
-		byte[] data = new byte[len / 2];
-		for(int i = 0; i < len; i += 2) {
-			data[i / 2] = (byte) ((Character.digit( s.charAt( i ), 16 ) << 4)
-								 + Character.digit( s.charAt( i+1 ), 16 ));
-		}
-		
-		return data;
-	}*/
 	
 	/** 
 	 * Transforms an hexadecimal representation in a ByteBuffer object.
@@ -557,7 +537,7 @@ public class DFSUtils
 				(byte) value
 			};
 	}
-
+	
 	/**
 	 * Returns the long representation of a byte array.
 	 * 
@@ -568,21 +548,28 @@ public class DFSUtils
 		ByteBuffer wrapper = ByteBuffer.wrap( key );
 		return wrapper.getLong();
 	}
-
+	
 	/** 
 	 * Parse a JSON file.
 	 * 
 	 * @param path	file location
 	*/
-	public static JSONObject parseJSONFile( final String path ) throws IOException, JSONException
+	public static JSONObject parseJSONFile( final String path ) throws IOException
 	{
-		BufferedReader file = new BufferedReader( new FileReader( path ) );
+	    InputStream in = ResourceLoader.getResourceAsStream( path );
+        BufferedReader file = new BufferedReader( new InputStreamReader( in ) );
+		//BufferedReader file = new BufferedReader( new FileReader( path ) );
 		StringBuilder content = new StringBuilder( 512 );
 		String line;
 		while((line = file.readLine()) != null)
 			content.append( line.trim() );
 		file.close();
 		
-		return new JSONObject( content.toString() );
+		try {
+		    JSONObject jFile = new JSONObject( content.toString() );
+		    return jFile;
+		} catch( JSONException e ) {
+		    throw new RuntimeException( e );
+		}
 	}
 }

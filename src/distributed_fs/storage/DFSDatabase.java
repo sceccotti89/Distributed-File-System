@@ -7,7 +7,6 @@ package distributed_fs.storage;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -27,12 +26,10 @@ import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 
-import com.google.common.base.Preconditions;
-
-import distributed_fs.client.DFSService.DBListener;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.utils.DFSUtils;
+import distributed_fs.utils.Utils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.TimeBasedInconsistencyResolver;
 import distributed_fs.versioning.VectorClock;
@@ -119,10 +116,10 @@ public class DFSDatabase implements Closeable
             if(!DFSUtils.existFile( root + file.getName(), false ))
                 database.remove( file.getId() );
         }
-        loadFiles( new File( root ) );
-		
         db.commit();
-		//System.out.println( "FILES2: " + database.values() );
+        loadFiles( true );
+		
+        //System.out.println( "FILES2: " + database.values() );
 		
 		scanDBThread = new ScanDBThread();
 		scanDBThread.start();
@@ -151,16 +148,23 @@ public class DFSDatabase implements Closeable
 	}
 	
 	/**
-	 * Loads recursively the files present in the current folder.
-	 * 
-	 * @param dir	the current directory
-	*/
-	private void loadFiles( final File dir ) throws IOException
+     * Loads recursively the files present in the file system.
+     * 
+     * @param saveDuplicated    {@code true} to save again an already present file,
+     *                          {@code false} otherwise
+    */
+    public void loadFiles( final boolean saveDuplicated ) throws IOException
+    {
+        doLoadFiles( new File( root ), saveDuplicated );
+        db.commit();
+    }
+	
+	private void doLoadFiles( final File dir, final boolean saveDuplicated ) throws IOException
 	{
 		for(File f : dir.listFiles()) {
 			String fileName = f.getPath().replace( "\\", "/" );
 			if(f.isDirectory()) {
-				loadFiles( f );
+			    doLoadFiles( f, saveDuplicated );
 				fileName += "/";
 			}
 			fileName = normalizeFileName( fileName );
@@ -171,7 +175,7 @@ public class DFSDatabase implements Closeable
 			    database.put( file.getId(), file );
 			}
 			else {
-				if(file.getHintedHandoff() != null && hhThread != null)
+				if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
 					hhThread.saveFile( file );
 			}
 			
@@ -215,7 +219,7 @@ public class DFSDatabase implements Closeable
 	 * @return the new clock, if updated, {@code null} otherwise
 	*/
 	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
-								 final String hintedHandoff, final boolean saveOnDisk ) throws IOException, SQLException
+								 final String hintedHandoff, final boolean saveOnDisk ) throws IOException
 	{
 		return saveFile( file.getName(), file.getContent(),
 						 clock, hintedHandoff, saveOnDisk );
@@ -235,10 +239,10 @@ public class DFSDatabase implements Closeable
 	*/
 	public VectorClock saveFile( String fileName, final byte[] content,
 								 final VectorClock clock, final String hintedHandoff,
-								 final boolean saveOnDisk ) throws IOException, SQLException
+								 final boolean saveOnDisk ) throws IOException
 	{
-		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
-		Preconditions.checkNotNull( clock,    "clock cannot be null." );
+		Utils.checkNotNull( fileName, "fileName cannot be null." );
+		Utils.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
 		fileName = normalizeFileName( fileName );
@@ -255,29 +259,22 @@ public class DFSDatabase implements Closeable
 		DistributedFile file = database.get( fileId );
 		
 		if(file != null) {
-			//System.out.println( "OLD CLOCK: " + file.getVersion() );
-			//System.out.println( "NEW CLOCK: " + clock );
-			
 			if(!resolveVersions( file.getVersion(), clock )) {
 				// The input version is newer than mine, then
 				// it overrides the current one.
 				file.setVersion( updated = clock.clone() );
-				if(file.isDeleted())
-					file.setDeleted( false );
+				file.setDeleted( false );
 				file.setHintedHandoff( hintedHandoff );
 				doSave( file, content, saveOnDisk );
 			}
 		}
 		else {
-			//file = new DistributedFile( fileName, root, clock, _fileMgr != null );
 			file = new DistributedFile( fileName, new File( root + fileName ).isDirectory(), updated = clock.clone(), hintedHandoff );
 			doSave( file, content, saveOnDisk );
 		}
 		
 		if(hintedHandoff != null && hhThread != null)
             hhThread.saveFile( file );
-		
-		//System.out.println( "UPDATED: " + updated );
     	
 		LOCK_WRITERS.unlock();
 		
@@ -289,7 +286,7 @@ public class DFSDatabase implements Closeable
 	
 	private void doSave( final DistributedFile file,
 						 final byte[] content,
-						 final boolean saveOnDisk ) throws SQLException, IOException
+						 final boolean saveOnDisk ) throws IOException
 	{
 		database.put( file.getId(), file );
 		db.commit();
@@ -316,10 +313,10 @@ public class DFSDatabase implements Closeable
 	*/
 	public VectorClock removeFile( String fileName,
 	                               final VectorClock clock,
-	                               final String hintedHandoff ) throws SQLException
+	                               final String hintedHandoff )
 	{
-		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
-		Preconditions.checkNotNull( clock,    "clock cannot be null." );
+		Utils.checkNotNull( fileName, "fileName cannot be null." );
+		Utils.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
 		fileName = normalizeFileName( fileName );
@@ -395,7 +392,7 @@ public class DFSDatabase implements Closeable
 	 * 
 	 * @param file  the file to delete
 	*/
-	private void deleteFile( final DistributedFile file ) throws SQLException
+	private void deleteFile( final DistributedFile file )
 	{
 	    LOCK_WRITERS.lock();
 	    if(db.isClosed()) {
@@ -448,7 +445,7 @@ public class DFSDatabase implements Closeable
 		if(fromId == null || destId == null)
 			return null;
 		
-		List<DistributedFile> result = new ArrayList<>( 16 );
+		List<DistributedFile> result = new ArrayList<>( 32 );
 		
 		LOCK_READERS.lock();
 		if(db.isClosed()) {
@@ -523,9 +520,16 @@ public class DFSDatabase implements Closeable
 	private boolean checkExistsInFileSystem( final File filePath, final String fileName )
 	{
 		File[] files = filePath.listFiles();
+		if(files == null)
+		    files = filePath.listFiles();
+		
 		if(files != null) {
 			for(File file : files) {
-				if(file.getPath().replace( "\\", "/" ).equals( fileName ))
+			    String _file = file.getPath().replace( '\\', '/' );
+				if(file.isDirectory() && !_file.endsWith( "/" ))
+				    _file = _file + "/";
+			    
+				if(_file.equals( fileName ))
 					return true;
 				
 				if(file.isDirectory()) {
@@ -611,6 +615,11 @@ public class DFSDatabase implements Closeable
 		    db.close();
 		LOCK_WRITERS.unlock();
 	}
+    
+    public static interface DBListener
+    {
+        public void dbEvent( final String fileName, final byte code );
+    }
 	
 	/**
 	 * Class used to periodically test
@@ -636,10 +645,8 @@ public class DFSDatabase implements Closeable
 				for(int i = files.size() - 1; i >= 0; i--) {
 					DistributedFile file = files.get( i );
 					if(file.isDeleted()) {
-						if(file.checkDelete()) {
-						    try { deleteFile( file ); }
-						    catch( SQLException e ) { e.printStackTrace(); }
-						}
+						if(file.checkDelete())
+						    deleteFile( file );
 					}
 				}
 			}
@@ -694,8 +701,7 @@ public class DFSDatabase implements Closeable
 					for(int i = files.size() - 1; i >= 0; i--) {
 					    DistributedFile file = it.next();
 						if(file.checkDelete()) {
-						    try { deleteFile( file ); }
-                            catch( SQLException e ) {}
+						    deleteFile( file );
 							it.remove();
 						}
 					}
@@ -708,10 +714,8 @@ public class DFSDatabase implements Closeable
 					if(_fileMgr.sendFiles( host, port, files, true, null, null ) ) {
 					    // If all the files have been successfully delivered,
 					    // they are removed for the current database.
-						for(DistributedFile file : files) {
-						    try { deleteFile( file ); }
-							catch ( SQLException e ) {}
-						}
+						for(DistributedFile file : files)
+						    deleteFile( file );
 						
 						removeAddress( address );
 					}

@@ -2,7 +2,6 @@
 package distributed_fs.client.manager;
 
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -75,7 +74,7 @@ public class ClientSynchronizer extends Thread
                     
                 }
             }
-            catch( IOException | SQLException e ) {}
+            catch( IOException e ) {}
         }
     }
     

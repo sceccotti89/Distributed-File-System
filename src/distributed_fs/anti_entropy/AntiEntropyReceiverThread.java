@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import distributed_fs.anti_entropy.MerkleTree.Node;
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
@@ -50,7 +50,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	public AntiEntropyReceiverThread( final GossipMember _me,
 	                                  final DFSDatabase database,
 	                                  final FileTransferThread fMgr,
-	                                  final ConsistentHasherImpl<GossipMember, String> cHasher ) throws IOException
+	                                  final ConsistentHasher<GossipMember, String> cHasher )
 	{
 	    super( _me, database, fMgr, cHasher );
 	    
@@ -149,6 +149,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				// TODO in queso modo risparmio tempo perche' non devo per forza arrivare fino alla root
 				m_tree = createMerkleTree( files );
 				
+				//System.out.println( "[RCV] FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", Files: " + files );
 				// Check the differences through the trees.
 				checkTreeDifferences( inputTree, inputHeight );
 				
@@ -156,6 +157,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				if(m_tree != null)
 					filesToSend = getMissingFiles( files );
+				//System.out.println( "FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", MISSING FILES: " + filesToSend );
 				
 				addToSynch( sourceId );
 				

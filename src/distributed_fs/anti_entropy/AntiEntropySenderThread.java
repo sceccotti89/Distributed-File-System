@@ -5,7 +5,6 @@
 package distributed_fs.anti_entropy;
 
 import java.io.IOException;
-import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -14,9 +13,10 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import distributed_fs.anti_entropy.MerkleTree.Node;
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
@@ -38,7 +38,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	private TCPSession session;
 	private MerkleTree m_tree = null;
 	private BitSet bitSet = new BitSet(); /** Used to keep track of the different nodes */
-	private final HashSet<String> addresses = new HashSet<>();
+	private final Set<String> addresses = new HashSet<>();
 	
 	/** Updating timer. */
 	public static final int EXCH_TIMER = 5000;
@@ -46,7 +46,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	public AntiEntropySenderThread( final GossipMember _me,
 									final DFSDatabase _database,
 									final FileTransferThread fMgr,
-									final ConsistentHasherImpl<GossipMember, String> cHasher ) throws SocketException
+									final ConsistentHasher<GossipMember, String> cHasher )
 	{
 		super( _me, _database, fMgr, cHasher );
 	}
@@ -56,31 +56,33 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 		LOGGER.info( "Anti Entropy Sender Thread launched" );
 		
-		if(!DFSUtils.testing)
-			addresses.add( me.getHost() );
-		
-		// Used to ensure that a request starts too soon.
-		try{ Thread.sleep( 200 ); }
+		// Used to ensure that a request doesn't start too soon.
+		try{ Thread.sleep( 300 ); }
         catch( InterruptedException e ){ return; }
 		
 		while(!shoutDown) {
+		    addresses.clear();
+		    if(!DFSUtils.testing)
+	            addresses.add( me.getHost() );
+		    
 		    // Each virtual node sends the Merkle tree to its successor node,
 			// and to a random predecessor node.
 			List<String> vNodes = cHasher.getVirtualBucketsFor( me );
 			for(String vNodeId : vNodes) {
+			    // The successor node.
 			    String succId = cHasher.getNextBucket( vNodeId );
-				if(succId != null) {
-				    // The successor node.
-					GossipMember succNode = cHasher.getBucket( succId );
-					if(succNode != null) {
-						if(!addresses.contains( succNode.getHost() )) {
-							if(!DFSUtils.testing)
-								addresses.add( succNode.getHost() );
-							try{ startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN ); }
-							catch( IOException | InterruptedException e ){
-							    // Ignored.
-							    e.printStackTrace();
-							}
+			    GossipMember succNode;
+			    // Each virtual node takes the corresponding files from the successor node,
+			    // founded in the consistent hashing table.
+			    if(succId != null && (succNode = cHasher.getBucket( succId )) != null) {
+					if(!addresses.contains( succNode.getHost() )) {
+						if(!DFSUtils.testing)
+							addresses.add( succNode.getHost() );
+						try{ startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN ); }
+						catch( IOException | InterruptedException e ){
+						    // Ignored.
+						    //e.printStackTrace();
+						    //System.err.println( "Node: " + me );
 						}
 					}
 				}
@@ -94,10 +96,10 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 						try {
 							startAntiEntropy( node, vNodeId, randomPeer, MERKLE_FROM_REPLICA );
 							break;
-						}
-						catch( IOException | InterruptedException e ){
+						} catch( IOException | InterruptedException e ) {
 						    // Ignored.
-						    e.printStackTrace();
+						    //e.printStackTrace();
+						    //System.err.println( "Node: " + me + ", Contacting: " + node );
 						    /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
 						                        ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
 						                        ", To: " + cHasher.getBucket( randomPeer ) +
@@ -138,6 +140,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		
 		handShake( node, msg_type, vNodeId, destId );
 		
+		//System.out.println( "[SND] ALL FILES: " + database.getAllFiles() + ", Type: " + msg_type + ", fromNode: " + me.getPort() + ", toNode: " + node.getPort() +
+                //", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() + ", Files: " + files );
 		// Check the differences among the trees.
 		checkTreeDifferences();
 		

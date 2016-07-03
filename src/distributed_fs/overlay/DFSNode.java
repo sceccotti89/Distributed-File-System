@@ -27,24 +27,23 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONException;
+import org.apache.log4j.PropertyConfigurator;
 import org.json.JSONObject;
 
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.ThreadMonitor;
-import distributed_fs.overlay.manager.ThreadState;
+import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipNode;
 import gossiping.GossipRunner;
-import gossiping.LogLevel;
 import gossiping.event.GossipListener;
 import gossiping.event.GossipState;
 
@@ -56,14 +55,14 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected static NodeStatistics stats;
 	protected TCPnet _net;
 	
-	protected ConsistentHasherImpl<GossipMember, String> cHasher;
+	protected volatile ConsistentHasher<GossipMember, String> cHasher;
 	protected HashSet<String> filterAddress;
 	protected GossipRunner runner;
 	
 	protected ExecutorService threadPool;
 	protected NetworkMonitor netMonitor;
 	protected ThreadMonitor monitor_t;
-	protected FileTransferThread fMgr;
+	protected volatile FileTransferThread fMgr;
 	
 	protected boolean shutDown = false;
 	
@@ -73,7 +72,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	
 	protected long id;
 	protected boolean completed = false; // Used to check if the thread has completed the job.
-	private long nextThreadID; // Next unique identifier associated to the Thread.
+	private long nextThreadID; // Next unique identifier associated with the Thread.
 	
 	// Used to create the list of actions done by the node.
     public static final Object DONE = new Object();
@@ -82,16 +81,15 @@ public abstract class DFSNode extends Thread implements GossipListener
 	public static final int WAIT_CLOSE = 200;
 	public static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
 	
+	
+	
 	public DFSNode( final int nodeType,
 					final String address,
-					final List<GossipMember> startupMembers ) throws IOException, JSONException
+					final List<GossipMember> startupMembers ) throws IOException
 	{
 		_address = address;
 		
 		setConfigure();
-		
-		if(!DFSUtils.testing)
-			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -101,7 +99,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
 		if(startupMembers == null || startupMembers.size() == 0)
-			runner = new GossipRunner( new File( DFSUtils.DISTRIBUTED_FS_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
+			runner = new GossipRunner( new File( DFSUtils.GOSSIP_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
 		
 		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
 		{
@@ -115,11 +113,12 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	/** Testing. */
-	public DFSNode() throws IOException, JSONException
+	public DFSNode() throws IOException
 	{
-		DFSUtils.testing = true;
+	    DFSUtils.testing = true;
 		if(!DFSUtils.initConfig){
 		    DFSUtils.initConfig = true;
+		    PropertyConfigurator.configure( "Settings/log4j.properties" );
             BasicConfigurator.configure();
         }
 		
@@ -136,7 +135,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	*/
 	public DFSNode( final TCPnet net,
 					final FileTransferThread fMgr,
-					final ConsistentHasherImpl<GossipMember, String> cHasher )
+					final ConsistentHasher<GossipMember, String> cHasher )
 	{
 		this._net = net;
 		this.fMgr = fMgr;
@@ -144,7 +143,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	/**
-	 * Returns the number of virtual nodes that you can manage,
+	 * Returns the number of virtual nodes that can be managed,
 	 * based on the capabilities of this machine.
 	*/
 	protected short computeVirtualNodes() throws IOException
@@ -153,15 +152,16 @@ public abstract class DFSNode extends Thread implements GossipListener
 		
 		Runtime runtime = Runtime.getRuntime();
 		
-		/* Total number of processors or cores available to the JVM */
+		// Total number of processors or cores available to the JVM.
 		int cores = runtime.availableProcessors();
 		LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
 		virtualNodes = (short) (virtualNodes + (cores * 4));
 		
-		/* Size of the RAM */
+		// Size of the RAM.
 		long RAMsize;
 		String OS = System.getProperty( "os.name" ).toLowerCase();
-		if(OS.startsWith( "windows" )) { // windows command
+		if(OS.startsWith( "windows" )) {
+		    // Windows command.
 			ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
 			Process proc = pb.start();
             //Process proc = runtime.exec( "wmic computersystem get TotalPhysicalMemory" );
@@ -179,7 +179,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 			//System.out.println( line );
 			RAMsize = Long.parseLong( line.trim() );
 		}
-		else { // linux command
+		else {
+		    // Linux command.
+		    // TODO does it work also for Apple OS??
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			
@@ -197,12 +199,12 @@ public abstract class DFSNode extends Thread implements GossipListener
 			
 			Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
 			matcher.find();
-			// Multiply it by 1024 because the result is in kB
+			// Multiply it by 1024 because the result is expressed in kBytes.
 			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
 		}
 		
 		LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
-		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // divide it by 250MB
+		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // Divide it by 250MBytes.
 		
 		LOGGER.debug( "Total nodes: " + virtualNodes );
 		
@@ -235,7 +237,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 			catch( InterruptedException e ){}
 		}
 		else {
-		    // TODO RIMETTERE
 			LOGGER.info( "Added node: " + member.toJSONObject().toString() );
 			cHasher.addBucket( member, member.getVirtualNodes() );
 			if(fMgr != null) {
@@ -247,20 +248,18 @@ public abstract class DFSNode extends Thread implements GossipListener
 	/** 
 	 * Sets the initial configuration.
 	*/
-	private void setConfigure() throws IOException, JSONException
+	private void setConfigure() throws IOException
 	{
+	    PropertyConfigurator.configure( "Settings/log4j.properties" );
+	    
 		if(!DFSUtils.initConfig){
 		    DFSUtils.initConfig = true;
 			BasicConfigurator.configure();
 		}
 		
 		JSONObject file = DFSUtils.parseJSONFile( DFSUtils.DISTRIBUTED_FS_CONFIG );
-		int logLevel = LogLevel.fromString( file.getString( "log_level" ) );
-		DFSUtils.logLevel = LogLevel.getLogLevel( logLevel );
-		
-		JSONArray inetwork = file.getJSONArray( "network_interface" );
-		String inet = inetwork.getJSONObject( 0 ).getString( "inet" );
-		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
+		String inet = file.getString( "inet" );
+        int IPversion = file.getInt( "IPversion" );
 		
 		// Load the address only if it's null.
 		if(_address == null)
@@ -279,11 +278,11 @@ public abstract class DFSNode extends Thread implements GossipListener
 		// enumerate all the network intefaces
 		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
 		for(NetworkInterface netInt : Collections.list( nets )) {
-			LOGGER.debug( "NET: " + netInt.getName() );
+			LOGGER.debug( "Net: " + netInt.getName() );
 			if(netInt.getName().equals( inet )) {
 				// enumerate all the IP address associated with it
 				for(InetAddress inetAddress : Collections.list( netInt.getInetAddresses() )) {
-					LOGGER.debug( "ADDRESS: " + inetAddress );
+					LOGGER.debug( "Address: " + inetAddress );
 					if(!inetAddress.isLoopbackAddress() &&
 							((IPversion == 4 && inetAddress instanceof Inet4Address) ||
 							(IPversion == 6 && inetAddress instanceof Inet6Address))) {

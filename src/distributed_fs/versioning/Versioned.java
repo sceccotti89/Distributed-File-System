@@ -18,10 +18,9 @@ package distributed_fs.versioning;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.Objects;
 
-import com.google.common.base.Objects;
-
-import distributed_fs.utils.VersioningUtils;
+import distributed_fs.utils.Utils;
 
 /**
  * A wrapper for an object that adds a Version.
@@ -72,8 +71,8 @@ public final class Versioned<T> implements Serializable
             return false;
 
         Versioned<?> versioned = (Versioned<?>) o;
-        return Objects.equal( getVersion(), versioned.getVersion() )
-               && VersioningUtils.deepEquals( getValue(), versioned.getValue() );
+        return Objects.equals( getVersion(), versioned.getVersion() )
+               && Utils.deepEquals( getValue(), versioned.getValue() );
     }
     
     @Override

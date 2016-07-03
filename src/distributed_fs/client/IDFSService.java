@@ -9,6 +9,7 @@ import java.util.List;
 
 import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.RemoteFile;
 
 public interface IDFSService
 {
@@ -20,6 +21,13 @@ public interface IDFSService
 	 * @return the downloaded file, if present, {@code null} otherwise
 	*/
 	public DistributedFile get( String fileName ) throws DFSException;
+	
+	/**
+     * Retrieves all the files stored in a random node of the network.
+     * 
+     * @return list of files, if everything was ok, {@code null} otherwise.
+    */
+    public List<RemoteFile> getAllFiles() throws DFSException;
 	
 	/** 
 	 * Stores an object on the corresponding node of the network.

@@ -72,8 +72,7 @@ public class MembershipManagerThread extends Thread
                 else {
                     List<GossipNode> localMembers = manager.getMemberList();
                     members = new ArrayList<>( localMembers.size() + 1 );
-                    for(GossipNode member : localMembers)
-                        members.add( member );
+                    members.addAll( localMembers );
                     members.add( new GossipNode( me ) );
                 }
                 

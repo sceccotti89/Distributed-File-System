@@ -12,12 +12,11 @@ import java.util.Random;
 import org.apache.log4j.Logger;
 
 import distributed_fs.anti_entropy.MerkleTree.Node;
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
-import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
 /**
@@ -26,16 +25,14 @@ import gossiping.GossipMember;
 */
 public abstract class AntiEntropyThread extends Thread
 {
-	protected final ConsistentHasherImpl<GossipMember, String> cHasher;
+	protected final ConsistentHasher<GossipMember, String> cHasher;
 	protected final FileTransferThread fMgr;
 	protected final DFSDatabase database;
 	protected final TCPnet net;
-	protected GossipMember me;
+	protected final GossipMember me;
 	private final Random random;
 	protected boolean shoutDown = false;
 	
-	/** Port used to exchange the Merkle tree */
-	//protected static final int MERKLE_TREE_EXCHANGE_PORT = 8000;
 	/** Type of messages exchanged during the synchronization procedure */
 	protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
 	
@@ -45,11 +42,8 @@ public abstract class AntiEntropyThread extends Thread
 	public AntiEntropyThread( final GossipMember _me,
 							  final DFSDatabase database,
 							  final FileTransferThread fMgr,
-							  final ConsistentHasherImpl<GossipMember, String> _cHasher )
+							  final ConsistentHasher<GossipMember, String> _cHasher )
 	{
-		if(!DFSUtils.testing)
-			LOGGER.setLevel( DFSUtils.logLevel );
-		
 		this.me = _me;
 		this.fMgr = fMgr;
 		this.database = database;

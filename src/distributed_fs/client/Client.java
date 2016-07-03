@@ -14,10 +14,11 @@ import java.util.Set;
 
 import org.apache.commons.cli.ParseException;
 
-import distributed_fs.client.DFSService.DBListener;
+import distributed_fs.client.manager.SystemSimulation;
+import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
+import distributed_fs.storage.DFSDatabase.DBListener;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.utils.ArgumentsParser;
 import gossiping.GossipMember;
 import jline.ArgumentCompletor;
 import jline.Completor;
@@ -31,64 +32,83 @@ public class Client implements DBListener
 	private LinkedList<Completor> completors;
 	private ArgumentCompletor completor;
 	
+	private SystemSimulation sim;
+	
 	private DFSService service = null;
 	
-	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "help", "exit" };
+	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "enableLB", "disableLB", "help", "exit" };
 	public static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
 	private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
-	public static void main( final String args[] ) throws ParseException
-	{
-		new Client( args );
-	}
 	
-	public Client( String[] args ) throws ParseException
+	
+	public static void main( final String args[] ) throws ParseException, IOException, DFSException
+    {
+        ClientArgsParser.parseArgs( new String[]{ "-locale" } );
+        //ClientArgsParser.parseArgs( args );
+        if(ClientArgsParser.hasOnlyHelpOptions())
+            return;
+        
+        String ipAddress = ClientArgsParser.getIpAddress();
+        int port = ClientArgsParser.getPort();
+        String resourceLocation = ClientArgsParser.getResourceLocation();
+        String databaseLocation = ClientArgsParser.getDatabaseLocation();
+        List<GossipMember> members = ClientArgsParser.getNodes();
+        boolean localEnv = ClientArgsParser.isLocalEnv();
+        new Client( ipAddress, port, resourceLocation, databaseLocation, members, localEnv );
+    }
+	
+	public Client( final String ipAddress,
+	               final int port,
+	               final String resourceLocation,
+	               final String databaseLocation,
+	               List<GossipMember> members,
+	               final boolean localEnv ) throws ParseException, IOException, DFSException
 	{
-		// Parse the command options.
-		ArgumentsParser.parseArgs( args );
-		
-		String ipAddress = ArgumentsParser.getIpAddress();
-		int port = ArgumentsParser.getPort();
-		boolean useLoadBalancers = ArgumentsParser.getLoadBalancers();
-		String resourceLocation = ArgumentsParser.getResourceLocation();
-		String databaseLocation = ArgumentsParser.getDatabaseLocation();
-		List<GossipMember> members = ArgumentsParser.getNodes();
-		
+	    if(localEnv) {
+	        // Start some nodes to simulate the distributed system,
+	        // but performed in a local environment.
+	        System.out.println( "Starting the local environment..." );
+	        sim = new SystemSimulation( ipAddress, members );
+	        if(members == null)
+	            members = sim.getNodes();
+	    }
+	    
 		try {
-			service = new DFSService( ipAddress, port, useLoadBalancers, members,
+			service = new DFSService( ipAddress, port, true, members,
 			                          resourceLocation, databaseLocation, this );
+			
+			for(DistributedFile file : service.listFiles())
+                dbFiles.add( file.getName() );
+            
+            // Load the files in the completor.
+            completors = new LinkedList<>();
+            completors.addLast( new SimpleCompletor( COMMANDS ) );
+            completors.addLast( new SimpleCompletor( dbFiles.toArray( new String[]{} ) ) );
+            
+            // Put the completor into the reader.
+            completor = new ArgumentCompletor( completors );
+            reader = new ConsoleReader();
+            reader.setBellEnabled( false );
+            reader.addCompletor( completor );
+            
 			if(service.start()) {
-				for(DistributedFile file : service.listFiles())
-					dbFiles.add( file.getName() );
-				
-				// Load the files in the completor.
-				completors = new LinkedList<>();
-				completors.addLast( new SimpleCompletor( COMMANDS ) );
-				completors.addLast( new SimpleCompletor( dbFiles.toArray( new String[]{} ) ) );
-				
-				// Put the completor into the reader.
-				completor = new ArgumentCompletor( completors );
-				reader = new ConsoleReader();
-				reader.setBellEnabled( false );
-				reader.addCompletor( completor );
-				
+				System.out.println( "[CLIENT] Type 'help' for commands informations." );
 				while(!service.isClosed()) {
 					Operation op = checkInput();
-					if(op != null) {
-						if(service.isClosed())
+					if(op == null || service.isClosed())
+						break;
+					
+					switch( op.opType ) {
+						case( Message.GET ):
+							service.get( op.file );
 							break;
-						
-						switch( op.opType ) {
-							case( Message.GET ):
-								service.get( op.file );
-								break;
-							case( Message.PUT ):
-								service.put( op.file );
-								break;
-							case( Message.DELETE ):
-								service.delete( op.file );
-								break;
-						}
+						case( Message.PUT ):
+							service.put( op.file );
+							break;
+						case( Message.DELETE ):
+							service.delete( op.file );
+							break;
 					}
 				}
 			}
@@ -97,21 +117,29 @@ public class Client implements DBListener
 			e.printStackTrace();
 		}
 		
-		if(service != null)
-			service.shutDown();
+		//if(service != null)
+			//service.shutDown();
+		if(sim != null)
+		    sim.close();
 		
 		System.exit( 0 );
 	}
 	
-	private Operation checkInput()
+	private Operation checkInput() throws DFSException
 	{
 		String command = null;
 		
 		while(true) {
 			try{
 				command = reader.readLine( "[CLIENT] " );
-				if(command.isEmpty())
-				    continue;
+				try {
+    				if(command.isEmpty())
+    				    continue;
+				}
+				catch( NullPointerException e ) {
+				    // Exception raised when the service is closed.
+				    break;
+				}
 			}
 			catch( IOException e ){
 				e.printStackTrace();
@@ -148,22 +176,30 @@ public class Client implements DBListener
 				if(file != null)
 					return new Operation( file, Message.DELETE );
 			}
-			else if(command.equalsIgnoreCase( "list" )) {
+			else if(command.trim().equals( "disableLB" )) {
+			    service.setUseLoadBalancers( false );
+			}
+			else if(command.trim().equals( "enableLB" )) {
+			    service.setUseLoadBalancers( true );
+            }
+			else if(command.trim().equals( "list" )) {
 				// Put an empty line between the command and the list of files.
-				System.out.println( "[CLIENT]" );
+				System.out.println();
 				// List all the files present in the database.
 				List<DistributedFile> files = service.listFiles();
 				for(DistributedFile file : files) {
 					if(!file.isDeleted())
-						System.out.println( "[CLIENT] " + file.getName() );
+						System.out.println( "  " + file.getName() );
 				}
 			}
-			else if(command.trim().equalsIgnoreCase( "help" ))
+			else if(command.trim().equals( "help" ))
 				printHelp();
-			else if(command.trim().equalsIgnoreCase( "exit" ))
-				service.shutDown();
-			else
+			else if(command.trim().equals( "exit" ))
+				break;
+			else {
 				System.out.println( "[CLIENT] Command '" + command + "' unknown." );
+				System.out.println( "[CLIENT] Type 'help' for more informations." );
+			}
 		}
 		
 		return null;
@@ -172,7 +208,6 @@ public class Client implements DBListener
 	private static String getFile( final String command, final int offset )
 	{
 		String file = command.substring( offset ).trim();
-		System.out.println( "FILE: " + file );
 		if(file.matches( FILE_REGEX ))
 			return file;
 		else
@@ -202,14 +237,16 @@ public class Client implements DBListener
 	private void printHelp()
 	{
 		System.out.println( "[CLIENT] Usage:\n"
-				+ " put \"file_name\" - send a file present in the database to a remote one.\n"
-				+ " get \"file_name\" - get a file present in the remote database.\n"
-				+ " delete \"file_name\" - delete a file present in the database and in a remote one.\n"
-				+ " list - to print a list of all the files present in the database.\n"
-				+ " exit - to close the service.\n"
-				+ " help - to open this helper.\n\n"
-				+ " You can also use the autocompletion, to complete faster your commands.\n"
-				+ " Try it with the [TAB] key." );
+				+ "  put \"file_name\" - send a file present in the database to a remote one.\n"
+				+ "  get \"file_name\" - get a file present in the remote nodes.\n"
+				+ "  delete \"file_name\" - delete a file present on database and in remote nodes.\n"
+				+ "  list - to print a list of all the files present in the database.\n"
+				+ "  enableLB - enable the utilization of the remote LoadBalancer nodes.\n"
+                + "  diableLB - disable the utilization of the remote LoadBalancer nodes.\n"
+                + "  help - to open this helper.\n"
+				+ "  exit - to close the service.\n\n"
+				+ "  You can also use the autocompletion, to complete faster your commands.\n"
+				+ "  Try it with the [TAB] key." );
 	}
 	
 	private static class Operation

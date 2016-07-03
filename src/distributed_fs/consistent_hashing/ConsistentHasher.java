@@ -1,14 +1,12 @@
 
 package distributed_fs.consistent_hashing;
 
-import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
-import com.google.common.hash.Hashing;
-
+import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
 
 /**
@@ -111,6 +109,72 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	 * @return all buckets that are stored, otherwise an empty list.
 	 */
 	List<B> getAllBuckets();
+	
+	/**
+     * Returns the first (lowest) key currently in this map.
+     *
+     * @return the first (lowest) key currently in this map, if present,
+     *         {@code null} otherwise
+    */
+	public String getFirstKey();
+    
+	/**
+     * Returns the last (highest) key currently in this map.
+     *
+     * @return the last (highest) key currently in this map, if present,
+     *         {@code null} otherwise
+    */
+    public String getLastKey();
+    
+    /**
+     * Returns the successor buckets of the given bucket id.
+     * 
+     * @param id    the given bucket
+    */
+    public ArrayList<String> getSuccessors( final String id );
+    
+    /**
+     * Returns the successor bucket of the given id.
+     * 
+     * @param id    the given identifier
+    */
+    public String getSuccessor( final String id );
+    
+    /**
+     * Returns the successor bucket of the given bucket id.<br>
+     * If there is no other nodes, checks it from the first key.
+     * 
+     * @param id    the given bucket
+     * 
+     * @return the next bucket in the consistent hashing table, if present,
+     *         {@code null} otherwise
+    */
+    public String getNextBucket( final String id );
+    
+    /**
+     * Returns the predecessor buckets of the given bucket id.
+     * 
+     * @param id    the given bucket
+    */
+    public ArrayList<String> getPredecessors( final String id );
+    
+    /**
+     * Returns the predecessor bucket of the given bucket id.
+     * 
+     * @param id    the given bucket
+    */
+    public String getPredecessor( final String id );
+    
+    /**
+     * Returns the predecessor bucket of the given bucket id.<br>
+     * If there is no other nodes, checks it from the last key.
+     * 
+     * @param id    the given bucket
+     * 
+     * @return the previous bucket in the consistent hashing table, if present,
+     *         {@code null} otherwise
+    */
+    public String getPreviousBucket( final String id );
 
 	/**
 	 * This fetches the members for the given bucket from the given members
@@ -136,93 +200,54 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	 * Returns the list of virtual buckets associated to the given bucket node.
 	*/
 	List<String> getVirtualBucketsFor( final B bucketName );
-
+	
 	/**
-	 * Converts the given data into bytes. Implementation should be thread safe.
-	 *
-	 * @param <T> the type of the input data to be converted into butes
-	 */
-	public static interface BytesConverter<T> 
-	{
-		/**
-		 * Converts a given data into an array of bytes.
-		 * @param data	the data to be converted.
-		 * @return the data represented as array of bytes.
-		 */
-		byte[] convert( final T data );
-	}
-
-	/**
-	 * Converts the given data into bytes. Implementation should be thread safe.
-	 *
-	 */
-	public static interface HashFunction 
-	{
-		/**
-		 * Computes the hash value of an array of bytes.
-		 * 
-		 * @param input the array of bytes to be hashed
-		 * @return the hash value 
-		 */
-		byte[] hash( final byte[] input );
-	}
-
-	// Helper implementations
-
-	public static final HashFunction SHA256 = new SHAHashFunction();
-
-	public static HashFunction getSHAHashFunction() 
-	{
-		return SHA256;
-	}
-
-	/**
+	 * Returns {@code true} if this map contains no key-value mappings.
 	 * 
-	 * @return
-	 */
-	public static BytesConverter<String> getStringToBytesConverter() 
-	{
-		return new BytesConverter<String>() 
-		{
-			@Override
-			public byte[] convert( final String data ) 
-			{
-				Preconditions.checkNotNull( data );
-				return data.getBytes();
-			}
-		};
-	}
-
+	 * @return {@code true} if this map contains no key-value mappings.
+	*/
+	public boolean isEmpty();
+	
 	/**
-	 * 
-	 */
-	public static class SHAHashFunction implements HashFunction 
-	{
-		@Override
-		public byte[] hash( final byte[] input ) 
-		{
-			Preconditions.checkNotNull( input );
-			return Hashing.sha256().hashBytes( input ).asBytes();
-		}
-	}
-
+     * Returns the size of the map.
+    */
+    public int getSize();
+    
+    /**
+     * Removes all of the mappings from this map.<br>
+     * The map will be empty after this call returns.
+    */
+    public void clear();
+	
 	/**
-	 * Returned object is thread safe.
-	 * 
-	 * @return
-	 */
-	public static BytesConverter<Integer> getIntegerToBytesConverter() 
-	{
-		return new BytesConverter<Integer>() 
-		{
-			@Override
-			public byte[] convert( final Integer input ) 
-			{
-				byte[] inputBytes = new byte[Integer.BYTES / Byte.BYTES];
-				ByteBuffer bb = ByteBuffer.wrap( inputBytes );
-				bb.putInt( input );
-				return inputBytes;
-			}
-		};
-	}
+     * Converts the given data into bytes. Implementation should be thread safe.
+     *
+     * @param <T> the type of the input data to be converted into butes
+     */
+    public static interface BytesConverter<T> 
+    {
+        /**
+         * Converts a given data into an array of bytes.
+         * @param data  the data to be converted.
+         * @return the data represented as array of bytes.
+         */
+        byte[] convert( final T data );
+    }
+    
+    /**
+     * 
+     * @return
+     */
+    public static BytesConverter<String> getStringToBytesConverter() 
+    {
+        return new BytesConverter<String>() 
+        {
+            @Override
+            public byte[] convert( final String data ) 
+            {
+                Utils.checkNotNull( data );
+                return data.getBytes();
+            }
+        };
+    }
 }

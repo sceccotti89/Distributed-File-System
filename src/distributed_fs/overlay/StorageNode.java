@@ -6,7 +6,6 @@ package distributed_fs.overlay;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,9 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import org.json.JSONException;
-
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.NetworkMonitor;
 import distributed_fs.net.NetworkMonitorSenderThread;
@@ -32,21 +29,18 @@ import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.ThreadMonitor;
-import distributed_fs.overlay.manager.ThreadState;
+import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.storage.RemoteFile;
-import distributed_fs.utils.ArgumentsParser;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
-import gossiping.GossipNode;
 import gossiping.GossipService;
 import gossiping.GossipSettings;
 import gossiping.RemoteGossipMember;
-import gossiping.event.GossipState;
 import gossiping.manager.GossipManager;
 
 public class StorageNode extends DFSNode
@@ -56,21 +50,23 @@ public class StorageNode extends DFSNode
 	private String resourcesLocation;
 	private String databaseLocation;
 	
+	private List<Thread> threadsList;
+	private MembershipManagerThread lMgr_t;
+	
 	// ===== Used by the node instance ===== //
 	private TCPSession session;
-	private String destId; // Destination node identifier, for an input request.
+	private String destId; // Virtual destination node identifier, for an input request.
 	private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
 	private boolean replacedThread;
 	// =========================================== //
 	
-	private List<Thread> threadsList;
-	private MembershipManagerThread lMgr_t;
+	
 	
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
 	 * the list of nodes should be passed as arguments.<br>
-	 * The node starts only using the {@linkplain #launch()}
+	 * The node starts only using the {@link #launch()}
 	 * method.
 	 * 
 	 * @param address				the ip address. If {@code null} it will be taken using the configuration file parameters.
@@ -83,7 +79,7 @@ public class StorageNode extends DFSNode
 	public StorageNode( final String address,
 	                    final List<GossipMember> startupMembers,
 	                    final String resourcesLocation,
-	                    final String databaseLocation ) throws IOException, JSONException, InterruptedException, DFSException
+	                    final String databaseLocation ) throws IOException, InterruptedException, DFSException
 	{
 		super( GossipMember.STORAGE, address, startupMembers );
 		
@@ -126,7 +122,7 @@ public class StorageNode extends DFSNode
 						final String address,
 						final int port,
 						final String resourcesLocation,
-						final String databaseLocation ) throws IOException, JSONException, DFSException
+						final String databaseLocation ) throws IOException, DFSException
 	{
 		super();
 		
@@ -135,13 +131,12 @@ public class StorageNode extends DFSNode
 		this.resourcesLocation = resourcesLocation;
 		this.databaseLocation = databaseLocation;
 		
-		// TODO mettere a tutti indirizzo + porta nella creazione dell'ID??
 		String id = DFSUtils.getNodeId( 1, _address + ":" + port );
 		me = new RemoteGossipMember( _address, this.port, id, 3, GossipMember.STORAGE );
 		
 		for(GossipMember member : startupMembers) {
 			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
-				gossipEvent( new GossipNode( member ), GossipState.UP );
+				cHasher.addBucket( member, member.getVirtualNodes() );
 		}
 		
 		quorum_t = new QuorumThread( port, _address, this );
@@ -155,10 +150,15 @@ public class StorageNode extends DFSNode
 	}
 	
 	/**
-	 * Disable the anti-entropy mechanism.
+	 * Enable/disable the anti-entropy mechanism.<br>
+	 * By default this value is setted to {@code true}.
+	 * 
+	 * @param enable    {@code true} to enable the anti-entropy mechanism,
+     *                  {@code false} otherwise
 	*/
-	public void disableAntiEntropy() {
-	    fMgr.disableAntiEntropy();
+	public void setAntiEntropy( final boolean enable )
+	{
+	    fMgr.setAntiEntropy( enable );
 	}
 	
 	/**
@@ -168,7 +168,7 @@ public class StorageNode extends DFSNode
 	 * 
 	 * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
 	*/
-	public void launch( final boolean launchAsynch ) throws JSONException
+	public void launch( final boolean launchAsynch )
 	{
 	    if(launchAsynch) {
 	        // Create a new Thread.
@@ -176,11 +176,7 @@ public class StorageNode extends DFSNode
 	            @Override
 	            public void run()
 	            {
-	                try {
-                        startProcess();
-                    } catch( JSONException e ) {
-                        e.printStackTrace();
-                    }
+	                startProcess();
 	            }
 	        }.start();
 	    }
@@ -189,7 +185,7 @@ public class StorageNode extends DFSNode
 	    }
 	}
 	
-	private void startProcess() throws JSONException
+	private void startProcess()
 	{
 	    fMgr.start();
 		netMonitor.start();
@@ -226,7 +222,7 @@ public class StorageNode extends DFSNode
 		    //e.printStackTrace();
 		}
 		
-		System.out.println( "[SN] '" + _address + ":" + port + "' Closed." );
+		LOGGER.info( "[SN] '" + _address + ":" + port + "' Closed." );
 	}
 	
 	/**
@@ -246,10 +242,10 @@ public class StorageNode extends DFSNode
                          final boolean replacedThread,
                          final FileTransferThread fMgr,
                          final QuorumThread quorum_t,
-                         final ConsistentHasherImpl<GossipMember, String> cHasher,
+                         final ConsistentHasher<GossipMember, String> cHasher,
                          final TCPnet net,
                          final TCPSession session,
-                         final NetworkMonitor netMonitor ) throws IOException, JSONException
+                         final NetworkMonitor netMonitor ) throws IOException
     {
     	super( net, fMgr, cHasher );
     	setId( id );
@@ -346,14 +342,14 @@ public class StorageNode extends DFSNode
 				    break;
 			}
 		}
-		catch( IOException | SQLException | JSONException e ) {
+		catch( IOException e ) {
 			e.printStackTrace();
 		}
 		
 		closeWorker();
 	}
 	
-	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException, SQLException
+	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException
 	{
 		//LOGGER.debug( "GIVEN_VERSION: " + file.getVersion() + ", NEW_GIVEN_VERSION: " + file.getVersion().incremented( _address ) );
 		VectorClock clock;
@@ -387,7 +383,7 @@ public class StorageNode extends DFSNode
 		sendClientResponse( clock );
 	}
 	
-	private void handleGET( final boolean isCoordinator, final String fileName, final long fileId ) throws IOException, JSONException
+	private void handleGET( final boolean isCoordinator, final String fileName, final long fileId ) throws IOException
 	{
 		if(isCoordinator) {
 			// Send the GET request to all the agreed nodes,
@@ -564,7 +560,7 @@ public class StorageNode extends DFSNode
         }
     }
 	
-	private void handleDELETE( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException, SQLException
+	private void handleDELETE( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
@@ -719,11 +715,10 @@ public class StorageNode extends DFSNode
 	 * @param threadPool
 	 * @param state
 	*/
-	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException, JSONException
+	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException
 	{
 		StorageNode node =
-		        new StorageNode( state.getId(),
-		                         true,
+		        new StorageNode( state.getId(), true,
 		                         state.getFileManager(),
 		                         state.getQuorumThread(),
 		                         state.getHashing(),
@@ -748,10 +743,11 @@ public class StorageNode extends DFSNode
 	    super.closeResources();
 	}
 	
-	public static void main( String args[] ) throws Exception
+	/*public static void main( final String args[] ) throws Exception
 	{
-	    args = new String[]{ "-n", "127.0.0.1:9000:0" };
-		ArgumentsParser.parseArgs( args, GossipMember.STORAGE );
+	    ArgumentsParser.parseArgs( args );
+		if(ArgumentsParser.hasOnlyHelpOptions())
+            return;
 		
 		String ipAddress = ArgumentsParser.getIpAddress();
 		List<GossipMember> members = ArgumentsParser.getNodes();
@@ -760,5 +756,5 @@ public class StorageNode extends DFSNode
 		
 		StorageNode node = new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
 		node.launch( true );
-	}
+	}*/
 }

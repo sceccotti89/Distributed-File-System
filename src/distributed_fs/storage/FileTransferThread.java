@@ -7,7 +7,6 @@ package distributed_fs.storage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,7 +15,7 @@ import org.apache.log4j.Logger;
 
 import distributed_fs.anti_entropy.AntiEntropyReceiverThread;
 import distributed_fs.anti_entropy.AntiEntropySenderThread;
-import distributed_fs.consistent_hashing.ConsistentHasherImpl;
+import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
@@ -35,26 +34,32 @@ public class FileTransferThread extends Thread
 	
 	private QuorumThread quorum_t;
 	
-	private final AntiEntropySenderThread sendAE_t;
-	private final AntiEntropyReceiverThread receiveAE_t;
+	private AntiEntropySenderThread sendAE_t;
+	private AntiEntropyReceiverThread receiveAE_t;
 	
 	private boolean disabledAntiEntropy = false;
+	private final ConsistentHasher<GossipMember, String> cHasher;
+	private final GossipMember node;
 	private boolean shutDown = false;
 	
 	private final TCPnet net;
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
-	//public static final short DEFAULT_PORT = 7535; // Default port used to send/receive files.
 	public static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
+	
+	
 	
 	public FileTransferThread( final GossipMember node,
 							   final int port,
-							   final ConsistentHasherImpl<GossipMember, String> cHasher,
+							   final ConsistentHasher<GossipMember, String> cHasher,
 							   final QuorumThread quorum_t,
 							   final String resourcesLocation,
 							   final String databaseLocation ) throws IOException, DFSException
 	{
 		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
+		
+		this.node = node;
+		this.cHasher = cHasher;
 		sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
 		receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
 		
@@ -65,9 +70,6 @@ public class FileTransferThread extends Thread
 		threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
 		
 		this.quorum_t = quorum_t;
-		
-		if(!DFSUtils.testing)
-			LOGGER.setLevel( DFSUtils.logLevel );
 		
 		LOGGER.info( "File Manager Thread successfully initialized" );
 	}
@@ -85,7 +87,7 @@ public class FileTransferThread extends Thread
 			
 			while(!shutDown) {
 				TCPSession session = net.waitForConnection();
-				LOGGER.info( "Received a new connection from \"" + session.getSrcAddress() + "\"" );
+				LOGGER.info( "Received a connection from \"" + session.getSrcAddress() + "\"" );
 				synchronized( threadPoolReceive ) {
 				    if(threadPoolReceive.isShutdown())
 				        break;
@@ -104,10 +106,29 @@ public class FileTransferThread extends Thread
 	}
 	
 	/**
-     * Disable the anti-entropy mechanism.
+     * Enable/disable the anti-entropy mechanism.<br>
+     * By default this value is setted to {@code true}.
+     * 
+     * @param enable    {@code true} to enable the anti-entropy mechanism,
+     *                  {@code false} otherwise
     */
-    public void disableAntiEntropy() {
-        disabledAntiEntropy = true;
+    public void setAntiEntropy( final boolean enable )
+    {
+        if(disabledAntiEntropy == !enable)
+            return;
+        disabledAntiEntropy = !enable;
+        
+        if(!disabledAntiEntropy) {
+            sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
+            receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
+        }
+        else {
+            // Close the background Anti-Entropy Threads.
+            if(sendAE_t != null && receiveAE_t != null) {
+                sendAE_t.close();
+                receiveAE_t.close();
+            }
+        }
     }
 	
 	/** 
@@ -117,7 +138,7 @@ public class FileTransferThread extends Thread
 	 * @param session
 	 * @param data
 	*/
-	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, SQLException, InterruptedException
+	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, InterruptedException
 	{
 		// Read the synch attribute.
 		boolean synch = (data.get() == (byte) 0x1);
@@ -134,19 +155,16 @@ public class FileTransferThread extends Thread
 		for(int i = 0; i < num_files; i++) {
 			data = ByteBuffer.wrap( session.receiveMessage() );
 			if(data.get() == Message.PUT) {
-				//RemoteFile file = Utils.deserializeObject( Utils.getNextBytes( data ) );
 				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
 				database.saveFile( file, file.getVersion(), null, true );
-				//LOGGER.debug( "Updated save: " + updated );
 			}
 			else {
 			    // DELETE operation.
 				DistributedFile file = DFSUtils.deserializeObject( DFSUtils.getNextBytes( data ) );
-				//DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
 				database.removeFile( file.getName(), file.getVersion(), file.getHintedHandoff() );
-				//LOGGER.debug( "Updated delete: " + updated );
+				//System.out.println( "ID: " + file.getId() );
 			}
 		}
 		
@@ -156,62 +174,6 @@ public class FileTransferThread extends Thread
 		if(synch)
 			session.sendMessage( Networking.TRUE, false );
 	}
-	
-	/** 
-	 * Saves the incoming files.
-	 * 
-	 * @param session
-	 * @param data
-	*/
-	/*private void readFilesToSave( final TCPSession session, final ByteBuffer data ) throws IOException, SQLException
-	{
-		// read the synch attribute
-		boolean synch = (data.get() == (byte) 0x1);
-		// get and verify the quorum attribute
-		if(data.get() == (byte) 0x1)
-			node.setBlocked( false );
-		// get the number of files
-		int num_files = data.getInt();
-		LOGGER.debug( "Receiving " + num_files + " files..." );
-		
-		// read (if present) the hinted handoff address
-		String hintedHandoff = null;
-		if(data.remaining() > 0)
-			hintedHandoff = new String( Utils.getNextBytes( data ) );
-		
-		for(int i = 0; i < num_files; i++) {
-			//data = ByteBuffer.wrap( session.receiveMessage() );
-			RemoteFile file = Utils.deserializeObject( session.receiveMessage() );
-			LOGGER.debug( "File \"" + file + "\" downloaded." );
-			LOGGER.debug( "Saved: " + (database.saveFile( file, file.getVersion(), hintedHandoff, true ) != null) );
-		}
-		
-		LOGGER.debug( "Files successfully downloaded." );
-		
-		// just 1 byte (for the synchronization ACK)
-		if(synch)
-			session.sendMessage( Networking.TRUE, false );
-	}*/
-	
-	/** 
-	 * Deletes all the received files.
-	 * 
-	 * @param session
-	 * @param data
-	*/
-	/*private void readFilesToDelete( final TCPSession session, final ByteBuffer data ) throws IOException, SQLException
-	{
-		// get and verify the quorum attribute
-		if(data.get() == (byte) 0x1)
-			node.setBlocked( false );
-		
-		int size = data.getInt();
-		for(int i = 0; i < size; i++) {
-			DistributedFile file = Utils.deserializeObject( session.receiveMessage() );
-			database.removeFile( file.getName(), file.getVersion(), true );
-			LOGGER.debug( "Deleted file \"" + file.getName() + "\"" );
-		}
-	}*/
 	
 	/** 
 	 * Sends the list of files, for saving or deleting operation, to the destination address.
@@ -343,7 +305,7 @@ public class FileTransferThread extends Thread
 	}
 	
 	/**
-	 * Close all the opened resources.
+	 * Closes all the opened resources.
 	*/
 	public void shutDown()
 	{
@@ -378,7 +340,7 @@ public class FileTransferThread extends Thread
 				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
 				readFiles( session, data );
 			}
-			catch( IOException | SQLException | InterruptedException e ) {
+			catch( IOException | InterruptedException e ) {
 				e.printStackTrace();
 			}
 			

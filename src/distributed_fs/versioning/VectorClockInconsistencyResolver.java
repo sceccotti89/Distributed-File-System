@@ -16,10 +16,9 @@
 
 package distributed_fs.versioning;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
-
-import com.google.common.collect.Lists;
 
 /**
  * An inconsistency resolver that uses the object VectorClocks leaving only a
@@ -33,7 +32,7 @@ public class VectorClockInconsistencyResolver<T> implements InconsistencyResolve
         if(items.size() <= 1)
             return items;
         
-        List<Versioned<T>> newItems = Lists.newArrayList();
+        List<Versioned<T>> newItems = new ArrayList<>();
         for(Versioned<T> v1: items) {
             boolean found = false;
             for(ListIterator<Versioned<T>> it2 = newItems.listIterator(); it2.hasNext();) {
