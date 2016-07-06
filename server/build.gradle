@@ -1,0 +1,36 @@
+
+apply plugin: 'application'
+
+mainClassName = 'distributed_fs.NodeLauncher'
+jar {
+    baseName = 'NodeLauncher'
+    version =  '1.0'
+    
+    manifest {
+        attributes("Implementation-Title": project.name,
+                   "Implementation-Version": version,
+                   "Main-Class": mainClassName)
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+repositories {
+	mavenCentral()
+    flatDir {
+		dirs 'lib'
+	}
+	maven { url "https://jitpack.io" }
+}
+
+dependencies {
+	compile 'junit:junit:4.12'
+	compile 'log4j:log4j:1.2.17'
+	compile 'org.mapdb:mapdb:2.0-beta13'
+	compile 'commons-cli:commons-cli:1.3.1'
+	compile 'org.apache.commons:commons-collections4:4.1'
+	compile 'jline:jline:1.0'
+	compile 'org.json:json:20160212'
+	compile project(':gossip')
+}

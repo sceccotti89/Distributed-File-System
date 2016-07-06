@@ -1,1 +1,1 @@
-include ":distributed_fs", ":gossiping"
+include "client", "server", "gossip"

@@ -1,0 +1,25 @@
+
+apply plugin: 'application'
+
+mainClassName = ""
+
+jar {
+    baseName = 'gossiping'
+    version =  '1.0'
+    
+    manifest {
+        //attributes("Implementation-Title": project.name,
+      	//           "Implementation-Version": version)
+    }
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+}
+
+
+repositories {
+   mavenCentral()
+}
+
+dependencies {
+	compile 'log4j:log4j:1.2.17'
+	compile 'org.json:json:20160212'
+}

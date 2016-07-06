@@ -1,0 +1,30 @@
+
+apply plugin: 'application'
+
+mainClassName = 'client.Client'
+jar {
+    baseName = 'Client'
+    version =  '1.0'
+    
+    manifest {
+        attributes("Implementation-Title": project.name,
+                   "Implementation-Version": version,
+                   "Main-Class": mainClassName)
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+repositories {
+	mavenCentral()
+    flatDir {
+		dirs 'lib'
+	}
+	maven { url "https://jitpack.io" }
+}
+
+dependencies {
+	compile project(':server')
+	compile project(':gossip')
+}

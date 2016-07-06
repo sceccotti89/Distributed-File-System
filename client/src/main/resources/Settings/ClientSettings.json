@@ -1,0 +1,7 @@
+{
+	"network_interface": [ {"type":"eth0"}, {"IPversion":4} ],
+ 	"members": [
+  		{"host":"192.168.5.3", "nodeType":0},
+  		{"host":"192.168.5.4", "nodeType":1}
+ 	]
+}
