@@ -18,15 +18,24 @@ The Distributed File System project is an eventually consistent distributed file
 
 ## Introduction
 
-// TODO manca questa parte
+// TODO manca questa parte: spiegare quali sono le operazioni messe a disposizione dell'utente
 
 
-The file system is implemented as a key value map of type <string, DistributedFile> with the following operations:
+The file system is implemented as a key value map of type (string, file) with the following operations:
 
 - **get**(key) to retrieve a file from the system;
 - **put**(key) to store a file in the system;
 - **delete**(key) to remove a file in the system;
 - **getAll**() to retrieve all the files stored in a random node;
+
+The operations provided by the client are:
+
+- ****
+- bb
+- c
+- d
+- e
+- f
 
 
 ## User Guide
@@ -90,7 +99,7 @@ If the list of input nodes is empty a fixed number of distributed nodes is used,
 ### Pseudo-Distributed Environment
 
 Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 6 virtual machines that can be used both for a remote node (LoadBalancer and StorageNode) that for a Client.
-My suggestion is to distribute them among 1 Client, 1 LoadBalancer and 4 StorageNodes, just to be sure to reach the quorum.
+My suggestion is to assign the VMs in this way: 1 for the Client, 1 for the LoadBalancer and 4 for the StorageNodes, just to be sure that the quorum can be reached.
 
 ## References
 ### Java libraries
