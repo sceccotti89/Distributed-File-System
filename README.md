@@ -92,7 +92,6 @@ If the list of input nodes is empty a fixed number of distributed nodes is used,
 Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 6 virtual machines that can be used both for a remote node (LoadBalancer and StorageNode) that for a Client.
 My suggestion is to distribute them among 1 Client, 1 LoadBalancer and 4 StorageNodes, just to be sure to reach the quorum.
 
-// TODO sistemare le reference
 ## References
 ### Java libraries
 
@@ -103,7 +102,7 @@ My suggestion is to distribute them among 1 Client, 1 LoadBalancer and 4 Storage
 - [commons-collections](https://commons.apache.org/proper/commons-collections/), contains lot of efficient data structures.
 - [jline](http://jline.sourceforge.net/), to read the user input.
 - [json](https://github.com/stleary/JSON-java), to read and write JSON files.
-- [versioning](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/versioning/src/main/java/voldemort), cloned version of the Voldemort project.
+- [versioning](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/versioning), cloned version of the Voldemort project.
 
 ### Build tools
 
