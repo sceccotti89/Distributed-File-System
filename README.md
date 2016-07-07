@@ -35,7 +35,7 @@ The operations provided by the client, in addition to the one mentioned before, 
 
 ## User Guide
 
-All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools.
+All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
 
 **Requirements**:
 
