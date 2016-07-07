@@ -44,7 +44,7 @@ All the project can be built using **gradle**. You don't need to download it, be
 
 ### Distributed Nodes
 
-The LoadBalancer and StorageNode nodes can be built using the following command:
+The StorageNode and LoadBalancer nodes can be built using the following command:
 ```bash
 ./gradlew server:build
 ```
