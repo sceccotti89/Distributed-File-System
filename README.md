@@ -11,8 +11,8 @@ The Distributed File System project is an eventually consistent distributed file
 	- [Local Environment](#local-environment)
 	- [Pseudo-Distributed Environment](#pseudo-distributed-environment)
 - [References](#references)
-	- [Java libraries:](#java-libraries)
-	- [Build tools:](#build-tools)
+	- [Java libraries](#java-libraries)
+	- [Build tools](#build-tools)
 
 <!-- /TOC -->
 
