@@ -137,8 +137,8 @@ public abstract class DFSManager
     				JSONObject data = nodes.getJSONObject( i );
     				int nodeType = data.getInt( "nodeType" );
     				String address = data.getString( "host" );
-    				int nodePort = data.getInt( "port" );
-    				GossipMember node = new RemoteGossipMember( address, nodePort, DFSUtils.getNodeId( 1, address ), 0, nodeType );
+    				int port = data.getInt( "port" );
+    				GossipMember node = new RemoteGossipMember( address, port, DFSUtils.getNodeId( 1, address ), 0, nodeType );
     				if(nodeType == GossipMember.LOAD_BALANCER)
     				    loadBalancers.add( node );
     				else

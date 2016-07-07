@@ -99,7 +99,7 @@ public class MembershipManagerThread extends Thread
                 sleep( TIMER_REQUEST );
             }
             catch( IOException e ) {
-                //e.printStackTrace();
+                e.printStackTrace();
                 // If the node is unreachable it will be removed.
                 if(server != null)
                     removeNode( server );
