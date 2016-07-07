@@ -99,7 +99,11 @@ My suggestion is to distribute them among 1 Client, 1 LoadBalancer and 4 Storage
 - [MapDB](http://www.mapdb.org/), to implement the storage.
 - [JUnit](http://junit.org/), to test the project.
 - [Log4j](http://logging.apache.org/log4j/2.x/), to manage the log system of the project.
-
+- [commons-cli](https://commons.apache.org/proper/commons-cli/), to parse the command options.
+- [commons-collections](https://commons.apache.org/proper/commons-collections/), contains lot of efficient data structures.
+- [jline](http://jline.sourceforge.net/), to read the user input.
+- [json](https://github.com/stleary/JSON-java), to read and write JSON files.
+- [versioning](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/versioning/src/main/java/voldemort), cloned version of the Voldemort project.
 
 ### Build tools
 
