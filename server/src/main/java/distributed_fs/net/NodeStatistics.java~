@@ -20,7 +20,7 @@ public class NodeStatistics implements Serializable
 	public NodeStatistics()
 	{
 		values = new HashMap<>();
-		values.put( NUM_CONNECTIONS, 0d );
+		values.put( NUM_CONNECTIONS, 0 );
 	}
 	
 	/**

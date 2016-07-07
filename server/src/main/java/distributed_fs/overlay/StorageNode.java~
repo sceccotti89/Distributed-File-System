@@ -193,7 +193,7 @@ public class StorageNode extends DFSNode
 		monitor_t.start();
 		lMgr_t.start();
 		
-		LOGGER.info( "[SN] Waiting on: " + _address + ":" + port );
+		LOGGER.debug( "[SN] Waiting on: " + _address + ":" + port );
 		
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );

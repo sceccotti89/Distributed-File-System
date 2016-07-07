@@ -120,8 +120,6 @@ public class LoadBalancer extends DFSNode
 	{
 	    netMonitor.start();
 	    
-	    LOGGER.info( "[LB] Waiting on: " + _address + ":" + port );
-	    
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
