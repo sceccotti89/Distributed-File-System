@@ -93,7 +93,7 @@ If the list of input nodes is empty a fixed number of distributed nodes is used,
 
 ### Pseudo-Distributed Environment
 
-Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 6 virtual machines that can be used both for a remote node (LoadBalancer and StorageNode) that for a Client.
+Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 6 virtual machines that can be used both for a remote node (LoadBalancer or StorageNode) that for a Client.
 My suggestion is to assign the VMs in this way: 1 for the Client, 1 for the LoadBalancer and 4 for the StorageNodes, just to be sure that the quorum can be reached.
 
 ## References
