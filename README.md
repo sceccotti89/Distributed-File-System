@@ -1,6 +1,6 @@
 # Distributed File System
 
-The Distributed File System project is an eventually consistent distributed file system, which makes use of different techniques, such as Gossiping, Consistent Hashing, Vector Clocks and Anti-Entropy.
+The Distributed File System project is an eventually consistent distributed file system, which makes use of different techniques such as Gossiping, Consistent Hashing, Vector Clocks and Anti-Entropy.
 
 <!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
 
