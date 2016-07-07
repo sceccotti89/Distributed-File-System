@@ -85,7 +85,7 @@ Optional parameters:
 ### Local Environment
 
 If you want to test the system in a multi-threaded environment using your machine, it can be done launching the Client node with the `-locale` option.
-If the list of input nodes is empty a fixed number of distributed nodes is used, namely 5 `LoadBalancer`s and 2 `StorageNode`s.
+If the list of input nodes is empty a fixed number of distributed nodes is used, namely 5 LoadBalancers and 2 StorageNodes.
 
 ### Pseudo-Distributed Environment
 
