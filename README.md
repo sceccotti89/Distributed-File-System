@@ -25,7 +25,7 @@ The file system is implemented as a key value map of type (string, file) with th
 - **delete**(key) to remove a file in the system;
 - **getAll**() to retrieve all the files stored in a random node;
 
-The operations provided by the client, in addition to the one mentioned before, are:
+The operations provided by the client, in addition to the ones mentioned before, are:
 
 - **list** print on screen a list of all the files present in the client’s database
 - **enableLB** enable the utilization of the remote load balancer nodes
