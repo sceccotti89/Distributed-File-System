@@ -18,9 +18,8 @@ The Distributed File System project is an eventually consistent distributed file
 
 ## Introduction
 
+// TODO manca questa parte
 
-
-The communication between nodes exploits the Java socket mechanism, thus it can be executed in different ways: on a single machine with threads, on a cluster of servers or in virtual containers using *Docker*.
 
 The file system is implemented as a key value map of type <string, DistributedFile> with the following operations:
 
@@ -90,7 +89,8 @@ If the list of input nodes is empty a fixed number of distributed nodes is used,
 
 ### Pseudo-Distributed Environment
 
-Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 4 VMs for as many `StorageNode`s, 1 for the `LoadBalancer` and another one for the `Client`.
+Using the `Vagrantfile` file provided in the distribution you can run the system in a pseudo-distributed environment. In the file are defined 6 virtual machines that can be used both for a remote node (LoadBalancer and StorageNode) that for a Client.
+My suggestion is to distribute them among 1 Client, 1 LoadBalancer and 4 StorageNodes, just to be sure to reach the quorum.
 
 // TODO sistemare le reference
 ## References
