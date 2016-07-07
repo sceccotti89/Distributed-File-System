@@ -18,9 +18,6 @@ The Distributed File System project is an eventually consistent distributed file
 
 ## Introduction
 
-// TODO manca questa parte: spiegare quali sono le operazioni messe a disposizione dell'utente
-
-
 The file system is implemented as a key value map of type (string, file) with the following operations:
 
 - **get**(key) to retrieve a file from the system;
@@ -28,19 +25,17 @@ The file system is implemented as a key value map of type (string, file) with th
 - **delete**(key) to remove a file in the system;
 - **getAll**() to retrieve all the files stored in a random node;
 
-The operations provided by the client are:
+The operations provided by the client, in addition to the already mentioned, are:
 
-- ****
-- bb
-- c
-- d
-- e
-- f
-
+- **list** print on screen a list of all the files present in the client’s database
+- **enableLB** enable the utilization of the remote load balancer nodes
+- **disableLB** disable the utilization of the remote load balancer nodes
+- **help** to show the helper
+- **exit** to close the service
 
 ## User Guide
 
-All the project can be built using `gradle` but you don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools.
+All the project can be built using **gradle** but you don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools.
 
 **Requirements**:
 
@@ -93,7 +88,7 @@ Optional parameters:
 
 ### Local Environment
 
-If you want to test the system in a multi-threaded environment using your machine, it can be done launching the Client node with the `-locale` option.
+If you want to test the system in a multi-threaded environment using your machine, you can do that launching the Client node with the `-locale` option.
 If the list of input nodes is empty a fixed number of distributed nodes is used, namely 5 LoadBalancers and 2 StorageNodes.
 
 ### Pseudo-Distributed Environment
