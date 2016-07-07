@@ -52,16 +52,16 @@ java -jar NodeLauncher-<version>.jar [parameters]
 
 The only mandatory parameter is:
 
-- `t <nodeType>` to start a LoadBalancer (type = 0) or a StorageNode (type = 1) node
+- `-t <nodeType>` to start a LoadBalancer (type = 0) or a StorageNode (type = 1) node
 
 Optional parameters:
 
-- `p [--port] <value>` port used to listen the incoming requests. This option is valid only for LoadBalancer nodes
-- `a [--addr] <value>` set the ip address of the node
-- `n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
-- `r [--rloc] <path>` set the location of the resources. This option is valid only for StorageNode nodes
-- `d [--dloc] <path>` set the location of the database. This option is valid only for StorageNode nodes
-- `h [--help]` show the help informations
+- `-p [--port] <value>` port used to listen the incoming requests. This option is valid only for LoadBalancer nodes
+- `-a [--addr] <value>` set the ip address of the node
+- `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
+- `-r [--rloc] <path>` set the location of the resources. This option is valid only for StorageNode nodes
+- `-d [--dloc] <path>` set the location of the database. This option is valid only for StorageNode nodes
+- `-h [--help]` show the help informations
 
 ### Client Node
 
@@ -75,13 +75,13 @@ java -jar Client-<version>.jar [parameters]
 ```
 Optional parameters:
 
-- `p [--port] <value>` port used to receive the remote connection
-- `a [--addr] <value>` set the ip address of the node
-- `n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
-- `r [--rloc] <path>` set the location of the resources
-- `d [--dloc] <path>` set the location of the database
-- `locale` start the system in the local environment
-- `h [--help]` show the help informations
+- `-p [--port] <value>` port used to receive the remote connection
+- `-a [--addr] <value>` set the ip address of the node
+- `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
+- `-r [--rloc] <path>` set the location of the resources
+- `-d [--dloc] <path>` set the location of the database
+- `-locale` start the system in the local environment
+- `-h [--help]` show the help informations
 
 ### Local Environment
 
