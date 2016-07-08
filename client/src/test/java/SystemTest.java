@@ -307,7 +307,7 @@ public class SystemTest
     	
     	int index = 4 + NUMBER_OF_BALANCERS;
     	String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
-    	nodes.get( index ).closeResources();
+    	nodes.get( index ).close();
     	System.out.println( "Node: " + members.get( index ) + " closed." );
     	
     	Thread.sleep( 2000 );
@@ -331,7 +331,7 @@ public class SystemTest
         
         if(nodes != null) {
             for(DFSNode node : nodes)
-                node.closeResources();
+                node.close();
             for(DFSNode node : nodes)
                 node.join();
         }
