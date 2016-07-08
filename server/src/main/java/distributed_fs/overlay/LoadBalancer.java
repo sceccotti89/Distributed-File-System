@@ -249,12 +249,12 @@ public class LoadBalancer extends DFSNode
 					}
 					else {
 					    LOGGER.debug( "[LB] Node " + targetNode + " is unreachable." );
+					    nodes.remove( targetNode );
                         
-                        if(opType == Message.PUT && hintedHandoff == null)
+                        if(opType == Message.PUT && hintedHandoff == null) {
                             hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
-                        LOGGER.debug( "[LB] Hinted Handoff: " + hintedHandoff );
-                        
-                        nodes.remove( targetNode );
+                            LOGGER.debug( "[LB] Hinted Handoff: " + hintedHandoff );
+                        }
 					}
 					
 					state.setValue( ThreadState.NODES_INDEX, i );
