@@ -227,10 +227,10 @@ public class DFSDatabase implements Closeable
 	 * @return the new clock, if updated, {@code null} otherwise
 	*/
 	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
-								 final String hintedHandoff, final boolean saveOnDisk ) throws IOException
+								 final String hintedHandoff ) throws IOException
 	{
 		return saveFile( file.getName(), file.getContent(),
-						 clock, hintedHandoff, saveOnDisk );
+						 clock, hintedHandoff );
 	}
 	
 	/**
@@ -246,8 +246,8 @@ public class DFSDatabase implements Closeable
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
 	public VectorClock saveFile( String fileName, final byte[] content,
-								 final VectorClock clock, final String hintedHandoff,
-								 final boolean saveOnDisk ) throws IOException
+								 final VectorClock clock, final String hintedHandoff )
+								         throws IOException
 	{
 		Utils.checkNotNull( fileName, "fileName cannot be null." );
 		Utils.checkNotNull( clock,    "clock cannot be null." );
@@ -273,12 +273,12 @@ public class DFSDatabase implements Closeable
 				file.setVersion( updated = clock.clone() );
 				file.setDeleted( false );
 				file.setHintedHandoff( hintedHandoff );
-				doSave( file, content, saveOnDisk );
+				doSave( file, content );
 			}
 		}
 		else {
 			file = new DistributedFile( fileName, new File( root + fileName ).isDirectory(), updated = clock.clone(), hintedHandoff );
-			doSave( file, content, saveOnDisk );
+			doSave( file, content );
 		}
 		
 		if(hintedHandoff != null && hhThread != null)
@@ -295,18 +295,15 @@ public class DFSDatabase implements Closeable
 	}
 	
 	private void doSave( final DistributedFile file,
-						 final byte[] content,
-						 final boolean saveOnDisk ) throws IOException
+						 final byte[] content ) throws IOException
 	{
 		database.put( file.getId(), file );
 		db.commit();
 		
-		if(saveOnDisk) {
-			if(disableAsyncWrites)
-			    DFSUtils.saveFileOnDisk( root + file.getName(), content );
-			else
-			    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
-		}
+		if(disableAsyncWrites)
+		    DFSUtils.saveFileOnDisk( root + file.getName(), content );
+		else
+		    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
 	}
 	
 	/**

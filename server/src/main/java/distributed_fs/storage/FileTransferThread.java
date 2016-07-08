@@ -151,7 +151,7 @@ public class FileTransferThread extends Thread
 			quorum_t.setLocked( false, fileName, data.getLong(), (byte) 0x0 ); // Here the operation type is useless.
 		}
 		
-		// get the number of files
+		// Get the number of files.
 		int num_files = data.getInt();
 		LOGGER.debug( "Receiving " + num_files + " files..." );
 		
@@ -160,7 +160,7 @@ public class FileTransferThread extends Thread
 			if(data.get() == Message.PUT) {
 				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.saveFile( file, file.getVersion(), null, true );
+				database.saveFile( file, file.getVersion(), null );
 			}
 			else {
 			    // DELETE operation.

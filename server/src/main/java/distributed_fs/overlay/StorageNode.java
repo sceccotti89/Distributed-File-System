@@ -11,12 +11,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.NetworkMonitorSenderThread;
+import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
@@ -355,7 +356,7 @@ public class StorageNode extends DFSNode
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
 		    clock = file.getVersion().incremented( _address );
-		    clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff, true );
+		    clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff );
 		    state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
 		    actionsList.addLast( DONE );
 		}
@@ -395,66 +396,13 @@ public class StorageNode extends DFSNode
 			
 			// The replica files can be less than the quorum.
 			LOGGER.info( "Receive the files from the replica nodes..." );
-			HashMap<RemoteFile, byte[]> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
+			Map<RemoteFile, byte[]> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
 			if(filesToSend == null) {
 			    filesToSend = new HashMap<>( QuorumSession.getMaxNodes() + 1 ); // +1 for the own copy.
 			    state.setValue( ThreadState.FILES_TO_SEND, filesToSend );
 			}
 			
-			// Get the value of the indexes.
-			Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
-			if(errors == null) errors = 0;
-			Integer offset = state.getValue( ThreadState.QUORUM_OFFSET );
-            if(offset == null) offset = 0;
-            Integer toIndex = state.getValue( ThreadState.NODES_INDEX );
-            if(toIndex == null) toIndex = 0; toIndex = toIndex - offset;
-			int index = 0;
-			
-			// Get the replica versions.
-			for(TCPSession session : openSessions) {
-			    if(index == toIndex) {
-    				try{
-    					ByteBuffer data;
-    					if(!replacedThread || actionsList.isEmpty()) {
-    					    data = ByteBuffer.wrap( session.receiveMessage() );
-    					    state.setValue( ThreadState.REPLICA_FILE, data );
-    					    actionsList.addLast( DONE );
-    					}
-    					else {
-    					    data = state.getValue( ThreadState.REPLICA_FILE );
-    					    actionsList.removeFirst();
-    					}
-    					
-    					if(!replacedThread || actionsList.isEmpty()) {
-        					if(data.get() == (byte) 0x1) {
-        					    // Replica node owns the requested file.
-        					    byte[] file = DFSUtils.getNextBytes( data );
-        					    filesToSend.put( new RemoteFile( file ), file );
-        						
-        						// Update the list of agreedNodes.
-        						agreedNodes.remove( index - offset );
-        						state.setValue( ThreadState.QUORUM_OFFSET, ++offset );
-        					}
-        					actionsList.add( DONE );
-    					}
-					    else
-					        actionsList.removeFirst();
-    				}
-    				catch( IOException e ) {
-    					if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
-    						LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
-    						quorum_t.cancelQuorum( state, this.session, agreedNodes );
-    						return;
-    					}
-    					state.setValue( ThreadState.QUORUM_ERRORS, errors );
-    				}
-    				
-    				state.setValue( ThreadState.NODES_INDEX, ++toIndex );
-			    }
-				
-				index++;
-				session.close();
-			}
+			getReplicaVersions( filesToSend, openSessions );
 			
 			// Send the positive notification to the client.
 			LOGGER.info( "[SN] Quorum completed successfully: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
@@ -474,18 +422,21 @@ public class StorageNode extends DFSNode
     			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
     			
     			// Send the files directly to the client.
-    			MessageResponse message = new MessageResponse();
-    			for(int i = 0; i < reconciledFiles.size(); i++) {
-    				byte[] data = filesToSend.get( reconciledFiles.get( i ) );
-    				message.addObject( data );
-    			}
+    			int size = reconciledFiles.size();
+                session.sendMessage( DFSUtils.intToByteArray( size ), false );
+                
+                for(int i = 0; i < size; i++) {
+                    LOGGER.debug( "Sending file \"" + dFile + "\"" );
+                    session.sendMessage( reconciledFiles.get( i ).read(), true );
+                    LOGGER.debug( "File \"" + reconciledFiles.get( i ).getName() + "\" sent." );
+                }
     			
-			    session.sendMessage( message, true );
-			    actionsList.removeFirst();
+			    
+			    actionsList.addLast( DONE );
 			    LOGGER.info( "Files sent to the client." );
 			}
 			else
-			    actionsList.addFirst( DONE );
+			    actionsList.removeFirst();
 		}
 		else {
 			// REPLICA node: send the requested file to the coordinator.
@@ -516,13 +467,75 @@ public class StorageNode extends DFSNode
 	}
 	
 	/**
+	 * Get the replica versions.
+	*/
+	private void getReplicaVersions( final Map<RemoteFile, byte[]> filesToSend,
+	                                 final List<TCPSession> openSessions ) throws IOException
+	{
+	    // Get the value of the indexes.
+        Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
+        if(errors == null) errors = 0;
+        Integer offset = state.getValue( ThreadState.QUORUM_OFFSET );
+        if(offset == null) offset = 0;
+        Integer toIndex = state.getValue( ThreadState.NODES_INDEX );
+        if(toIndex == null) toIndex = 0; toIndex = toIndex - offset;
+        int index = 0;
+        
+        // Get the replica versions.
+        for(TCPSession session : openSessions) {
+            if(index == toIndex) {
+                try{
+                    ByteBuffer data;
+                    if(!replacedThread || actionsList.isEmpty()) {
+                        data = ByteBuffer.wrap( session.receiveMessage() );
+                        state.setValue( ThreadState.REPLICA_FILE, data );
+                        actionsList.addLast( DONE );
+                    }
+                    else {
+                        data = state.getValue( ThreadState.REPLICA_FILE );
+                        actionsList.removeFirst();
+                    }
+                    
+                    if(!replacedThread || actionsList.isEmpty()) {
+                        if(data.get() == (byte) 0x1) {
+                            // Replica node owns the requested file.
+                            byte[] file = DFSUtils.getNextBytes( data );
+                            filesToSend.put( new RemoteFile( file ), file );
+                            
+                            // Update the list of agreedNodes.
+                            agreedNodes.remove( index - offset );
+                            state.setValue( ThreadState.QUORUM_OFFSET, ++offset );
+                        }
+                        actionsList.add( DONE );
+                    }
+                    else
+                        actionsList.removeFirst();
+                }
+                catch( IOException e ) {
+                    if(QuorumSession.unmakeQuorum( ++errors, Message.GET )) {
+                        LOGGER.info( "[SN] Quorum failed: " + openSessions.size() + "/" + QuorumSession.getMinQuorum( Message.GET ) );
+                        quorum_t.cancelQuorum( state, this.session, agreedNodes );
+                        return;
+                    }
+                    state.setValue( ThreadState.QUORUM_ERRORS, errors );
+                }
+                
+                state.setValue( ThreadState.NODES_INDEX, ++toIndex );
+            }
+            
+            index++;
+            session.close();
+        }
+	}
+	
+	/**
 	 * Makes the reconciliation among different vector clocks.
 	 * 
 	 * @param files		list of files to compare
 	 * 
 	 * @return The list of uncorrelated versions.
 	*/
-	private List<RemoteFile> makeReconciliation( final HashMap<RemoteFile, byte[]> files )
+	private List<RemoteFile> makeReconciliation( final Map<RemoteFile, byte[]> files )
 	{
 		List<Versioned<RemoteFile>> versions = new ArrayList<>();
 		for(RemoteFile file : files.keySet())
@@ -666,7 +679,7 @@ public class StorageNode extends DFSNode
                 message.addObject( DFSUtils.serializeObject( clock ) );
             session.sendMessage( message, true );
             LOGGER.debug( "Clock sent." );
-            actionsList.addFirst( DONE );
+            actionsList.addLast( DONE );
         }
         else
             actionsList.removeFirst();
@@ -739,10 +752,10 @@ public class StorageNode extends DFSNode
 	}
 	
 	@Override
-	public void closeResources()
+	public void close()
 	{
 	    lMgr_t.close();
-	    super.closeResources();
+	    super.close();
 	}
 	
 	/*public static void main( final String args[] ) throws Exception

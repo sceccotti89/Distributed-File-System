@@ -111,7 +111,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 			@Override
 			public void run() 
 			{
-				closeResources();
+				close();
 				LOGGER.info( "Service has been shutdown..." );
 			}
 		}));
@@ -409,7 +409,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	/**
 	 * Closes the opened resources.
 	*/
-	public void closeResources()
+	public void close()
 	{
 		shutDown = true;
 		

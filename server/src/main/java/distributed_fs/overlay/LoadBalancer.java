@@ -125,7 +125,6 @@ public class LoadBalancer extends DFSNode
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown) {
-				//LOGGER.debug( "[LB] Waiting on: " + _address + ":" + this.port );
 				TCPSession session = _net.waitForConnection( _address, this.port );
 				if(session != null) {
 				    synchronized( threadPool ) {
