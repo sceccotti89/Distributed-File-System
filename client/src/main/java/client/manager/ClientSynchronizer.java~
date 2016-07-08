@@ -1,5 +1,5 @@
 
-package client.manager;
+package distributed_fs.client.manager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -7,8 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-import client.DFSService;
-
+import distributed_fs.client.DFSService;
 import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
@@ -68,7 +67,7 @@ public class ClientSynchronizer extends Thread
                    reconcileVersions( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 1) {
                     // Update the file.
                     if(!file.isDeleted())
-                        database.saveFile( file, file.getVersion(), null, true );
+                        database.saveFile( file, file.getVersion(), null );
                     else
                         database.removeFile( file.getName(), file.getVersion(), null );
                     // TODO devo poi spedire il file al server?

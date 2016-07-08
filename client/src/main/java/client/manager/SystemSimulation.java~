@@ -96,7 +96,7 @@ public class SystemSimulation implements Closeable
     {
         if(nodes != null) {
             for(DFSNode node : nodes)
-                node.closeResources();
+                node.close();
             for(DFSNode node : nodes) {
                 try { node.join(); }
                 catch( InterruptedException e ) {}

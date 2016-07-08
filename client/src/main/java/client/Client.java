@@ -45,7 +45,7 @@ public class Client implements DBListener
 	
 	public static void main( final String args[] ) throws ParseException, IOException, DFSException
     {
-        ClientArgsParser.parseArgs( args );
+	    ClientArgsParser.parseArgs( args );
         if(ClientArgsParser.hasOnlyHelpOptions())
             return;
         

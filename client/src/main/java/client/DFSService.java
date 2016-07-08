@@ -233,7 +233,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			// Update the database.
 			toWrite = files.get( id );
-			if(database.saveFile( toWrite, toWrite.getVersion(), null, true ) != null)
+			if(database.saveFile( toWrite, toWrite.getVersion(), null ) != null)
 				backToClient = new DistributedFile( toWrite, toWrite.isDirectory(), null );
 			else
 				backToClient = getFile( fileName );
@@ -310,7 +310,7 @@ public class DFSService extends DFSManager implements IDFSService
             if(message.getType() == (byte) 0x1) {
                 LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
                 VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
-                database.saveFile( rFile, newClock, null, true );
+                database.saveFile( rFile, newClock, null );
             }
 		}
 		catch( IOException e ) {

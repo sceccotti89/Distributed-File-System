@@ -68,7 +68,7 @@ public class ClientSynchronizer extends Thread
                    reconcileVersions( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 1) {
                     // Update the file.
                     if(!file.isDeleted())
-                        database.saveFile( file, file.getVersion(), null, true );
+                        database.saveFile( file, file.getVersion(), null );
                     else
                         database.removeFile( file.getName(), file.getVersion(), null );
                     // TODO devo poi spedire il file al server?

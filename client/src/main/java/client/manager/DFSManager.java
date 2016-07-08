@@ -102,9 +102,8 @@ public abstract class DFSManager
     		}
 		}
 		catch( IOException e ) {
-		    // The file is not found.
-		    // Ignored.
-		    e.printStackTrace();
+		    // The file is not found or not well-structured.
+		    throw e;
 		}
         
 		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
@@ -125,7 +124,7 @@ public abstract class DFSManager
 				else
 				    cHasher.addBucket( member, 1 );
 				
-				LOGGER.debug( "Added remote node: " + member );
+				LOGGER.debug( "Added remote node: " + member.getHost() + ":" + member.getNodeType() );
 			}
 		}
 		else {
@@ -137,8 +136,7 @@ public abstract class DFSManager
     				JSONObject data = nodes.getJSONObject( i );
     				int nodeType = data.getInt( "nodeType" );
     				String address = data.getString( "host" );
-    				int nodePort = data.getInt( "port" );
-    				GossipMember node = new RemoteGossipMember( address, nodePort, DFSUtils.getNodeId( 1, address ), 0, nodeType );
+    				GossipMember node = new RemoteGossipMember( address, DFSUtils.SERVICE_PORT, DFSUtils.getNodeId( 1, address ), 0, nodeType );
     				if(nodeType == GossipMember.LOAD_BALANCER)
     				    loadBalancers.add( node );
     				else
@@ -148,7 +146,6 @@ public abstract class DFSManager
     			}
 		    }
 		}
-		System.out.println( "C_HASHER: " + cHasher.isEmpty() );
 		
 		// Some checks...
 		if(!useLoadBalancer && cHasher.isEmpty()) {
@@ -253,21 +250,9 @@ public abstract class DFSManager
 	}
 	
 	protected List<RemoteFile> readGetResponse( final TCPSession session ) throws IOException
-	{
-	    LOGGER.info( "Waiting for the incoming files..." );
-        
-        MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
-        List<RemoteFile> files = new ArrayList<>();
-        List<byte[]> objects = message.getObjects();
-        if(objects != null) {
-            for(byte[] file : objects)
-                files.add( new RemoteFile( file ) );
-        }
-        
-        LOGGER.info( "Received " + files.size() + " files." );
-        
-        return files;
-	}
+    {
+	    return readGetAllResponse( session );
+    }
 	
 	protected void sendGetAllMessage( final String fileName ) throws IOException
     {
@@ -291,7 +276,7 @@ public abstract class DFSManager
 	{
 	    LOGGER.info( "Waiting for the incoming files..." );
 	    
-	    ByteBuffer msg = ByteBuffer.wrap( session.receiveMessage() );
+        ByteBuffer msg = ByteBuffer.wrap( session.receiveMessage() );
 	    int numFiles = msg.getInt();
 	    List<RemoteFile> files = new ArrayList<>( numFiles );
 	    if(numFiles > 0) {
