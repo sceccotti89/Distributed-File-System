@@ -59,9 +59,10 @@ The only mandatory parameter is:
 
 Optional parameters:
 
-- `-p [--port] <value>` port used to listen the incoming requests. This option is valid only for LoadBalancer nodes
+- `-p [--port] <value>` port used to listen the incoming requests
 - `-a [--addr] <value>` set the ip address of the node
 - `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
+- `-N [--vnodes] <value>` set the number of virtual nodes. This option is valid only for StorageNode nodes
 - `-r [--rloc] <path>` set the location of the resources. This option is valid only for StorageNode nodes
 - `-d [--dloc] <path>` set the location of the database. This option is valid only for StorageNode nodes
 - `-h [--help]` show the help informations
