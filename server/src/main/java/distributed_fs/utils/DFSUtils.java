@@ -40,7 +40,7 @@ public class DFSUtils
 	public static final HashFunction _hash = Hashing.sha1();
 	
 	/** Gossiping configuration path. */
-    public static final String GOSSIP_CONFIG = "./Settings/GossipSettings.json";
+    public static final String GOSSIP_CONFIG = "Settings/GossipSettings.json";
 	
 	/** Logger configuration path. */
 	public static final String LOG_CONFIG = "Settings/log4j.properties";

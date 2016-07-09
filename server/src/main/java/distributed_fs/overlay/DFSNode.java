@@ -87,7 +87,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	public static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
 	
 	// Configuration path.
-    private static final String DISTRIBUTED_FS_CONFIG = "./Settings/NodeSettings.json";
+    private static final String DISTRIBUTED_FS_CONFIG = "Settings/NodeSettings.json";
     
     // Not yet implemented.
     protected static final int PORT_OFFSET = 0;
