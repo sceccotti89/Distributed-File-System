@@ -104,7 +104,7 @@ My suggestion is to assign the VMs in this way: 1 for the Client, 1 for the Load
 ## References
 ### Java libraries
 
-- [MapDB](http://www.mapdb.org/), to implement the storage.
+- [MapDB](http://www.mapdb.org/), to implement the storage system.
 - [JUnit](http://junit.org/), to test the project.
 - [Log4j](http://logging.apache.org/log4j/2.x/), to manage the log system of the project.
 - [commons-cli](https://commons.apache.org/proper/commons-cli/), to parse the command options.
