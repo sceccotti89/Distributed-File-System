@@ -61,6 +61,10 @@ public class DFSDatabase implements Closeable
 	
 	private static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
+	
+	
+	
+	
 	/**
 	 * Construct a new Distributed File System database.
 	 * 
@@ -100,8 +104,6 @@ public class DFSDatabase implements Closeable
         }
         LOGGER.info( "Database created on: " + dbRoot );
 		
-        //db = DBMaker.newFileDB( new File( dbRoot + "database.db" ) ).make();
-        //database = db.getTreeMap( "map" );
         db = DBMaker.fileDB( new File( dbRoot + "database.db" ) )
                     .snapshotEnable()
                     .make();
@@ -307,10 +309,10 @@ public class DFSDatabase implements Closeable
 	}
 	
 	/**
-	 * Removes a file on database and on disk.<br>
+	 * Deletes a file on database and on disk.<br>
 	 * The file is not intended to be definitely removed from the database,
-	 * but marked as deleted.
-	 * The file is keeped on database until its TimeToLive is not expired.
+	 * but only marked as deleted.
+	 * The file is keep on database until its TimeToLive is not expired.
 	 * 
 	 * @param fileName        name of the file to remove
 	 * @param clock           actual version of the file
@@ -318,7 +320,7 @@ public class DFSDatabase implements Closeable
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
-	public VectorClock removeFile( String fileName,
+	public VectorClock deleteFile( String fileName,
 	                               final VectorClock clock,
 	                               final String hintedHandoff )
 	{
@@ -401,7 +403,7 @@ public class DFSDatabase implements Closeable
 	 * 
 	 * @param file  the file to delete
 	*/
-	private void deleteFile( final DistributedFile file )
+	private void removeFile( final DistributedFile file )
 	{
 	    LOCK_WRITERS.lock();
 	    if(db.isClosed()) {
@@ -412,7 +414,7 @@ public class DFSDatabase implements Closeable
 	    if(file.isDeleted()) {
 		    database.remove( file.getId() );
 		    db.commit();
-		    hhThread.removeFile( file );
+		    hhThread.removeFiles( file );
 	    }
         
         LOCK_WRITERS.unlock();
@@ -655,7 +657,7 @@ public class DFSDatabase implements Closeable
 					DistributedFile file = files.get( i );
 					if(file.isDeleted()) {
 						if(file.checkDelete())
-						    deleteFile( file );
+						    removeFile( file );
 					}
 				}
 			}
@@ -667,10 +669,6 @@ public class DFSDatabase implements Closeable
 		}
 	}
 	
-	// TODO non sarebbe meglio se lo implementassi in modo tale che si sospenda in attesa che un nodo si attivi
-	// TODO (passato magari come parametro nell'attivazione) e tenta di spedire i file.
-	// TODO se non ci riesce neinte, senno' elimina i file...
-	// TODO inserire le richieste in una coda (tipo l'AsyncDiskWriter).
 	/**
 	 * Class used to periodically test
 	 * if a file has to be transmitted to
@@ -712,7 +710,7 @@ public class DFSDatabase implements Closeable
 					for(int i = files.size() - 1; i >= 0; i--) {
 					    DistributedFile file = it.next();
 						if(file.checkDelete()) {
-						    deleteFile( file );
+						    removeFile( file );
 							it.remove();
 						}
 					}
@@ -720,13 +718,13 @@ public class DFSDatabase implements Closeable
 					// Retrieve the informations from the saved address.
 					String[] data = address.split( ":" );
 					String host = data[0];
-					int port = Integer.parseInt( data[1] ) + 1;
+					int port = Integer.parseInt( data[1] );
 					
 					if(_fileMgr.sendFiles( host, port, files, true, null, null ) ) {
 					    // If all the files have been successfully delivered,
-					    // they are removed for the current database.
+					    // they are removed from the current database.
 						for(DistributedFile file : files)
-						    deleteFile( file );
+						    removeFile( file );
 						
 						removeAddress( address );
 					}
@@ -775,7 +773,7 @@ public class DFSDatabase implements Closeable
 		 * 
 		 * @param file    the file to remove
 		*/
-		public void removeFile( final DistributedFile file )
+		public void removeFiles( final DistributedFile file )
 		{
 		    String address = file.getHintedHandoff();
 		    if(address != null) {
@@ -790,7 +788,7 @@ public class DFSDatabase implements Closeable
 		 * 
 		 * @param address   the hinted handoff address
 		*/
-		public void removeAddress( final String address )
+		private void removeAddress( final String address )
 		{
 		    if(address != null) {
     		    MUTEX_LOCK.lock();
@@ -818,6 +816,10 @@ public class DFSDatabase implements Closeable
 		    }
 		    
 		    MUTEX_LOCK.unlock();
+		    
+		    // Interrupt the node (if not awake),
+		    // forcing it to immediately now the files.
+            interrupt();
 		}
 		
 		public void shutDown()

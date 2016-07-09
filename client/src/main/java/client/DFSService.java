@@ -388,7 +388,7 @@ public class DFSService extends DFSManager implements IDFSService
 			if(message.getType() == (byte) 0x1) {
 			    LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
     			VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
-    			database.removeFile( fileName, newClock, null );
+    			database.deleteFile( fileName, newClock, null );
 			}
 		}
 		catch( IOException e ) {

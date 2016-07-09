@@ -69,7 +69,7 @@ public class ClientSynchronizer extends Thread
                     if(!file.isDeleted())
                         database.saveFile( file, file.getVersion(), null );
                     else
-                        database.removeFile( file.getName(), file.getVersion(), null );
+                        database.deleteFile( file.getName(), file.getVersion(), null );
                     // TODO devo poi spedire il file al server?
                     
                 }

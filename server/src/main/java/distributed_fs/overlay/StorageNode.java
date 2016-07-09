@@ -571,7 +571,7 @@ public class StorageNode extends DFSNode
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
     		clock = file.getVersion().incremented( _address );
-    		clock = fMgr.getDatabase().removeFile( file.getName(), clock, hintedHandoff );
+    		clock = fMgr.getDatabase().deleteFile( file.getName(), clock, hintedHandoff );
     		state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
             actionsList.addLast( DONE );
         }
