@@ -89,7 +89,7 @@ The operations provided by the client, in addition to the ones mentioned before,
 - **help** to show the helper;
 - **exit** to close the service.
 
-This disableLB mode is maintained until the client owns at least one of them, otherwise the system ignores the request using again load balancer nodes.
+The disableLB mode is maintained until the client owns at least one of them, otherwise the system ignores the request using again load balancer nodes.
 
 ### Local Environment
 
