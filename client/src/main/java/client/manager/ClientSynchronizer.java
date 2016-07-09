@@ -58,20 +58,23 @@ public class ClientSynchronizer extends Thread
      * 
      * @param files   the list of files
     */
-    public void checkFiles( final List<RemoteFile> files )
+    public void checkFiles( final List<RemoteFile> files ) throws DFSException
     {
         for(RemoteFile file : files) {
             DistributedFile myFile = database.getFile( file.getName() );
             try {
-                if(myFile == null ||
-                   reconcileVersions( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 1) {
+                if(myFile != null &&
+                   reconcileVersions( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 0) {
+                    // The own file has the most updated version.
+                    // Send this version using the put method.
+                    service.put( myFile.getName() );
+                }
+                else {
                     // Update the file.
                     if(!file.isDeleted())
                         database.saveFile( file, file.getVersion(), null );
                     else
                         database.deleteFile( file.getName(), file.getVersion(), null );
-                    // TODO devo poi spedire il file al server?
-                    
                 }
             }
             catch( IOException e ) {}
