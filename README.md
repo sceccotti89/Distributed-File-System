@@ -80,7 +80,7 @@ Optional parameters:
 - `-d [--dloc] <path>` set the location of the database
 - `-locale` start the system in the local environment
 - `-h [--help]` show the help informations
-- 
+
 The operations provided by the client, in addition to the ones mentioned before, are:
 
 - **list** print on screen a list of all the files present in the client’s database;
