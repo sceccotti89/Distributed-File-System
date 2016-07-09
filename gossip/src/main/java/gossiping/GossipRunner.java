@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.json.JSONException;
 
@@ -11,18 +13,19 @@ import gossiping.event.GossipListener;
 
 public class GossipRunner 
 {
-	/** The startup gossiping service */
+	/** The startup gossiping service. */
 	private GossipService gossipService;
+	/** Checks whether the gossiping is started. */
+	private boolean started = false;
 	
 	public GossipRunner( final File configFile, final GossipListener listener, final String _address, final int virtualNodes, final int nodeType ) 
 	{
 		if (configFile != null && configFile.exists()) {
 			try {
-				System.out.println( "Parsing the configuration file '" + configFile + "'..." );
+				System.out.println( "Parsing the configuration file " + configFile + "..." );
 				StartupSettings settings = StartupSettings.fromJSONFile( configFile, _address, virtualNodes, nodeType );
 				gossipService = new GossipService( settings, listener );
-				System.out.println( "Gossip service successfully initialized, let's start it..." );
-				gossipService.start();
+				System.out.println( "Gossip service successfully initialized." );
 			} catch ( FileNotFoundException e ) {
 				System.err.println("The given file is not found!");
 			} catch (JSONException e) {
@@ -41,20 +44,37 @@ public class GossipRunner
 		}
 	}
 	
-	public GossipRunner( final GossipListener listener, final int port, final String seed,
-						 final String id, final String _address, final int virtualNodes, final int nodeType )
+	public GossipRunner( final GossipListener listener, final String _address, final int port,
+						 final String id, final int virtualNodes, final int nodeType )
 	{
-		try {
-			StartupSettings settings = new StartupSettings( _address, port, id, virtualNodes, nodeType, LogLevel.DEBUG );
-			settings.addGossipMember( new RemoteGossipMember( seed, port, id, virtualNodes, nodeType ) );
-			gossipService = new GossipService( settings, listener );
-			System.out.println( "Gossip service successfully initialized, let's start it..." );
-			gossipService.start();
-		} catch (InterruptedException e) {
-			System.err.println( "Error while starting the gossip service: " + e.getMessage() );
-		} catch (UnknownHostException e) {
-			System.err.println( "Error while starting the gossip service: " + e.getMessage() );
-		}
+		this( listener, _address, port, id, virtualNodes, nodeType, new ArrayList<>() );
+	}
+	
+	public GossipRunner( final GossipListener listener, final String _address, final int port,
+                         final String id, final int virtualNodes,
+                         final int nodeType, final List<GossipMember> members )
+    {
+        try {
+            StartupSettings settings = new StartupSettings( _address, port, id, virtualNodes, nodeType, LogLevel.DEBUG, new ArrayList<>( members ) );
+            settings.addGossipMember( new RemoteGossipMember( _address, port, id, virtualNodes, nodeType ) );
+            gossipService = new GossipService( settings, listener );
+            System.out.println( "Gossip service successfully initialized." );
+        } catch (InterruptedException e) {
+            System.err.println( "Error while starting the gossip service: " + e.getMessage() );
+        } catch (UnknownHostException e) {
+            System.err.println( "Error while starting the gossip service: " + e.getMessage() );
+        }
+    }
+	
+	public boolean isStarted()
+	{
+	    return started;
+	}
+	
+	public void start()
+	{
+	    gossipService.start();
+	    started = true;
 	}
 	
 	public GossipService getGossipService()

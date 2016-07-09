@@ -30,7 +30,7 @@ import gossiping.RemoteGossipMember;
 public class SystemTest
 {
     private static final String IpAddress = "127.0.0.1";
-    private static final boolean disableAntiEntropy = false;
+    private static final boolean enableAntiEntropy = true;
     
     private List<DFSService> clients;
     private List<GossipMember> members;
@@ -42,8 +42,9 @@ public class SystemTest
     
     
     @Before
-    public void setup() throws IOException, DFSException
+    public void setup() throws IOException, DFSException, InterruptedException
     {
+        DFSUtils.testing = true;
         System.out.println( "Start tests..." );
         
         DFSUtils.deleteDirectory( new File( "Servers" ) );
@@ -53,48 +54,50 @@ public class SystemTest
         runClients( IpAddress, 2 );
     }
     
-    private void runServers() throws IOException, DFSException
+    private void runServers() throws IOException, DFSException, InterruptedException
     {
         // Create the gossip members and put them in a list.
-        members = new ArrayList<>( NUMBER_OF_BALANCERS + NUMBER_OF_STORAGES );
-        
-        int k = 100;
-        for(int i = 0; i < NUMBER_OF_BALANCERS; i++, k++) {
-            int port = 8000 + (i * k);
-            String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
-            //System.out.println( "ID: " + id );
-            members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.LOAD_BALANCER ) );
-        }
-        
-        for(int i = 0 ; i < NUMBER_OF_STORAGES; i++, k++) {
-            int port = 8000 + (i * k) + NUMBER_OF_BALANCERS;
-            //System.out.println( "[" + i + "] = " + port );
-            String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
-            //System.out.println( "ID: " + id );
-            members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.STORAGE ) );
-        }
-        
-        nodes = new ArrayList<>( members.size() );
-        
-        // Start the load balancer nodes.
-        for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
-            LoadBalancer node = new LoadBalancer( members, members.get( i ).getPort(), IpAddress );
-            nodes.add( node );
-            node.launch( true );
-        }
-        
-        String resources = "./Servers/Resources";
-        String database =  "./Servers/Database";
-        // Start the storage nodes.
-        for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
-            GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
-            //System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
-            StorageNode node = new StorageNode( members, IpAddress, member.getPort(),
-                                                resources + (i+2) + "/", database + (i+2) + "/" );
-            node.setAntiEntropy( disableAntiEntropy );
-            nodes.add( node );
-            node.launch( true );
-        }
+		members = new ArrayList<>( NUMBER_OF_BALANCERS + NUMBER_OF_STORAGES );
+		
+		int k = 100;
+		for(int i = 0; i < NUMBER_OF_BALANCERS; i++, k++) {
+			int port = 8000 + (i * k);
+			String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
+			//System.out.println( "ID: " + id );
+			members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.LOAD_BALANCER ) );
+		}
+		
+		for(int i = 0 ; i < NUMBER_OF_STORAGES; i++, k++) {
+			int port = 8000 + (i * k) + NUMBER_OF_BALANCERS;
+			//System.out.println( "[" + i + "] = " + port );
+			String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
+			//System.out.println( "ID: " + id );
+			members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.STORAGE ) );
+		}
+		
+		nodes = new ArrayList<>( members.size() );
+		
+		// Start the load balancer nodes.
+		for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
+			LoadBalancer node = new LoadBalancer( IpAddress, members.get( i ).getPort(), members );
+			node.setGossipingMechanism( false );
+			nodes.add( node );
+			node.launch( true );
+		}
+		
+		String resources = "./Servers/Resources";
+		String database =  "./Servers/Database";
+		// Start the storage nodes.
+		for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
+			GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
+			//System.out.println( "Port: " + member.getPort() + ", Resources: " + resources + (i+2) + "/" );
+			StorageNode node = new StorageNode( IpAddress, member.getPort(), 1, members,
+												resources + (i+2) + "/", database + (i+2) + "/" );
+			node.setAntiEntropy( enableAntiEntropy );
+			node.setGossipingMechanism( false );
+			nodes.add( node );
+			node.launch( true );
+		}
     }
     
     private void runClients( final String ipAddress, final int numClients ) throws IOException, DFSException
@@ -115,16 +118,17 @@ public class SystemTest
     public void startTests() throws IOException, DFSException, InterruptedException
     {
         testNoLoadBalancers();
-        testSingleClient();
-        testDeleteFolder();
-        stressTest();
-        testAntiEntropy();
-        testHintedHandoff();
+        //testSingleClient();
+        //testDeleteFolder();
+        //stressTest();
+        //testAntiEntropy();
+        //testHintedHandoff();
     }
     
     private void testNoLoadBalancers() throws IOException, DFSException, InterruptedException
 	{
 	    DFSService service = new DFSService( IpAddress, 9002, false, members, "./Clients/ResourcesClient/", "./Clients/DatabaseClient/", null );
+	    service.disableSyncThread();
 	    service.start();
 	    
 	    Thread.sleep( 2000 );
@@ -205,7 +209,7 @@ public class SystemTest
     		final int index = i;
     		Thread t = new Thread() {
     			@Override
-    			public void run() { try { testMultipleClient( index ); } catch (Exception e) {e.printStackTrace();} }
+    			public void run() { try { testMultipleClients( index ); } catch (Exception e) {e.printStackTrace();} }
     		};
     		t.start();
     		clientThreads.add( t );
@@ -216,7 +220,7 @@ public class SystemTest
     		t.join();
     }
 	
-	private void testMultipleClient( final int index ) throws IOException, DFSException, InterruptedException
+	private void testMultipleClients( final int index ) throws IOException, DFSException, InterruptedException
 	{
 		DFSService service = clients.get( index );
 		

@@ -4,9 +4,6 @@
 
 package client;
 
-import client.manager.ClientSynchronizer;
-import client.manager.DFSManager;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,6 +12,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import client.manager.ClientSynchronizer;
+import client.manager.DFSManager;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
@@ -306,7 +305,7 @@ public class DFSService extends DFSManager implements IDFSService
 			}
 			
 			// Update the file's vector clock.
-			MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
+			MessageResponse message = session.receiveMessage();
             if(message.getType() == (byte) 0x1) {
                 LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
                 VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
@@ -384,7 +383,8 @@ public class DFSService extends DFSManager implements IDFSService
 			}
 			
 			// Update the file's vector clock.
-			MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
+			MessageResponse message = session.receiveMessage();
+			LOGGER.debug( "Updating file: " + (message.getType() == (byte) 0x1) );
 			if(message.getType() == (byte) 0x1) {
 			    LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
     			VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );

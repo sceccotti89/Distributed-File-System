@@ -33,6 +33,8 @@ public abstract class AntiEntropyThread extends Thread
 	private final Random random;
 	protected boolean shoutDown = false;
 	
+	protected static final int PORT_OFFSET = 2;
+	
 	/** Type of messages exchanged during the synchronization procedure */
 	protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
 	

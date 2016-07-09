@@ -5,24 +5,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import javax.xml.bind.DatatypeConverter;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import gossiping.manager.HashFunction;
-import gossiping.manager.HashFunction._HASH;
-
 /**
  * This object represents the settings used when starting the gossip service.
  */
-public class StartupSettings 
+public class StartupSettings
 {
 	/** The port to start the gossip service on. */
 	private int _port;
@@ -40,9 +33,6 @@ public class StartupSettings
 	private final GossipSettings _gossipSettings;
 	/** The list with gossip members to start with. */
 	private final List<GossipMember> _gossipMembers;
-	
-	/** Hash function used to generate unique id */
-	public static final HashFunction _hash = new HashFunction( _HASH.SHA_1 );
 
 	/**
 	 * Constructor.
@@ -52,8 +42,19 @@ public class StartupSettings
 	public StartupSettings( final String _address, final int port, final String id, final int virtualNodes,
 							final int nodeType, final int logLevel ) 
 	{
-		this( _address, port, id, virtualNodes, nodeType, logLevel, new GossipSettings() );
+		this( _address, port, id, virtualNodes, nodeType, logLevel, new ArrayList<>(), new GossipSettings() );
 	}
+	
+	/**
+     * Constructor.
+     *
+     * @param port      The port to start the service on.
+    */
+	public StartupSettings( final String _address, final int port, final String id, final int virtualNodes,
+                            final int nodeType, final int logLevel, final List<GossipMember> members )
+	{
+	    this( _address, port, id, virtualNodes, nodeType, logLevel, members, new GossipSettings() );
+    }
 
 	/**
 	 * Constructor.
@@ -61,7 +62,7 @@ public class StartupSettings
 	 * @param port		The port to start the service on.
 	*/
 	public StartupSettings( final String address, final int port, final String id, final int virtualNodes,
-							final int nodeType, final int logLevel, final GossipSettings gossipSettings ) 
+							final int nodeType, final int logLevel, final List<GossipMember> members, final GossipSettings gossipSettings ) 
 	{
 		_address = address;
 		_port = port;
@@ -70,7 +71,7 @@ public class StartupSettings
 		_nodeType = nodeType;
 		_logLevel = logLevel;
 		_gossipSettings = gossipSettings;
-		_gossipMembers = new ArrayList<>();
+		_gossipMembers = members;
 	}
 
 	/**
@@ -207,7 +208,6 @@ public class StartupSettings
 		file.close();
 		
 		JSONObject gossiping = new JSONObject( content.toString() );
-		//JSONObject gossiping = Utils.parseJSONFile( jsonFile.getAbsolutePath() );
 		
 		// Get the port number.
 		int port = gossiping.getInt( "port" );
@@ -221,26 +221,25 @@ public class StartupSettings
 		System.out.println( "Config [port: " + port + ", log_level: " + logLevel + ", gossip_interval: " + gossipInterval +
 							", cleanup_interval: " + cleanupInterval + "]" );
 		
-		String id = DatatypeConverter.printHexBinary( getNodeId( 1, _address + ":" + port ) );
-		//String id = Utils.bytesToHex( Utils.getNodeId( 0, _address ).array() );
+		//String id = DatatypeConverter.printHexBinary( getNodeId( 1, _address + ":" + port ) );
 		
 		GossipService.LOGGER.setLevel( LogLevel.getLogLevel( logLevel ) );
 		
 		// Initiate the settings with the port number.
-		StartupSettings settings = new StartupSettings( _address, port, id, virtualNodes, nodeType, logLevel,
+		StartupSettings settings = new StartupSettings( _address, port, "", virtualNodes, nodeType, logLevel,
+		                                                new ArrayList<>(),
 														new GossipSettings( gossipInterval, cleanupInterval ) );
 		
 		// Now iterate over the members from the config file and add them to the settings.
 		System.out.print( "Config-members [" );
 		JSONArray membersJSON = gossiping.getJSONArray( "members" );
 		int length = membersJSON.length();
-		for (int i = 0; i < length; i++) {
+		for(int i = 0; i < length; i++) {
 			JSONObject memberJSON = membersJSON.getJSONObject( i );
 			String host = memberJSON.getString( "host" );
 			int Port = memberJSON.getInt( "port" );
-			//id = Utils.bytesToHex( Utils.getNodeId( 0, host ).array() );
-			id = DatatypeConverter.printHexBinary( getNodeId( 1, host + ":" + Port ) );
-			RemoteGossipMember member = new RemoteGossipMember( host, Port, id, 0, memberJSON.getInt( "type" ) );
+			//id = DatatypeConverter.printHexBinary( getNodeId( 1, host + ":" + Port ) );
+			RemoteGossipMember member = new RemoteGossipMember( host, Port, "", 0, memberJSON.getInt( "type" ) );
 			settings.addGossipMember( member );
 			System.out.print( member.getAddress() );
 			if (i < (membersJSON.length() - 1))
@@ -260,7 +259,7 @@ public class StartupSettings
 	 * 
 	 * @return identifier in a byte array representation
 	*/
-	private static byte[] getNodeId( final int virtualNode, final String host )
+	/*private static byte[] getNodeId( final int virtualNode, final String host )
 	{
 		byte[] hostInBytes = host.getBytes( StandardCharsets.UTF_8 );
 		ByteBuffer bb = ByteBuffer.allocate( Integer.BYTES + hostInBytes.length );
@@ -268,5 +267,5 @@ public class StartupSettings
 		bb.put( hostInBytes );
 		
 		return _hash.hashBytes( bb.array() );
-	}
+	}*/
 }

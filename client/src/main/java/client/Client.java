@@ -4,23 +4,26 @@
 
 package client;
 
-import client.manager.SystemSimulation;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.cli.ParseException;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+import client.manager.SystemSimulation;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DFSDatabase.DBListener;
 import distributed_fs.storage.DistributedFile;
 import gossiping.GossipMember;
+import gossiping.RemoteGossipMember;
 import jline.ArgumentCompletor;
 import jline.Completor;
 import jline.ConsoleReader;
@@ -37,25 +40,77 @@ public class Client implements DBListener
 	
 	private DFSService service = null;
 	
-	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "enableLB", "disableLB", "help", "exit" };
 	public static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
+    
+	// Regular expressions.
+	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "enableLB", "disableLB", "help", "exit" };
 	private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
 	
 	
-	public static void main( final String args[] ) throws ParseException, IOException, DFSException
+	public static void main( final String args[] )
+	        throws ParseException, IOException, DFSException, InterruptedException
     {
 	    ClientArgsParser.parseArgs( args );
         if(ClientArgsParser.hasOnlyHelpOptions())
             return;
         
-        String ipAddress = ClientArgsParser.getIpAddress();
-        int port = ClientArgsParser.getPort();
-        String resourceLocation = ClientArgsParser.getResourceLocation();
-        String databaseLocation = ClientArgsParser.getDatabaseLocation();
-        List<GossipMember> members = ClientArgsParser.getNodes();
-        boolean localEnv = ClientArgsParser.isLocalEnv();
-        new Client( ipAddress, port, resourceLocation, databaseLocation, members, localEnv );
+        JSONObject configFile = ClientArgsParser.getConfigurationFile();
+        if(configFile != null && !ClientArgsParser.hasOnlyFileOptions()) {
+            throw new ParseException( "If you have defined a configuration file " +
+                                      "the other options are not needed." );
+        }
+        
+        if(configFile != null)
+            fromJSONFile( configFile );
+        else {
+            String ipAddress = ClientArgsParser.getIpAddress();
+            int port = ClientArgsParser.getPort();
+            String resourceLocation = ClientArgsParser.getResourceLocation();
+            String databaseLocation = ClientArgsParser.getDatabaseLocation();
+            List<GossipMember> members = ClientArgsParser.getNodes();
+            boolean localEnv = ClientArgsParser.isLocalEnv();
+            new Client( ipAddress, port, resourceLocation, databaseLocation, members, localEnv );
+        }
+    }
+	
+	public static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
+	{
+	    String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
+        int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
+        String resourcesLocation = configFile.has( "ResourcesLocation" ) ? configFile.getString( "ResourcesLocation" ) : null;
+        String databaseLocation = configFile.has( "DatabaseLocation" ) ? configFile.getString( "DatabaseLocation" ) : null;
+        List<GossipMember> members = getStartupMembers( configFile );
+        boolean localEnv = configFile.has( "LocalEnv" ) ? configFile.getBoolean( "LocalEnv" ) : false;
+        
+        new Client( address, port, resourcesLocation, databaseLocation, members, localEnv );
+    }
+	
+	/**
+     * Gets the list of members present in the configuration file.
+     * 
+     * @param configFile    the configuration file
+    */
+    protected static List<GossipMember> getStartupMembers( final JSONObject configFile )
+    {
+        List<GossipMember> members = null;
+        if(!configFile.has( "members" ))
+            return members;
+        
+        JSONArray membersJSON = configFile.getJSONArray( "members" );
+        int length = membersJSON.length();
+        members = new ArrayList<>( length );
+        
+        for(int i = 0; i < length; i++) {
+            JSONObject memberJSON = membersJSON.getJSONObject( i );
+            String host = memberJSON.getString( "host" );
+            int Port = memberJSON.getInt( "port" );
+            RemoteGossipMember member = new RemoteGossipMember( host, Port, "", 0, memberJSON.getInt( "type" ) );
+            members.add( member );
+            System.out.print( member.getAddress() );
+        }
+        
+        return members;
     }
 	
 	public Client( final String ipAddress,
@@ -63,13 +118,13 @@ public class Client implements DBListener
 	               final String resourceLocation,
 	               final String databaseLocation,
 	               List<GossipMember> members,
-	               final boolean localEnv ) throws ParseException, IOException, DFSException
+	               final boolean localEnv ) throws ParseException, IOException, DFSException, InterruptedException
 	{
 	    if(localEnv) {
 	        // Start some nodes to simulate the distributed system,
 	        // but performed in a local environment.
 	        System.out.println( "Starting the local environment..." );
-	        sim = new SystemSimulation( ipAddress, members );
+	        sim = new SystemSimulation( ipAddress, 1, members );
 	        if(members == null)
 	            members = sim.getNodes();
 	    }

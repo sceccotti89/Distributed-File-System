@@ -25,6 +25,10 @@ public class MembershipManagerThread extends Thread
     
     private boolean closed = false;
     
+    public static final int PORT_OFFSET = 4;
+    
+    
+    
     /**
      * Constructor used when the list of members may vary,
      * according to the gossiping protocol.
@@ -33,7 +37,7 @@ public class MembershipManagerThread extends Thread
                                     final GossipMember me, final GossipManager manager )
     {
         this.address = address;
-        this.port = port + 4;
+        this.port = port + PORT_OFFSET;
         
         this.me = me;
         this.manager = manager;
@@ -46,7 +50,7 @@ public class MembershipManagerThread extends Thread
                                     final List<GossipMember> members )
     {
         this.address = address;
-        this.port = port + 4;
+        this.port = port + PORT_OFFSET;
         
         this.members = new ArrayList<>( members.size() );
         for(GossipMember member : members)

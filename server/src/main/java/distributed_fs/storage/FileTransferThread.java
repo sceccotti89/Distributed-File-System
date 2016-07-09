@@ -46,9 +46,11 @@ public class FileTransferThread extends Thread
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
 	public static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
+	private static final int PORT_OFFSET = 1;
 	
 	// Messages used to exchange files with the destination node.
 	private static final byte[] MSG_PUT = { Message.PUT }, MSG_DELETE = { Message.DELETE };
+	
 	
 	
 	
@@ -66,7 +68,7 @@ public class FileTransferThread extends Thread
 		sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
 		receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
 		
-		net = new TCPnet( node.getHost(), port );
+		net = new TCPnet( node.getHost(), port + PORT_OFFSET );
 		
 		//threadPoolSend = Executors.newCachedThreadPool();
 		threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
@@ -156,7 +158,7 @@ public class FileTransferThread extends Thread
 		LOGGER.debug( "Receiving " + num_files + " files..." );
 		
 		for(int i = 0; i < num_files; i++) {
-			data = ByteBuffer.wrap( session.receiveMessage() );
+			data = ByteBuffer.wrap( session.receive() );
 			if(data.get() == Message.PUT) {
 				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
@@ -197,7 +199,7 @@ public class FileTransferThread extends Thread
 							  final String synchNodeId,
 							  final QuorumNode node )
 	{
-		SendFilesThread t = new SendFilesThread( port, files, address, synchNodeId, node );
+		SendFilesThread t = new SendFilesThread( port + PORT_OFFSET, files, address, synchNodeId, node );
 		synchronized( threadPoolSend ) {
 		    if(!threadPoolSend.isShutdown())
 		        threadPoolSend.execute( t );
@@ -340,7 +342,7 @@ public class FileTransferThread extends Thread
 		public void run()
 		{
 			try {
-				ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+				ByteBuffer data = ByteBuffer.wrap( session.receive() );
 				readFiles( session, data );
 			}
 			catch( IOException | InterruptedException e ) {

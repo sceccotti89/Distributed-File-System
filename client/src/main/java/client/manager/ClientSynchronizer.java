@@ -1,14 +1,13 @@
 
 package client.manager;
 
-import client.DFSService;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
+import client.DFSService;
 import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;

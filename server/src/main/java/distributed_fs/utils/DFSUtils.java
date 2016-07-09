@@ -28,18 +28,19 @@ import java.util.zip.GZIPOutputStream;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.resources.ResourceLoader;
-import gossiping.StartupSettings;
-import gossiping.manager.HashFunction;
 
 public class DFSUtils
 {
 	/** Hash function used to compute the identifier of a node. */
-	public static final HashFunction _hash = StartupSettings._hash;
+	public static final HashFunction _hash = Hashing.sha1();
 	
 	/** Gossiping configuration path. */
-    public static final String GOSSIP_CONFIG = "./Settings/Settings.json";
+    public static final String GOSSIP_CONFIG = "./Settings/GossipSettings.json";
 	
 	/** Logger configuration path. */
 	public static final String LOG_CONFIG = "Settings/log4j.properties";
@@ -66,7 +67,7 @@ public class DFSUtils
 		bb.putInt( virtualNode );
 		bb.put( hostInBytes );
 		
-		return bytesToHex( _hash.hashBytes( bb.array() ) );
+		return bytesToHex( _hash.hashBytes( bb.array() ).asBytes() );
 	}
 	
 	/**
@@ -78,7 +79,7 @@ public class DFSUtils
 	public static <S extends Serializable> String getId( final S object )
 	{
 		byte[] bucketNameInBytes = serializeObject( object );
-		return bytesToHex( _hash.hashBytes( bucketNameInBytes ) );
+		return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
 	}
 	
 	/**

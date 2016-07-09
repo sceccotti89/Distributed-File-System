@@ -159,9 +159,18 @@ public class Networking
 		}
 		
 		/** 
-		 * Receives a new message.
+         * Receives a new message.
+        */
+        public <T extends Message> T receiveMessage() throws IOException
+		{
+		    T message = DFSUtils.deserializeObject( receive() );
+		    return message;
+		}
+		
+		/** 
+		 * Receives a new message as a list of bytes.
 		*/
-		public byte[] receiveMessage() throws IOException
+		public byte[] receive() throws IOException
 		{
 			try {
 				int size = in.readInt();
@@ -336,6 +345,8 @@ public class Networking
 		//private int soTimeout = 0;
 		private MulticastSocket udpSocket;
 		private InetAddress mAddress;
+		private boolean joinMulticastGroup = false;
+		
 		private String srcAddress;
 		private int srcPort;
 		
@@ -389,6 +400,7 @@ public class Networking
 			// interface used for the multicast send/receive
 			udpSocket.setInterface( _address );
 			udpSocket.joinGroup( mAddress );
+			joinMulticastGroup = true;
 			
 			//udpSocket.setSoTimeout( soTimeout );
 		}
@@ -453,6 +465,11 @@ public class Networking
 		@Override
 		public void close()
 		{
+		    if(!udpSocket.isClosed() && joinMulticastGroup) {
+		        try { udpSocket.leaveGroup( mAddress ); }
+		        catch( IOException e ) { e.printStackTrace(); }
+		    }
+		    
 			udpSocket.close();
 		}
 	}

@@ -8,7 +8,7 @@ import java.util.Comparator;
  * Class used to manage a GossipMember object,
  * associating a timestamp to it.<br>
  * The timestamp could be used by the invoking service, or a remote one,
- * for instance to select the nodes according to their up time.
+ * to select the nodes according to their up time.
 */
 public class GossipNode implements Serializable, Comparable<GossipNode>
 {
@@ -64,6 +64,5 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
         {
             return o1.getMember().compareTo( o2.getMember() );
         }
-        
     }
 }

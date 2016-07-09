@@ -126,8 +126,8 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	public List<GossipNode> getMemberList() 
 	{
 		List<GossipNode> up = new ArrayList<>();
-		for (Entry<GossipNode, GossipState> entry : members.entrySet())
-			if (GossipState.UP.equals( entry.getValue() ))
+		for(Entry<GossipNode, GossipState> entry : members.entrySet())
+			if(GossipState.UP.equals( entry.getValue() ))
 				up.add( entry.getKey() );
 
 		return Collections.unmodifiableList( up );

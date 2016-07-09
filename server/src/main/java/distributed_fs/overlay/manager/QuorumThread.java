@@ -44,15 +44,19 @@ public class QuorumThread extends Thread
     private final Map<String, QuorumFile> fileLock = new HashMap<>( 64 );
     private final ReentrantLock QUORUM_LOCK = new ReentrantLock( true );
 	
+    private static final int PORT_OFFSET = 3;
     private static final short BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
     private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;
+    
+    
+    
     
     public QuorumThread( final int port,
                          final String address,
                          final DFSNode node ) throws IOException
     {
-        this.port = port + 3;
+        this.port = port + PORT_OFFSET;
         this.address = address;
         this.node = node;
         
@@ -105,7 +109,7 @@ public class QuorumThread extends Thread
                     continue;
                 
                 // Read the request.
-                ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+                ByteBuffer data = ByteBuffer.wrap( session.receive() );
                 DFSNode.LOGGER.info( "[QUORUM] Received a connection from: " + session.getSrcAddress() );
                 
                 switch( data.get() ) {
@@ -222,7 +226,7 @@ public class QuorumThread extends Thread
                 // Start the remote connection.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
                     DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
-                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3, 2000 );
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
                     state.setValue( ThreadState.AGREED_NODE_CONN, mySession );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
@@ -244,7 +248,7 @@ public class QuorumThread extends Thread
                 DFSNode.LOGGER.info( "[SN] Waiting the response..." );
                 ByteBuffer data;
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
-                    data = ByteBuffer.wrap( mySession.receiveMessage() );
+                    data = ByteBuffer.wrap( mySession.receive() );
                     state.setValue( ThreadState.QUORUM_MSG_RESPONSE, data );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
@@ -334,7 +338,7 @@ public class QuorumThread extends Thread
             try {
                 mySession = state.getValue( ThreadState.RELEASE_QUORUM_CONN );
                 if(mySession == null || mySession.isClosed()) {
-                    mySession = net.tryConnect( node.getHost(), node.getPort() + 3 );
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET );
                     state.setValue( ThreadState.RELEASE_QUORUM_CONN, mySession );
                 }
                 

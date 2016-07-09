@@ -1,5 +1,5 @@
 
-package distributed_fs.client.manager;
+package client.manager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,11 +15,12 @@ import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.overlay.manager.MembershipManagerThread;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipNode;
 
-public class MembershipManagerThread extends Thread
+public class ClientMembershipManagerThread extends Thread
 {
     private final Random random;
     private final TCPnet net;
@@ -29,13 +30,13 @@ public class MembershipManagerThread extends Thread
     
     private boolean closed = false;
     
-    private static final Logger LOGGER = Logger.getLogger( MembershipManagerThread.class );
+    private static final Logger LOGGER = Logger.getLogger( ClientMembershipManagerThread.class );
     private static final int TIMER_REQUEST = 10000; // 10 seconds.
     private static final int MAX_POOL_SIZE = 20; // Maximum number of nodes.
     
     
     
-    public MembershipManagerThread( final TCPnet net,
+    public ClientMembershipManagerThread( final TCPnet net,
                                     final DFSManager service,
                                     final ConsistentHasher<GossipMember, String> cHasher )
     {
@@ -56,7 +57,7 @@ public class MembershipManagerThread extends Thread
                 System.out.println( "MEMBERS: " + members.isEmpty() );
                 // If the list is empty it automatically switches in LoadBalancer mode.
                 if(members.isEmpty()) {
-                    LOGGER.info( "The list of nodes is empty. We are now using LoadBalancer nodes." );
+                    LOGGER.info( "[CLIENT] The list of nodes is empty. We are now using LoadBalancer nodes." );
                     service.setUseLoadBalancers( true );
                     break;
                 }
@@ -65,19 +66,19 @@ public class MembershipManagerThread extends Thread
                 server = members.get( index );
                 LOGGER.debug( "[CLIENT] Selected: " + server );
                 
-                TCPSession session = net.tryConnect( server.getHost(), server.getPort() + 4, 2000 );
+                TCPSession session = net.tryConnect( server.getHost(), server.getPort() + MembershipManagerThread.PORT_OFFSET, 2000 );
                 if(session == null) {
                     cHasher.removeBucket( server );
                     LOGGER.debug( "[CLIENT] Node: " + server + " is unreachable." );
                     if(cHasher.isEmpty()) {
-                        LOGGER.info( "The list of nodes is empty. We are now using LoadBalancer nodes." );
+                        LOGGER.info( "[CLIENT] The list of nodes is empty. We are now using LoadBalancer nodes." );
                         service.setUseLoadBalancers( true );
                         break;
                     }
                 }
                 else {
                     // Receive the list of nodes.
-                    MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
+                    MessageResponse message = session.receiveMessage();
                     List<byte[]> nodes = message.getObjects();
                     
                     // Create the list of members.

@@ -5,6 +5,7 @@
 package distributed_fs.overlay.manager.anti_entropy;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -12,9 +13,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+
 import distributed_fs.utils.DFSUtils;
-import gossiping.manager.HashFunction;
-import gossiping.manager.HashFunction._HASH;
 
 /**
  * MerkleTree is an implementation of a Merkle binary hash tree where the leaves
@@ -49,8 +51,8 @@ public class MerkleTree
 	public static final byte  LEAF_SIG_TYPE      = 0x0;
 	private static final byte INTERNAL_SIG_TYPE  = 0x01;
 	
-	public static final HashFunction _hash = new HashFunction( _HASH.MD5 );
-	public static final int sigLength = _hash.hashBytes( "" ).length;
+	public static final HashFunction _hash = Hashing.md5();
+	public static final int sigLength = _hash.hashString( "", StandardCharsets.UTF_8 ).asBytes().length;
 	
 	private List<byte[]> leafSigs;
 	private Node root;
@@ -322,7 +324,7 @@ public class MerkleTree
 		//System.out.println( "LEFT: " + leftSig );
 		//System.out.println( "RIGHT: " + rightSig );
 		//System.out.println( "RESULT: " + Utils.bytesToHex( _hash.hashBytes( (leftSig + rightSig).getBytes() ).asBytes() ) );
-		return _hash.hashBytes( leftSig + rightSig );
+		return _hash.hashString( leftSig + rightSig, StandardCharsets.UTF_8 ).asBytes();
 	}
 	
 	private byte[] leaveHash( final byte[] leaveSig )
@@ -337,7 +339,7 @@ public class MerkleTree
 	*/
 	public static byte[] getSignature( final byte[] object )
 	{
-		return _hash.hashBytes( object );
+		return _hash.hashBytes( object ).asBytes();
 	}
 	
 	

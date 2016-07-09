@@ -99,7 +99,7 @@ public class ThreadMonitor extends Thread
                     else if(thread instanceof FileTransferThread) {
                         FileTransferThread fMgr;
                         try {
-                            fMgr = new FileTransferThread( me, port + 1, cHasher, quorum_t, resourcesLocation, databaseLocation );
+                            fMgr = new FileTransferThread( me, port, cHasher, quorum_t, resourcesLocation, databaseLocation );
                             fMgr.start();
                         } catch( DFSException e ) {
                             e.printStackTrace();

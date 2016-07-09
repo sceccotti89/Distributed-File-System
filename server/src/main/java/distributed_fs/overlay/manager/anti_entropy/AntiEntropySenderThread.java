@@ -164,7 +164,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	*/
 	private void handShake( final GossipMember node, final byte msg_type, final String sourceId, final String destId ) throws IOException
 	{
-	    session = net.tryConnect( node.getHost(), node.getPort() + 2, 2000 );
+	    session = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
 	    
 		byte[] data = net.createMessage( null, sourceId.getBytes( StandardCharsets.UTF_8 ), true );
 		data = net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
@@ -185,7 +185,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		
 		if(m_tree != null) {
 			// Receive the height of the receiver tree.
-			int inputHeight = DFSUtils.byteArrayToInt( session.receiveMessage() );
+			int inputHeight = DFSUtils.byteArrayToInt( session.receive() );
 			if(inputHeight == 0)
 				return;
 			
@@ -202,7 +202,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				
 				// Receive the response set.
 				LOGGER.debug( "Waiting the response..." );
-				BitSet set = BitSet.valueOf( session.receiveMessage() );
+				BitSet set = BitSet.valueOf( session.receive() );
 				LOGGER.debug( "Received the response" );
 				
 				if(set.cardinality() == nNodes) {

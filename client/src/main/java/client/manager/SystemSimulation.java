@@ -24,13 +24,20 @@ public class SystemSimulation implements Closeable
     
     private static final String IpAddress = "127.0.0.1";
     
-    public SystemSimulation( final String ipAddress ) throws IOException, DFSException
+    public SystemSimulation( final String ipAddress ) throws IOException, DFSException, InterruptedException
     {
-        this( ipAddress, null );
+        this( ipAddress, DFSUtils.computeVirtualNodes() );
     }
     
     public SystemSimulation( final String ipAddress,
-                             final List<GossipMember> members ) throws IOException, DFSException
+                             final int virtualNodes ) throws IOException, DFSException, InterruptedException
+    {
+        this( ipAddress, virtualNodes, null );
+    }
+    
+    public SystemSimulation( final String ipAddress,
+                             final int virtualNodes,
+                             final List<GossipMember> members ) throws IOException, DFSException, InterruptedException
     {
         String address = (ipAddress == null) ? IpAddress : ipAddress;
         
@@ -45,7 +52,7 @@ public class SystemSimulation implements Closeable
                 int port = 8000 + (i * k);
                 String id = DFSUtils.getNodeId( 1, IpAddress + ":" + port );
                 //System.out.println( "ID: " + id );
-                this.members.add( new RemoteGossipMember( address, port, id, 1, GossipMember.LOAD_BALANCER ) );
+                this.members.add( new RemoteGossipMember( address, port, id, virtualNodes, GossipMember.LOAD_BALANCER ) );
             }
             
             for(int i = 0 ; i < NUMBER_OF_STORAGES; i++, k++) {
@@ -53,20 +60,20 @@ public class SystemSimulation implements Closeable
                 //System.out.println( "[" + i + "] = " + port );
                 String id = DFSUtils.getNodeId( 1, address + ":" + port );
                 //System.out.println( "ID: " + id );
-                this.members.add( new RemoteGossipMember( address, port, id, 1, GossipMember.STORAGE ) );
+                this.members.add( new RemoteGossipMember( address, port, id, virtualNodes, GossipMember.STORAGE ) );
             }
         }
         
-        createNodes( address );
+        createNodes( address, virtualNodes );
     }
     
-    private void createNodes( final String IpAddress ) throws IOException, DFSException
+    private void createNodes( final String IpAddress, final int vNodes ) throws IOException, DFSException, InterruptedException
     {
         nodes = new ArrayList<>( members.size() );
         
         // Start the load balancer nodes.
         for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
-            LoadBalancer node = new LoadBalancer( members, members.get( i ).getPort(), IpAddress );
+            LoadBalancer node = new LoadBalancer( IpAddress, members.get( i ).getPort(), members );
             nodes.add( node );
             node.launch( true );
         }
@@ -76,7 +83,7 @@ public class SystemSimulation implements Closeable
         // Start the storage nodes.
         for(int i = 0; i < NUMBER_OF_STORAGES; i++) {
             GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
-            StorageNode node = new StorageNode( members, IpAddress, member.getPort(),
+            StorageNode node = new StorageNode( IpAddress, member.getPort(), vNodes, members,
                                                 resources + (i+2) + "/", database + (i+2) + "/" );
             nodes.add( node );
             node.launch( true );

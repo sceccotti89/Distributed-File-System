@@ -3,7 +3,6 @@ package gossiping.manager.impl;
 import java.util.List;
 
 import gossiping.GossipMember;
-import gossiping.GossipNode;
 import gossiping.GossipService;
 import gossiping.LocalGossipMember;
 import gossiping.RemoteGossipMember;
@@ -32,8 +31,6 @@ public class OnlyProcessReceivedPassiveGossipThread extends PassiveGossipThread
 							   final RemoteGossipMember senderMember,
 		  					   final List<GossipMember> remoteList ) 
 	{
-		List<GossipNode> deadList = gossipManager.getDeadList();
-		List<GossipNode> memberList = gossipManager.getMemberList();
 		int timeInterval = gossipManager.getSettings().getTimeIntervals();
 		
 		for(GossipMember remoteMember : remoteList) {
@@ -47,9 +44,9 @@ public class OnlyProcessReceivedPassiveGossipThread extends PassiveGossipThread
 				continue;
 			}
 			
-			int index = memberList.indexOf( remoteMember );
+			int index = gossipManager.getMemberList().indexOf( remoteMember );
 			if(index >= 0) {
-				LocalGossipMember localMember = (LocalGossipMember) memberList.get( index ).getMember();
+				LocalGossipMember localMember = (LocalGossipMember) gossipManager.getMemberList().get( index ).getMember();
 				// Check whether the node has been updated.
 				if(!localMember.isUpdated()) {
 					localMember.setUpdated( true );
@@ -65,11 +62,11 @@ public class OnlyProcessReceivedPassiveGossipThread extends PassiveGossipThread
 			} else {
 				// The remote member is either brand new, or a previously declared dead member.
 				// If its dead, check the heartbeat because it may have come back from the dead.
-			    index = deadList.indexOf( remoteMember );
+			    index = gossipManager.getDeadList().indexOf( remoteMember );
 				if(index >= 0) {
 					// The remote member is known here as a dead member.
 					GossipService.LOGGER.debug( "The remote member is known here as a dead member." );
-					int localDeadHeartbeat = ((LocalGossipMember) deadList.get( index ).getMember()).getHeartbeat();
+					int localDeadHeartbeat = ((LocalGossipMember) gossipManager.getDeadList().get( index ).getMember()).getHeartbeat();
 					// If a member is restarted the heartbeat will restart from 1, so we should check that here.
 					// So a member can become from the dead when it is either larger than a previous heartbeat (due to network failure)
 					// or when the heartbeat is 1 (after a restart of the service).

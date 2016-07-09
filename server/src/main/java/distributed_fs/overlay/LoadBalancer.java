@@ -10,9 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import org.json.JSONObject;
+
 import distributed_fs.consistent_hashing.ConsistentHasher;
-import distributed_fs.net.NetworkMonitorThread;
+import distributed_fs.exception.DFSException;
 import distributed_fs.net.NetworkMonitorReceiverThread;
+import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
@@ -25,9 +28,7 @@ import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
-import gossiping.GossipService;
-import gossiping.GossipSettings;
-import gossiping.manager.GossipManager;
+import gossiping.GossipNode;
 
 public class LoadBalancer extends DFSNode
 {
@@ -39,14 +40,17 @@ public class LoadBalancer extends DFSNode
 	
 	private List<Thread> threadsList;
 	
+	
+	
+	
+	
 	/**
 	 * Constructor with the default settings.<br>
 	 * If you can't provide a configuration file,
 	 * the list of nodes should be passed as arguments.
 	 * 
 	 * @param ipAddress			the ip address. If {@code null} it will be taken using the configuration file parameters.
-	 * @param port				port used to receive incoming requests.
-	 * 							If the value is less or equal than 0,
+	 * @param port				port used to receive incoming requests. If the value is less or equal than 0,
 	 * 							then the default one will be chosed ({@link DFSUtils#SERVICE_PORT});
 	 * @param startupMembers	list of nodes
 	*/
@@ -54,17 +58,20 @@ public class LoadBalancer extends DFSNode
 						 final int port,
 						 final List<GossipMember> startupMembers ) throws IOException, InterruptedException
 	{
-		super( GossipMember.LOAD_BALANCER, ipAddress, startupMembers );
+		super( ipAddress, port, 0, GossipMember.LOAD_BALANCER, startupMembers );
 		
-		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
+		// Set the id to the remote nodes.
+        List<GossipNode> nodes = runner.getGossipService().getGossipManager().getMemberList();
+        for(GossipNode node : nodes) {
+            GossipMember member = node.getMember();
+            member.setId( DFSUtils.getNodeId( 1, member.getAddress() ) );
+        }
 		
-		if(startupMembers != null) {
-			// Start the gossiping from the input list.
-			String id = DFSUtils.getNodeId( 1, _address );
-			GossipSettings settings = new GossipSettings();
-			GossipService gossipService = new GossipService( _address, GossipManager.GOSSIPING_PORT, id, computeVirtualNodes(),
-															 GossipMember.LOAD_BALANCER, startupMembers, settings, this );
-			gossipService.start();
+		if(DFSUtils.testing && startupMembers != null) {
+		    for(GossipMember member : startupMembers) {
+	            if(member.getNodeType() != GossipMember.LOAD_BALANCER)
+	                cHasher.addBucket( member, member.getVirtualNodes() );
+	        }
 		}
 		
 		netMonitor = new NetworkMonitorReceiverThread( _address );
@@ -72,26 +79,19 @@ public class LoadBalancer extends DFSNode
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port );
 	}
 	
-	/** Testing. */
-	public LoadBalancer( final List<GossipMember> startupMembers,
-						 final int port,
-						 final String address ) throws IOException
-	{
-		super();
-		
-		_address = address;
-		
-		for(GossipMember member : startupMembers) {
-			if(member.getNodeType() != GossipMember.LOAD_BALANCER)
-			    cHasher.addBucket( member, member.getVirtualNodes() );
-		}
-		
-		netMonitor = new NetworkMonitorReceiverThread( _address );
-		threadsList = new ArrayList<>( MAX_USERS );
-		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
-		
-		this.port = port;
-	}
+	/**
+     * Load the StorageNode from the configuration file.
+     * 
+     * @param configFile   the configuration file
+    */
+    public static LoadBalancer fromJSONFile( final JSONObject configFile ) throws IOException, InterruptedException, DFSException
+    {
+        String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
+        int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
+        List<GossipMember> members = getStartupMembers( configFile );
+        
+        return new LoadBalancer( address, port, members );
+    }
 	
 	/**
      * Starts the node.<br>
@@ -119,6 +119,8 @@ public class LoadBalancer extends DFSNode
 	private void startProcess()
 	{
 	    netMonitor.start();
+	    if(startGossiping)
+	        runner.start();
 	    
 	    LOGGER.info( "[LB] Waiting on: " + _address + ":" + port );
 	    
@@ -181,7 +183,7 @@ public class LoadBalancer extends DFSNode
 		try {
 		    MessageRequest data = state.getValue( ThreadState.NEW_MSG_REQUEST );
             if(data == null) {
-                data = DFSUtils.deserializeObject( session.receiveMessage() );
+                data = session.receiveMessage();
                 state.setValue( ThreadState.NEW_MSG_REQUEST, data );
             }
             
@@ -227,7 +229,7 @@ public class LoadBalancer extends DFSNode
 					// Contact the target node.
 					LOGGER.debug( "[LB] Contacting: " + targetNode );
 					if(!replacedThread || actionsList.isEmpty()) {
-    					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort(), 2000 ); }
+    					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort() + PORT_OFFSET, 2000 ); }
     					catch( IOException e ){ /* Ignored. e.printStackTrace();*/ }
     					state.setValue( ThreadState.BALANCED_NODE_CONN, newSession );
     					actionsList.addLast( DONE );

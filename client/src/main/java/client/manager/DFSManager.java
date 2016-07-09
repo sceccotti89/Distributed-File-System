@@ -50,7 +50,7 @@ public abstract class DFSManager
 	protected String destId;
 	
     protected final ConsistentHasher<GossipMember, String> cHasher;
-    protected MembershipManagerThread listMgr_t;
+    protected ClientMembershipManagerThread listMgr_t;
 	
 	private static final String DISTRIBUTED_FS_CONFIG = "Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
@@ -112,7 +112,7 @@ public abstract class DFSManager
         net.setSoTimeout( 5000 );
         
         if(!useLoadBalancer)
-            listMgr_t = new MembershipManagerThread( net, this, cHasher );
+            listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
 		
 		if(members != null) {
 		    // Get the remote nodes from the input list.
@@ -203,7 +203,7 @@ public abstract class DFSManager
         useLoadBalancer = useLB;
         
         if(!useLoadBalancer) {
-            listMgr_t = new MembershipManagerThread( net, this, cHasher );
+            listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
             listMgr_t.start();
         }
         else {
@@ -276,12 +276,12 @@ public abstract class DFSManager
 	{
 	    LOGGER.info( "Waiting for the incoming files..." );
 	    
-        ByteBuffer msg = ByteBuffer.wrap( session.receiveMessage() );
+        ByteBuffer msg = ByteBuffer.wrap( session.receive() );
 	    int numFiles = msg.getInt();
 	    List<RemoteFile> files = new ArrayList<>( numFiles );
 	    if(numFiles > 0) {
 	        for(int i = 0; i < numFiles; i++) {
-	            RemoteFile file = new RemoteFile( session.receiveMessage() );
+	            RemoteFile file = new RemoteFile( session.receive() );
                 LOGGER.debug( "File \"" + file.getName() + "\" downloaded." );
                 files.add( file );
 	        }
@@ -313,7 +313,7 @@ public abstract class DFSManager
 	
 	protected boolean checkResponse( final TCPSession session, final String op, final boolean toPrint ) throws IOException
 	{
-		MessageResponse message = DFSUtils.deserializeObject( session.receiveMessage() );
+		MessageResponse message = session.receiveMessage();
 		byte opType = message.getType();
 		if(toPrint)
 			LOGGER.debug( "Received: " + getStringCode( opType ) );

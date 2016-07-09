@@ -18,10 +18,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.hash.HashFunction;
+
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.Utils;
 import gossiping.GossipMember;
-import gossiping.manager.HashFunction;
 
 /**
  * Implementation of {@link ConsistentHasher}.
@@ -89,18 +90,17 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public void addBucket( final B bucketName, final int virtualNodes )
 	{
-		Utils.checkNotNull( bucketName, "Bucket name can not be null" );
+		Utils.checkNotNull( bucketName,   "Bucket name can not be null" );
 		Utils.checkNotNull( virtualNodes, "Bucket name can not be null" );
 		
 		List<String> virtBuckets = new ArrayList<>();
 		for (int virtualNodeId = 1; virtualNodeId <= virtualNodes; virtualNodeId++) {
 		    String virtBucket = DFSUtils.getNodeId( virtualNodeId, bucketName.getAddress() );
-			//System.out.println( "Value: " + Utils.bytesToHex( virtBucket.array() ) );
 			bucketsMap.put( virtBucket, bucketName );
 			virtBuckets.add( virtBucket );
 		}
 		
-		bucketsAndLocks.putIfAbsent( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
+		bucketsAndLocks.put( bucketName, new BucketInfo( new ReentrantReadWriteLock(), virtBuckets ) );
 	}
 	
 	@Override

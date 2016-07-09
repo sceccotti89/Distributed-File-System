@@ -32,5 +32,6 @@ dependencies {
 	compile 'org.apache.commons:commons-collections4:4.1'
 	compile 'jline:jline:1.0'
 	compile 'org.json:json:20160212'
+	compile 'com.google.guava:guava:19.0'
 	compile project(':gossip')
 }

@@ -63,11 +63,11 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	public void run()
 	{
 	    LOGGER.info( "Anti Entropy Receiver Thread launched" );
+	    LOGGER.info( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + PORT_OFFSET) );
 	    
 	    while(!shoutDown) {
 	        try {
-	            //System.out.println( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + 2) );
-	            TCPSession session = net.waitForConnection( me.getHost(), me.getPort() + 2 );
+	            TCPSession session = net.waitForConnection( me.getHost(), me.getPort() + PORT_OFFSET );
 	            if(session == null)
 	                continue;
 	            threadPool.execute( new AntiEntropyNode( session ) );
@@ -160,13 +160,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				if(bitSet.cardinality() > 0) {
 					// Receive the vector clocks associated to the shared files.
-					byte[] versions = session.receiveMessage();
+					byte[] versions = session.receive();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
-					filesToSend.addAll( checkVersions( sourceNode.getPort() + 1, files, vClocks, srcAddress, sourceId ) );
+					filesToSend.addAll( checkVersions( sourceNode.getPort(), files, vClocks, srcAddress, sourceId ) );
 				}
 				
 				if(filesToSend.size() > 0)
-					fMgr.sendFiles( srcAddress, sourceNode.getPort() + 1, filesToSend, false, sourceId, null );
+					fMgr.sendFiles( srcAddress, sourceNode.getPort(), filesToSend, false, sourceId, null );
 				else // No differences.
 					removeFromSynch( sourceId );
 				filesSent = true;
@@ -189,7 +189,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		*/
 		private ByteBuffer handshake() throws IOException
 		{
-			ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+			ByteBuffer data = ByteBuffer.wrap( session.receive() );
 			// Get the source node identifier.
 			sourceId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
 			sourceNode = cHasher.getBucket( sourceId );
@@ -243,7 +243,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				for(int levels = Math.min( treeHeight, inputHeight ); levels > 0 && nodes.size() > 0; levels--) {
 					// Receive a new level.
-					ByteBuffer data = ByteBuffer.wrap( session.receiveMessage() );
+					ByteBuffer data = ByteBuffer.wrap( session.receive() );
 					pTree = MerkleDeserializer.deserializeNodes( data );
 					LOGGER.debug( "Received tree: " + pTree.size() );
 					

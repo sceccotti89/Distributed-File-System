@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
@@ -45,8 +46,10 @@ import distributed_fs.utils.resources.ResourceLoader;
 import gossiping.GossipMember;
 import gossiping.GossipNode;
 import gossiping.GossipRunner;
+import gossiping.RemoteGossipMember;
 import gossiping.event.GossipListener;
 import gossiping.event.GossipState;
+import gossiping.manager.GossipManager;
 
 public abstract class DFSNode extends Thread implements GossipListener
 {
@@ -65,6 +68,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected ThreadMonitor monitor_t;
 	protected volatile FileTransferThread fMgr;
 	
+	protected boolean startGossiping = true;
 	protected boolean shutDown = false;
 	
 	protected ThreadState state;
@@ -85,16 +89,30 @@ public abstract class DFSNode extends Thread implements GossipListener
 	// Configuration path.
     private static final String DISTRIBUTED_FS_CONFIG = "./Settings/NodeSettings.json";
     
+    // Not yet implemented.
+    protected static final int PORT_OFFSET = 0;
+    
 	
 	
 	
-	public DFSNode( final int nodeType,
-					final String address,
-					final List<GossipMember> startupMembers ) throws IOException
+	public DFSNode( final String address,
+					final int port,
+					final int virtualNodes,
+					final int nodeType,
+	                final List<GossipMember> startupMembers ) throws IOException
 	{
 		_address = address;
+		this.port = port;
+		if(this.port <= 0) {
+		    if(nodeType == GossipMember.LOAD_BALANCER)
+		        this.port = DFSUtils.SERVICE_PORT;
+		    else
+		        this.port = GossipManager.GOSSIPING_PORT + PORT_OFFSET;
+		}
 		
 		setConfigure();
+		
+		int vNodes = (virtualNodes <= 0) ? computeVirtualNodes() : virtualNodes;
 		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
@@ -104,34 +122,21 @@ public abstract class DFSNode extends Thread implements GossipListener
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
 		if(startupMembers == null || startupMembers.size() == 0)
-			runner = new GossipRunner( new File( DFSUtils.GOSSIP_CONFIG ), this, _address, computeVirtualNodes(), nodeType );
+			runner = new GossipRunner( new File( DFSUtils.GOSSIP_CONFIG ), this, _address, vNodes, nodeType );
+		else
+		    runner = new GossipRunner( this, _address, this.port, DFSUtils.getNodeId( 1, _address ), vNodes, nodeType, startupMembers );
 		
-		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
-		{
-			@Override
-			public void run() 
-			{
-				close();
-				LOGGER.info( "Service has been shutdown..." );
-			}
-		}));
-	}
-	
-	/** Testing. */
-	public DFSNode() throws IOException
-	{
-	    DFSUtils.testing = true;
-		if(!DFSUtils.initConfig){
-		    DFSUtils.initConfig = true;
-		    PropertyConfigurator.configure( ResourceLoader.getResourceAsStream( DFSUtils.LOG_CONFIG ) );
-            BasicConfigurator.configure();
-        }
-		
-		cHasher = new ConsistentHasherImpl<>();
-		stats = new NodeStatistics();
-		_net = new TCPnet();
-		//threadPool = Executors.newCachedThreadPool();
-		threadPool = Executors.newFixedThreadPool( MAX_USERS );
+		if(!DFSUtils.testing) {
+    		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
+    		{
+    			@Override
+    			public void run() 
+    			{
+    				close();
+    				LOGGER.info( "Service has been shutdown..." );
+    			}
+    		}));
+		}
 	}
 	
 	/**
@@ -146,6 +151,46 @@ public abstract class DFSNode extends Thread implements GossipListener
 		this.fMgr = fMgr;
 		this.cHasher = cHasher;
 	}
+	
+	/**
+     * Enable/disable the gossiping mechanism.<br>
+     * By default this value is setted to {@code true}.
+     * 
+     * @param enable    {@code true} to enable the anti-entropy mechanism,
+     *                  {@code false} otherwise
+    */
+    public void setGossipingMechanism( final boolean enable )
+    {
+        if(!isAlive())
+            startGossiping = enable;
+    }
+    
+    /**
+     * Gets the list of members present in the configuration file.
+     * 
+     * @param configFile    the configuration file
+    */
+    protected static List<GossipMember> getStartupMembers( final JSONObject configFile )
+    {
+        List<GossipMember> members = null;
+        if(!configFile.has( "members" ))
+            return members;
+        
+        JSONArray membersJSON = configFile.getJSONArray( "members" );
+        int length = membersJSON.length();
+        members = new ArrayList<>( length );
+        
+        for(int i = 0; i < length; i++) {
+            JSONObject memberJSON = membersJSON.getJSONObject( i );
+            String host = memberJSON.getString( "host" );
+            int Port = memberJSON.getInt( "port" );
+            RemoteGossipMember member = new RemoteGossipMember( host, Port, "", 0, memberJSON.getInt( "type" ) );
+            members.add( member );
+            System.out.print( member.getAddress() );
+        }
+        
+        return members;
+    }
 	
 	/**
 	 * Returns the number of virtual nodes that can be managed,
@@ -186,7 +231,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		else {
 		    // Linux command.
-		    // TODO does it work also for Apple OS??
+		    // TODO does it work also for Apple Operating Systems??
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			
@@ -255,7 +300,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	*/
 	private void setConfigure() throws IOException
 	{
-	    if(!DFSUtils.initConfig){
+	    if(!DFSUtils.initConfig) {
 	        PropertyConfigurator.configure( ResourceLoader.getResourceAsStream( DFSUtils.LOG_CONFIG ) );
 		    DFSUtils.initConfig = true;
 			BasicConfigurator.configure();
@@ -415,7 +460,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		
 		netMonitor.shutDown();
 		_net.close();
-		if(runner != null)
+		if(runner.isStarted())
 			runner.getGossipService().shutdown();
 		synchronized( threadPool ) {
 		    threadPool.shutdown();

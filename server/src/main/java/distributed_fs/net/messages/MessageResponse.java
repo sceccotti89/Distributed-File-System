@@ -9,8 +9,6 @@ import java.util.List;
 
 public class MessageResponse extends Message
 {
-	//private String destHost;
-	//private byte[] destId;
 	private List<byte[]> objects;
 	
 	private static final long serialVersionUID = 5483699354525628260L;

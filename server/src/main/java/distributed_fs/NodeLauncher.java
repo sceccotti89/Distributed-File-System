@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.commons.cli.ParseException;
+import org.json.JSONObject;
 
 import distributed_fs.exception.DFSException;
 import distributed_fs.overlay.LoadBalancer;
@@ -12,7 +13,7 @@ import distributed_fs.overlay.StorageNode;
 import gossiping.GossipMember;
 
 /**
- * Class used to launch a remote node.
+ * Class used to start a remote node.
  * The choose of which node will be started,
  * depends on the type of the parameters.<br>
  * Take a look on the {@link distributed_fs.NodeArgsParser NodeArgsParser}
@@ -22,12 +23,20 @@ public class NodeLauncher
 {
     public static void main( final String args[] ) throws ParseException, IOException, InterruptedException, DFSException
     {
-        NodeArgsParser.parseArgs( args );
+        //NodeArgsParser.parseArgs( args );
+        NodeArgsParser.parseArgs( new String[]{ "-t", "0", "--help" } );
+        //NodeArgsParser.parseArgs( new String[]{ "-t", "1", "-v", "10", "--port", "8000", "-n", "127.0.0.1:3000:1" } );
+        //NodeArgsParser.parseArgs( new String[]{ "-t", "1", "-f", "Settings/NodeSettings.json" } );
         if(NodeArgsParser.hasOnlyHelpOptions())
             return;
         
-        switch( NodeArgsParser.getNodeType() )
-        {
+        JSONObject configFile = NodeArgsParser.getConfigurationFile();
+        if(configFile != null && !NodeArgsParser.hasOnlyFileOptions()) {
+            throw new ParseException( "If you have defined a configuration file " +
+                                      "the other options are not needed." );
+        }
+        
+        switch( NodeArgsParser.getNodeType() ) {
             case( GossipMember.LOAD_BALANCER ):
                 String ipAddress = NodeArgsParser.getIpAddress();
                 int port = NodeArgsParser.getPort();
@@ -38,12 +47,19 @@ public class NodeLauncher
                 break;
                 
             case( GossipMember.STORAGE ):
-                ipAddress = NodeArgsParser.getIpAddress();
-                members = NodeArgsParser.getNodes();
-                String resourceLocation = NodeArgsParser.getResourceLocation();
-                String databaseLocation = NodeArgsParser.getDatabaseLocation();
-                
-                StorageNode node = new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
+                StorageNode node;
+                if(configFile != null)
+                    node = StorageNode.fromJSONFile( configFile );
+                else {
+                    ipAddress = NodeArgsParser.getIpAddress();
+                    port = NodeArgsParser.getPort();
+                    int vNodes = NodeArgsParser.getVirtualNodes();
+                    members = NodeArgsParser.getNodes();
+                    String resourceLocation = NodeArgsParser.getResourceLocation();
+                    String databaseLocation = NodeArgsParser.getDatabaseLocation();
+                    
+                    node = new StorageNode( ipAddress, port, vNodes, members, resourceLocation, databaseLocation );
+                }
                 node.launch( true );
                 break;
         }

@@ -4,6 +4,7 @@
 
 package distributed_fs;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.json.JSONObject;
 
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
@@ -27,8 +29,8 @@ public class NodeArgsParser
 	private static Options options;
 	
 	private static final String TYPE = "t", PORT = "p", ADDRESS = "a",
-								NODES = "n", RESOURCES = "r",
-								DATABASE = "d", HELP = "h";
+								NODES = "n", V_NODES = "v", RESOURCES = "r",
+								DATABASE = "d", FILE = "f", HELP = "h";
 	
 	public static void parseArgs( final String[] args ) throws ParseException
 	{
@@ -62,17 +64,18 @@ public class NodeArgsParser
 	    options = new Options();
 	    options.addOption( TYPE, "type", true, "Set the node type." );
 	    
-		if(nodeType == GossipMember.LOAD_BALANCER)
-		    options.addOption( PORT, "port", true, "Set the listening port." );
-		else {
-		    // Storage node.
+		options.addOption( PORT, "port", true, "Set the listening port." );
+		if(nodeType == GossipMember.STORAGE) {
+		    options.addOption( V_NODES, "vnodes", true, "Set the number of virtual nodes." );
     		options.addOption( RESOURCES, "rloc", true, "Set the location of the resources." );
     		options.addOption( DATABASE, "dloc", true, "Set the location of the database." );
 		}
 		
 		options.addOption( ADDRESS, "addr", true, "Set the ip address of the node." );
 		options.addOption( NODES, "node", true, "Add a new node, where arg is in the format hostname:port:nodeType." );
-		options.addOption( HELP, "help", false, "Show help." );
+		options.addOption( FILE, "file", true, "Set the input configuration file." );
+		
+		options.addOption( HELP, "help", false, "Show this helper." );
 		
 		DefaultParser parser = new DefaultParser();
 		cmd = parser.parse( options, args );
@@ -99,7 +102,7 @@ public class NodeArgsParser
 	public static int getPort()
 	{
 		if(!cmd.hasOption( PORT ))
-			return -1;
+			return 0;
 		
 		return Integer.parseInt( cmd.getOptionValue( PORT ) );
 	}
@@ -112,6 +115,14 @@ public class NodeArgsParser
 		String[] nodes = cmd.getOptionValues( NODES );
 		return parseNodes( nodes );
 	}
+	
+	public static int getVirtualNodes() throws ParseException
+    {
+        if(!cmd.hasOption( V_NODES )) 
+            return 0;
+        
+        return Integer.parseInt( cmd.getOptionValue( V_NODES ) );
+    }
 	
 	public static String getResourceLocation()
 	{
@@ -128,6 +139,14 @@ public class NodeArgsParser
 		
 		return cmd.getOptionValue( DATABASE );
 	}
+	
+	public static JSONObject getConfigurationFile() throws IOException
+	{
+	    if(!cmd.hasOption( FILE ))
+            return null;
+        
+        return DFSUtils.parseJSONFile( cmd.getOptionValue( FILE ) );
+	}
 
 	private static List<GossipMember> parseNodes( final String[] nodes ) throws ParseException
 	{
@@ -137,7 +156,8 @@ public class NodeArgsParser
 			String[] values = node.split( ":" );
 			if(values.length != 3) {
 				help();
-				throw new ParseException( "Invalid number of node attributes.\nThe syntax is hostname:port:nodeType." );
+				throw new ParseException( "Invalid number of node attributes.\n" +
+				                          "The syntax is hostname:port:nodeType." );
 			}
 			
 			String hostname = values[0];
@@ -152,8 +172,12 @@ public class NodeArgsParser
 	}
 	
 	public static boolean hasOnlyHelpOptions() {
-	    return cmd.hasOption( HELP ) && cmd.getOptions().length == 1;
+	    return cmd.hasOption( HELP ) && cmd.getOptions().length == 2; // +1 for nodeType
 	}
+	
+	public static boolean hasOnlyFileOptions() {
+        return cmd.hasOption( FILE ) && cmd.getOptions().length == 2; // +1 for nodeType
+    }
 	
 	private static void help()
 	{

@@ -4,6 +4,7 @@
 
 package client;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.json.JSONObject;
 
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
@@ -29,12 +31,13 @@ public class ClientArgsParser
     private static final String PORT = "p", ADDRESS = "a",
                                 NODES = "n", RESOURCES = "r",
                                 DATABASE = "d", LOCAL_ENV = "locale",
-                                HELP = "h";
+                                FILE = "f", HELP = "h";
     
     public static void parseArgs( final String[] args ) throws ParseException
     {
         options = new Options();
         
+        options.addOption( FILE, "file", true, "Set the input configuration file." );
         options.addOption( PORT, "port", true, "Set the listening port." );
         options.addOption( RESOURCES, "rloc", true, "Set the location of the resources." );
         options.addOption( DATABASE, "dloc", true, "Set the location of the database." );
@@ -89,6 +92,14 @@ public class ClientArgsParser
         
         return cmd.getOptionValue( DATABASE );
     }
+    
+    public static JSONObject getConfigurationFile() throws IOException
+    {
+        if(!cmd.hasOption( FILE ))
+            return null;
+        
+        return DFSUtils.parseJSONFile( cmd.getOptionValue( FILE ) );
+    }
 
     private static List<GossipMember> parseNodes( final String[] nodes ) throws ParseException
     {
@@ -118,6 +129,10 @@ public class ClientArgsParser
     
     public static boolean hasOnlyHelpOptions() {
         return cmd.hasOption( HELP ) && cmd.getOptions().length == 1;
+    }
+    
+    public static boolean hasOnlyFileOptions() {
+        return cmd.hasOption( FILE ) && cmd.getOptions().length == 1;
     }
     
     private static void help()

@@ -1,4 +1,11 @@
 {
-	"inet":"eth1",
-	"IPversion":4
+	"inet":"enx000ec6c311f2",
+	"IPversion":4,
+	"Port":8000,
+	"vNodes":0,
+	"ResourcesLocation":"Resources/",
+	"DatabaseLocation":"Database/",
+	"members": [
+  		{"host":"192.168.1.7", "port":"7000", "type":0},
+ 	]
 }
