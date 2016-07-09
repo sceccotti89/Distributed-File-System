@@ -2,7 +2,6 @@
 package client.manager;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
@@ -12,9 +11,8 @@ import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
-import distributed_fs.utils.VersioningUtils;
+import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.Versioned;
 
 /**
  * Class used to synchronize the client
@@ -63,18 +61,19 @@ public class ClientSynchronizer extends Thread
         for(RemoteFile file : files) {
             DistributedFile myFile = database.getFile( file.getName() );
             try {
-                if(myFile != null &&
-                   reconcileVersions( myFile.getName(), Arrays.asList( myFile.getVersion(), file.getVersion() ) ) == 0) {
-                    // The own file has the most updated version.
-                    // Send this version using the put method.
-                    service.put( myFile.getName() );
-                }
-                else {
-                    // Update the file.
+                if(myFile == null ||
+                   reconcileVersions( file.getName(), myFile.getVersion(), file.getVersion() ) == 1) {
+                    // The received file has the most updated version.
+                    // Update the file on database.
                     if(!file.isDeleted())
                         database.saveFile( file, file.getVersion(), null );
                     else
                         database.deleteFile( file.getName(), file.getVersion(), null );
+                }
+                else {
+                    // The own file has the most updated version.
+                    // Send this version using the put method.
+                    service.put( myFile.getName() );
                 }
             }
             catch( IOException e ) {}
@@ -84,27 +83,20 @@ public class ClientSynchronizer extends Thread
     /**
      * Makes the reconciliation among different vector clocks.
      * 
-     * @param fileName  name of the associated file
-     * @param clocks    list of clocks to compare
+     * @param fileName     name of the associated file
+     * @param myClock      clock associated to the own file
+     * @param otherClock   clock associated to the received file
      * 
      * @return Index of the selected file
     */
-    private int reconcileVersions( final String fileName, final List<VectorClock> clocks )
+    private int reconcileVersions( final String fileName,
+                                   final VectorClock myClock,
+                                   final VectorClock otherClock )
     {
-        List<Versioned<VectorClock>> versions = new ArrayList<>();
-        for(VectorClock clock : clocks)
-            versions.add( new Versioned<VectorClock>( clock, clock ) );
-        
-        //VectorClockInconsistencyResolver<RemoteFile> vec_resolver = new VectorClockInconsistencyResolver<>();
-        //List<Versioned<RemoteFile>> inconsistency = vec_resolver.resolveConflicts( versions );
-        List<Versioned<VectorClock>> inconsistency = VersioningUtils.resolveVersions( versions );
-        
-        // Get the uncorrelated files.
-        List<VectorClock> uncorrelatedVersions = new ArrayList<>();
-        for(Versioned<VectorClock> version : inconsistency)
-            uncorrelatedVersions.add( version.getValue() );
-        
-        return makeReconciliation( fileName, uncorrelatedVersions );
+        Occurred occ = myClock.compare( otherClock );
+        if(occ == Occurred.AFTER) return 0;
+        if(occ == Occurred.BEFORE) return 1;
+        return makeReconciliation( fileName, Arrays.asList( myClock, otherClock ) );
     }
 
     /**

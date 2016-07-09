@@ -30,10 +30,8 @@ import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.Utils;
-import distributed_fs.utils.VersioningUtils;
-import distributed_fs.versioning.TimeBasedInconsistencyResolver;
+import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.Versioned;
 import gossiping.event.GossipState;
 
 public class DFSDatabase implements Closeable
@@ -378,25 +376,9 @@ public class DFSDatabase implements Closeable
 	 * 		   {@code false} otherwise.
 	*/
 	private boolean resolveVersions( final VectorClock myClock, final VectorClock vClock )
-	{
-		List<Versioned<Integer>> versions = new ArrayList<>();
-		versions.add( new Versioned<Integer>( 0, myClock ) );
-		versions.add( new Versioned<Integer>( 1, vClock ) );
-		
-		// Get the list of concurrent versions.
-		//VectorClockInconsistencyResolver<Integer> vecResolver = new VectorClockInconsistencyResolver<>();
-		//List<Versioned<Integer>> inconsistency = vecResolver.resolveConflicts( versions );
-		List<Versioned<Integer>> inconsistency = VersioningUtils.resolveVersions( versions );
-		
-		if(inconsistency.size() == 1)
-			return inconsistency.get( 0 ).getValue() == 0;
-		
-		// Resolve the conflicts, using a time-based resolver.
-		TimeBasedInconsistencyResolver<Integer> resolver = new TimeBasedInconsistencyResolver<>();
-		int id = resolver.resolveConflicts( inconsistency ).get( 0 ).getValue();
-		
-		return id == 0;
-	}
+    {
+        return myClock.compare( vClock ) != Occurred.BEFORE;
+    }
 	
 	/**
 	 * Removes definitely a file from the database.

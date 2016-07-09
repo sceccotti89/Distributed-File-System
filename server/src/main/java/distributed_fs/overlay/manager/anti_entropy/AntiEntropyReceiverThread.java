@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Deque;
 import java.util.HashMap;
@@ -26,10 +25,8 @@ import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
-import distributed_fs.utils.VersioningUtils;
-import distributed_fs.versioning.TimeBasedInconsistencyResolver;
+import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
 
 /**
@@ -266,9 +263,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			boolean equalLevel = (nodeSize == pTree.size());
 			int index = -1; // Index used to scan efficiently the tree.
 			
-			//ListIterator<Node> it = nodes.listIterator();
 			for(int i = 0; i < nodeSize; i++) {
-				//Node node = it.next();
 			    Node node = nodes.removeFirst();
 				boolean found = false;
 				
@@ -290,8 +285,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
     				}
 				}
 				
-				//it.remove();
-				
 				if(found) {
 				    // Set 1 all the range reachable from the node.
 				    Deque<Node> leaves = m_tree.getLeavesFrom( node );
@@ -301,9 +294,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				else {
 					// If the current node is not found, its sons will be added.
 				    if(node.left  != null){
-				        nodes.addLast( node.left ); //it.add( node.left );
+				        nodes.addLast( node.left );
 				        if(node.right != null)
-				            nodes.addLast( node.right ); //it.add( node.right );
+				            nodes.addLast( node.right );
 				    }
 				}
 			}
@@ -351,7 +344,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * Checks the versions of the shared files.
 		 * 
 		 * @param port			destination port
-		 * @param files			list of files in the range
+		 * @param files			list of own files in the range
 		 * @param inClocks		source vector clocks
 		 * @param address		source node address
 		 * @param sourceNodeId	identifier of the source node
@@ -367,18 +360,16 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			List<DistributedFile> filesToSend = new ArrayList<>();
 			List<DistributedFile> filesToRemove = new ArrayList<>();
 			
-			// get the files that are shared by the two nodes, but with different versions
+			// Get the files that are shared by the two nodes, but with different versions.
 			for(int i = bitSet.nextSetBit( 0 ), j = 0; i >= 0; i = bitSet.nextSetBit( i+1 ), j++) {
 				if(i == Integer.MAX_VALUE)
 					break; // or (i+1) would overflow
 				
-				VectorClock vClock = inClocks.get( j );
 				DistributedFile file = files.get( i );
-				List<Versioned<Integer>> versions = Arrays.asList( new Versioned<Integer>( 0, vClock ),
-																   new Versioned<Integer>( 1, file.getVersion() ) );
+				VectorClock vClock = inClocks.get( j );
 				
-				// if the input version is older than mine, the associated file is added
-				if(resolveVersions( versions ) == 1) {
+				// If the input version is older than mine, the associated file is added.
+				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE)) {
 					if(file.isDeleted())
 						filesToRemove.add( files.get( i ) );
 					else
@@ -393,27 +384,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			}
 			
 			return filesToSend;
-		}
-		
-		/**
-		 * Resolve the (possible) inconsistency among the versions.
-		 * 
-		 * @param versions	list of versions
-		 * 
-		 * @return the value specified by the {@code T} type.
-		*/
-		private <T> T resolveVersions( final List<Versioned<T>> versions )
-		{
-			// get the list of concurrent versions
-			//VectorClockInconsistencyResolver<T> vecResolver = new VectorClockInconsistencyResolver<>();
-			//List<Versioned<T>> inconsistency = vecResolver.resolveConflicts( versions );
-			List<Versioned<T>> inconsistency = VersioningUtils.resolveVersions( versions );
-			
-			// resolve the conflicts, using a time-based resolver
-			TimeBasedInconsistencyResolver<T> resolver = new TimeBasedInconsistencyResolver<>();
-			T id = resolver.resolveConflicts( inconsistency ).get( 0 ).getValue();
-			
-			return id;
 		}
 	}
 	
