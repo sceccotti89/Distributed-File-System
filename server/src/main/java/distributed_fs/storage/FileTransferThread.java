@@ -168,7 +168,7 @@ public class FileTransferThread extends Thread
 			    // DELETE operation.
 				DistributedFile file = DFSUtils.deserializeObject( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.removeFile( file.getName(), file.getVersion(), file.getHintedHandoff() );
+				database.deleteFile( file.getName(), file.getVersion(), file.getHintedHandoff() );
 				//System.out.println( "ID: " + file.getId() );
 			}
 		}
