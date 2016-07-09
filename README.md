@@ -18,7 +18,7 @@ The Distributed File System project is an eventually consistent distributed file
 
 ## Introduction
 
-The file system is implemented as a key value map of type (string, file) with the following operations:
+The file system is implemented as a key-value map of type (string, file) with the following operations:
 
 - **get**(key) to retrieve a file from the system;
 - **put**(key) to store a file in the system;
