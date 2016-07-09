@@ -44,11 +44,15 @@ public class ThreadMonitor extends Thread
 	
 	private boolean closed = false;
 	
+	
+	
+	
 	public ThreadMonitor( final DFSNode parentNode,
 	                      final ExecutorService threadPool,
 	                      final List<Thread> threads,
 	                      final String address,
-	                      final int port )
+	                      final int port,
+	                      final int MAX_USERS )
 	{
 	    this.node = parentNode;
 		this.threadPool = threadPool;
@@ -56,6 +60,8 @@ public class ThreadMonitor extends Thread
 		
 		this.address = address;
 		this.port = port;
+		
+		restarted = new HashMap<>( MAX_USERS );
 	}
 	
 	public void addElements( final GossipMember me,

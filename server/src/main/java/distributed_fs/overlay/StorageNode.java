@@ -117,7 +117,7 @@ public class StorageNode extends DFSNode
         this.databaseLocation = databaseLocation;
 		
 		threadsList = new ArrayList<>( MAX_USERS );
-		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port, MAX_USERS );
 		monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
 	}
 	
@@ -205,7 +205,7 @@ public class StorageNode extends DFSNode
 				
 			    // Check whether the monitor thread is alive: if not a new instance is activated.
 			    if(!monitor_t.isAlive()) {
-			        monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+			        monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port, MAX_USERS );
 			        monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
 			        monitor_t.start();
 			    }

@@ -76,7 +76,7 @@ public class LoadBalancer extends DFSNode
 		
 		netMonitor = new NetworkMonitorReceiverThread( _address );
 		threadsList = new ArrayList<>( MAX_USERS );
-		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port );
+		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port, MAX_USERS );
 	}
 	
 	/**
@@ -141,7 +141,7 @@ public class LoadBalancer extends DFSNode
 				
 				// Check if the monitor thread is alive: if not a new instance is activated.
                 if(!monitor_t.isAlive()) {
-                    monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port );
+                    monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port, MAX_USERS );
                     monitor_t.start();
                 }
 			}
