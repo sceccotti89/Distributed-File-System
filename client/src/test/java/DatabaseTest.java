@@ -49,8 +49,8 @@ public class DatabaseTest
 		assertNull( database.getFile( "" ) );
 		assertNull( database.getFile( "FileTest11.txt" ) );
 		
-		assertNull( database.removeFile( file.getName(), file.getVersion(), null ) );
-		assertNotNull( database.removeFile( file.getName(), new VectorClock().incremented( "pippo" ).incremented( "pippo" ), null ) );
+		assertNull( database.deleteFile( file.getName(), file.getVersion(), null ) );
+		assertNotNull( database.deleteFile( file.getName(), new VectorClock().incremented( "pippo" ).incremented( "pippo" ), null ) );
 		assertTrue( database.getFile( file.getName() ).isDeleted() );
 		
 		database.close();
