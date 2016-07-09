@@ -107,6 +107,7 @@ My suggestion is to assign the VMs in this way: 1 for the Client, 1 for the Load
 - [commons-collections](https://commons.apache.org/proper/commons-collections/), contains lot of efficient data structures.
 - [jline](http://jline.sourceforge.net/), to read the user input.
 - [json](https://github.com/stleary/JSON-java), to read and write JSON files.
+- [gossiping](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/gossiping), customized version of the gossiping protocol.
 - [versioning](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/versioning), cloned version of the Voldemort project.
 
 ### Build tools
