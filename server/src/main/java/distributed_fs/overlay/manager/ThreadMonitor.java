@@ -26,9 +26,13 @@ public class ThreadMonitor extends Thread
     private final DFSNode node;
 	private final ExecutorService threadPool;
 	private final List<Thread> threads;
+	private final Map<Long, Short> restarted;
 	
 	private final String address;
 	private final int port;
+	
+	private static final int MAX_RESTART = 3;
+	private static final int SLEEP = 200;
 	
 	// ============  Used only by the StorageNode  ============ //
 	private GossipMember me;
@@ -71,7 +75,7 @@ public class ThreadMonitor extends Thread
 	public void run()
 	{
 		while(!closed) {
-			try{ sleep( 200 ); }
+			try{ sleep( SLEEP ); }
 			catch( InterruptedException e1 ) { break; }
 			
 			try { scanThreads(); }
@@ -117,8 +121,14 @@ public class ThreadMonitor extends Thread
                 }
                 else {
                     DFSNode node = (DFSNode) thread;
-                    // TODO lo stesso thread viene riavviato fino a un massimo di 3 volte
                     if(!node.isCompleted()) {
+                        // The same thread can be restarted a maximum of MAX_RESTART time.
+                        Short value = restarted.get( node.getId() );
+                        value = (value == null) ? 1 : value++;
+                        if(value == MAX_RESTART)
+                            continue;
+                        restarted.put( node.getId(), value );
+                        
                         // The current thread is dead due to some internal error.
                         // A new thread is started to replace this one.
                         try {
