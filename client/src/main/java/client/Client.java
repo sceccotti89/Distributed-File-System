@@ -21,6 +21,7 @@ import client.manager.SystemSimulation;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DFSDatabase.DBListener;
+import distributed_fs.utils.DFSUtils;
 import distributed_fs.storage.DistributedFile;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
@@ -105,9 +106,9 @@ public class Client implements DBListener
             JSONObject memberJSON = membersJSON.getJSONObject( i );
             String host = memberJSON.getString( "host" );
             int Port = memberJSON.getInt( "port" );
-            RemoteGossipMember member = new RemoteGossipMember( host, Port, "", 0, memberJSON.getInt( "type" ) );
+            String id = DFSUtils.getNodeId( 1, host + ":" + Port );
+            RemoteGossipMember member = new RemoteGossipMember( host, Port, id, 0, memberJSON.getInt( "type" ) );
             members.add( member );
-            System.out.print( member.getAddress() );
         }
         
         return members;

@@ -54,7 +54,6 @@ public class ClientMembershipManagerThread extends Thread
         while(!closed) {
             try {
                 List<GossipMember> members = cHasher.getAllBuckets();
-                System.out.println( "MEMBERS: " + members.isEmpty() );
                 // If the list is empty it automatically switches in LoadBalancer mode.
                 if(members.isEmpty()) {
                     LOGGER.info( "[CLIENT] The list of nodes is empty. We are now using LoadBalancer nodes." );

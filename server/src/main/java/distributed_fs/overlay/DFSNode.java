@@ -186,7 +186,6 @@ public abstract class DFSNode extends Thread implements GossipListener
             int Port = memberJSON.getInt( "port" );
             RemoteGossipMember member = new RemoteGossipMember( host, Port, "", 0, memberJSON.getInt( "type" ) );
             members.add( member );
-            System.out.print( member.getAddress() );
         }
         
         return members;

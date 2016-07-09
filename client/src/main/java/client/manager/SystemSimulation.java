@@ -39,6 +39,7 @@ public class SystemSimulation implements Closeable
                              final int virtualNodes,
                              final List<GossipMember> members ) throws IOException, DFSException, InterruptedException
     {
+        DFSUtils.testing = true;
         String address = (ipAddress == null) ? IpAddress : ipAddress;
         
         if(members != null)
@@ -74,6 +75,7 @@ public class SystemSimulation implements Closeable
         // Start the load balancer nodes.
         for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
             LoadBalancer node = new LoadBalancer( IpAddress, members.get( i ).getPort(), members );
+            node.setGossipingMechanism( false );
             nodes.add( node );
             node.launch( true );
         }
@@ -85,6 +87,7 @@ public class SystemSimulation implements Closeable
             GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
             StorageNode node = new StorageNode( IpAddress, member.getPort(), vNodes, members,
                                                 resources + (i+2) + "/", database + (i+2) + "/" );
+            node.setGossipingMechanism( false );
             nodes.add( node );
             node.launch( true );
         }
