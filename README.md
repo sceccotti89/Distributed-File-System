@@ -25,14 +25,6 @@ The file system is implemented as a key value map of type (string, file) with th
 - **delete**(key) to remove a file in the system;
 - **getAll**() to retrieve all the files stored in a random node.
 
-The operations provided by the client, in addition to the ones mentioned before, are:
-
-- **list** print on screen a list of all the files present in the client’s database;
-- **enableLB** enable the utilization of the remote load balancer nodes;
-- **disableLB** disable the utilization of the remote load balancer nodes;
-- **help** to show the helper;
-- **exit** to close the service.
-
 ## User Guide
 
 All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
@@ -88,6 +80,16 @@ Optional parameters:
 - `-d [--dloc] <path>` set the location of the database
 - `-locale` start the system in the local environment
 - `-h [--help]` show the help informations
+- 
+The operations provided by the client, in addition to the ones mentioned before, are:
+
+- **list** print on screen a list of all the files present in the client’s database;
+- **enableLB** enable the utilization of the remote load balancer nodes;
+- **disableLB** disable the utilization of the remote load balancer nodes;
+- **help** to show the helper;
+- **exit** to close the service.
+
+This disableLB mode is maintained until the client owns at least one of them, otherwise the system ignores the request using again load balancer nodes.
 
 ### Local Environment
 
