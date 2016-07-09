@@ -80,6 +80,7 @@ java -jar Client-<version>.jar [parameters]
 ```
 Optional parameters:
 
+- `-f [--file] <path>` file used to configure the initial parameters. If present this must be the only specified option
 - `-p [--port] <value>` port used to receive the remote connection
 - `-a [--addr] <value>` set the ip address of the node
 - `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
