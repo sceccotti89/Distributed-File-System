@@ -122,9 +122,9 @@ public class DFSService extends DFSManager implements IDFSService
 	 * Realoads the database, forcing it to
 	 * checks if some brand spanking new file is present.
 	*/
-	public void reload() throws IOException
+	public void reloadDB() throws IOException
 	{
-	    database.loadFiles();
+	    database.loadFiles( false );
 	}
 	
 	@Override

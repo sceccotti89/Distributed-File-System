@@ -4,10 +4,14 @@ package client.manager;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Scanner;
+import java.util.Map.Entry;
 
 import client.DFSService;
 import distributed_fs.exception.DFSException;
+import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
@@ -40,11 +44,24 @@ public class ClientSynchronizer extends Thread
     {
         while(!service.isClosed()) {
             try {
+                // Reload the database.
+                database.loadFiles( false );
+                
+                Map<String, Byte> toUpdate = database.getUpdateList();
+                // Send the files according to their state.
+                for(Entry<String, Byte> entry : toUpdate.entrySet()) {
+                    if(entry.getValue() == Message.PUT)
+                        service.put( entry.getKey() );
+                    else
+                        service.delete( entry.getKey() );
+                }
+                toUpdate.clear();
+                
                 List<RemoteFile> files = service.getAllFiles();
                 if(files != null)
                     checkFiles( files );
             }
-            catch( DFSException e ){}
+            catch( IOException | DFSException e ){}
             
             try { sleep( CHECK_TIMER ); }
             catch( InterruptedException e ) { break; }
