@@ -256,7 +256,7 @@ public class StorageNode extends DFSNode
     @Override
 	public void run()
 	{
-		LOGGER.info( "[SN] Received a connection from: " + session.getSrcAddress() );
+		LOGGER.info( "[SN] Received a connection from: " + session.getEndPointAddress() );
 		if(!actionsList.isEmpty())
 		    actionsList.removeFirst();
 		else {
@@ -716,7 +716,7 @@ public class StorageNode extends DFSNode
 		else
 		    actionsList.removeFirst();
 		
-		LOGGER.info( "[SN] Closed connection from: " + session.getSrcAddress() );
+		LOGGER.info( "[SN] Closed connection from: " + session.getEndPointAddress() );
 	}
 	
 	/**

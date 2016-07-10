@@ -114,38 +114,43 @@ public abstract class DFSManager
         if(!useLoadBalancer)
             listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
 		
-		if(members != null) {
-		    // Get the remote nodes from the input list.
-			loadBalancers = new ArrayList<>( members.size() );
-			
-			for(GossipMember member : members) {
-				if(member.getNodeType() == GossipMember.LOAD_BALANCER)
-				    loadBalancers.add( member );
-				else
-				    cHasher.addBucket( member, 1 );
-				
-				LOGGER.debug( "Added remote node: " + member.getHost() + ":" + member.getNodeType() );
-			}
-		}
-		else {
-			if(file != null) {
-			    // Get the remote nodes from the configuration file.
-			    JSONArray nodes = file.getJSONArray( "members" );
-    			loadBalancers = new ArrayList<>( nodes.length() );
-    			for(int i = nodes.length()-1; i >= 0; i--) {
-    				JSONObject data = nodes.getJSONObject( i );
-    				int nodeType = data.getInt( "nodeType" );
-    				String address = data.getString( "host" );
-    				GossipMember node = new RemoteGossipMember( address, DFSUtils.SERVICE_PORT, DFSUtils.getNodeId( 1, address ), 0, nodeType );
-    				if(nodeType == GossipMember.LOAD_BALANCER)
-    				    loadBalancers.add( node );
-    				else
-    				    cHasher.addBucket( node, 1 );
-    				
-    				LOGGER.debug( "Added remote node: " + address + ":" + nodeType );
-    			}
-		    }
-		}
+        if(members != null) {
+            // Get the remote nodes from the input list.
+            loadBalancers = new ArrayList<>( members.size() );
+            
+            for(GossipMember member : members) {
+                if(member.getNodeType() == GossipMember.LOAD_BALANCER)
+                    loadBalancers.add( member );
+                else {
+                    String id = DFSUtils.getNodeId( 1, member.getAddress() );
+                    member.setId( id );
+                    cHasher.addBucket( member, 1 );
+                }
+                
+                LOGGER.debug( "Added remote node: " + member.getAddress() + ":" + member.getNodeType() );
+            }
+        }
+        else {
+            if(file != null) {
+                // Get the remote nodes from the configuration file.
+                JSONArray nodes = file.getJSONArray( "members" );
+                loadBalancers = new ArrayList<>( nodes.length() );
+                for(int i = nodes.length()-1; i >= 0; i--) {
+                    JSONObject data = nodes.getJSONObject( i );
+                    int nodeType = data.getInt( "nodeType" );
+                    String address = data.getString( "host" );
+                    int Port = data.getInt( "port" );
+                    String id = DFSUtils.getNodeId( 1, address + ":" + port );
+                    GossipMember node = new RemoteGossipMember( address, Port, id, 0, nodeType );
+                    if(nodeType == GossipMember.LOAD_BALANCER)
+                        loadBalancers.add( node );
+                    else
+                        cHasher.addBucket( node, 1 );
+                    
+                    LOGGER.debug( "Added remote node: " + node.getAddress() + ":" + nodeType );
+                }
+            }
+        }
 		
 		// Some checks...
 		if(!useLoadBalancer && cHasher.isEmpty()) {

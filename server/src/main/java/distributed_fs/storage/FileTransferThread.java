@@ -92,7 +92,7 @@ public class FileTransferThread extends Thread
 			
 			while(!shutDown) {
 				TCPSession session = net.waitForConnection();
-				LOGGER.info( "Received a connection from \"" + session.getSrcAddress() + "\"" );
+				LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
 				synchronized( threadPoolReceive ) {
 				    if(threadPoolReceive.isShutdown())
 				        break;

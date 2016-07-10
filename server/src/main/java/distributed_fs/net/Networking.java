@@ -69,7 +69,7 @@ public class Networking
 		private final DataInputStream in;
 		private final DataOutputStream out;
 		private final Socket socket;
-		private final String srcAddress;
+		private final String endPointAddress;
 		private boolean close = false;
 		
 		public TCPSession( final DataInputStream in,
@@ -85,14 +85,15 @@ public class Networking
 			this.in = in;
 			this.out = out;
 			this.socket = socket;
-			this.srcAddress = srcAddress;
+			this.endPointAddress = srcAddress;
 		}
 		
 		public DataInputStream getInputStream(){ return in; }
 		public DataOutputStream getOutputStream(){ return out; }
 		public Socket getSocket(){ return socket; }
-		public String getSrcAddress(){ return srcAddress; }
-		public boolean isClosed() { return close; }
+		public String getEndPointAddress(){ return endPointAddress; }
+
+        public boolean isClosed() { return close; }
 		
 		/**
 		 * Enable/disable {@code SO_TIMEOUT} with the specified timeout, in milliseconds.
@@ -321,8 +322,9 @@ public class Networking
 			
 			DataInputStream in = new DataInputStream( socket.getInputStream() );
 			DataOutputStream out = new DataOutputStream( socket.getOutputStream() );
+			TCPSession session = new TCPSession( in, out, socket, address );
 			
-			return new TCPSession( in, out, socket );
+			return session;
 		}
 
 		@Override

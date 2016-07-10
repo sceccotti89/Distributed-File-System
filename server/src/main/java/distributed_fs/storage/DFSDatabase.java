@@ -110,7 +110,13 @@ public class DFSDatabase implements Closeable
         //db.commit();
         
         toUpdate = new ConcurrentHashMap<>();
-        loadFiles( true );
+        loadFiles();
+        
+        // Add the files to the hinted handoff database.
+        for(DistributedFile file : database.values()) {
+            if(file.getHintedHandoff() != null && hhThread != null)
+                hhThread.saveFile( file );
+        }
 		
 		scanDBThread = new ScanDBThread();
 		scanDBThread.start();
@@ -143,37 +149,34 @@ public class DFSDatabase implements Closeable
 	/**
      * Loads all the files present in the file system,
      * starting from the root.
-     * 
-     * @param saveDuplicated    {@code true} if the replicated file have to be stored on database,
-     *                          {@code false} otherwise
     */
-    public void loadFiles( final boolean saveDuplicated ) throws IOException
+    public void loadFiles() throws IOException
     {
         checkRemovedFiles();
-        doLoadFiles( new File( root ), saveDuplicated );
+        doLoadFiles( new File( root ) );
         db.commit();
     }
 	
-	private void doLoadFiles( final File dir, final boolean saveDuplicated ) throws IOException
+	private void doLoadFiles( final File dir ) throws IOException
 	{
 		for(File f : dir.listFiles()) {
 			String fileName = f.getPath().replace( "\\", "/" );
 			if(f.isDirectory()) {
-			    doLoadFiles( f, saveDuplicated );
+			    doLoadFiles( f );
 				fileName += "/";
 			}
 			fileName = normalizeFileName( fileName );
 			
 			DistributedFile file = database.get( DFSUtils.getId( fileName ) );
-			if(file == null) {
-			    file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
+			if(file == null || file.isDeleted()) {
+			    if(file == null) {
+			        file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
+			        database.put( file.getId(), file );
+			        notifyListeners( fileName, Message.GET );
+			    }
+			    
 			    toUpdate.put( file.getName(), Message.PUT );
-			    database.put( file.getId(), file );
 			    LOGGER.debug( "Loaded file: " + file );
-			}
-			else {
-				if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
-					hhThread.saveFile( file );
 			}
 		}
 	}
@@ -190,7 +193,6 @@ public class DFSDatabase implements Closeable
             // If the file is no more on disk it is putted on the list.
             if(!DFSUtils.existFile( root + file.getName(), false ) && !file.isDeleted()) {
                 toUpdate.put( file.getName(), Message.DELETE );
-                //database.remove( file.getId() );
             }
         }
 	    
@@ -243,7 +245,21 @@ public class DFSDatabase implements Closeable
 	        listeners.remove( listener );
 	}
 	
-	/** 
+	/**
+     * Notifies all the attached listeners.
+     * 
+     * @param fileName     name of the file
+     * @param operation    type of operation ({@code PUT} or {@code DELETE})
+    */
+    private void notifyListeners( final String fileName, final byte operation )
+    {
+        if(listeners != null) {
+            for(DBListener listener : listeners)
+                listener.dbEvent( fileName, operation );
+        }
+    }
+
+    /** 
 	 * Save a file on the database.
 	 * 
 	 * @param file				name of the file to save
@@ -311,10 +327,8 @@ public class DFSDatabase implements Closeable
     	
 		LOCK_WRITERS.unlock();
 		
-		if(updated != null && listeners != null) {
-            for(DBListener listener : listeners)
-                listener.dbEvent( fileName, Message.GET );
-		}
+		if(updated != null)
+		    notifyListeners( fileName, Message.GET );
 		
 		return updated;
 	}
@@ -383,10 +397,8 @@ public class DFSDatabase implements Closeable
     	
 		LOCK_WRITERS.unlock();
 		
-		if(updated != null && listeners != null) {
-            for(DBListener listener : listeners)
-                listener.dbEvent( fileName, Message.DELETE );
-        }
+		if(updated != null)
+            notifyListeners( fileName, Message.DELETE );
 		
 		return updated;
 	}

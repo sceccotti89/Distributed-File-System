@@ -120,11 +120,12 @@ public class DFSService extends DFSManager implements IDFSService
 	
 	/**
 	 * Realoads the database, forcing it to
-	 * checks if some brand spanking new file is present.
+	 * checks if some brand spanking new file is present
+	 * or if some of them has been removed.
 	*/
 	public void reloadDB() throws IOException
 	{
-	    database.loadFiles( false );
+	    database.loadFiles();
 	}
 	
 	@Override
@@ -262,22 +263,18 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "Starting PUT operation: " + fileName );
 		
-		String normFileName = database.normalizeFileName( fileName );
-		String dbRoot = database.getFileSystemRoot();
-		
-		DistributedFile file = database.getFile( fileName );
-		if(file == null || file.isDeleted()) {
-            if(database.checkExistsInFileSystem( fileName )) {
-                if(file == null) {
-                    File f = new File( dbRoot + normFileName );
-                    file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
-                }
-            }
-            else {
-                LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
-                LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
-                return false;
-            }
+		if(!database.checkExistsInFileSystem( fileName )) {
+            LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
+            LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
+            return false;
+        }
+        
+        String dbRoot = database.getFileSystemRoot();
+        String normFileName = database.normalizeFileName( fileName );
+        DistributedFile file = database.getFile( fileName );
+        if(file == null) {
+            File f = new File( dbRoot + normFileName );
+            file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
         }
 		
         if(!contactRemoteNode( normFileName, Message.PUT ))
@@ -340,17 +337,17 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		boolean completed = true;
 		
-		String normFileName = database.normalizeFileName( fileName );
-		DistributedFile file = database.getFile( fileName );
-		if(file == null) {
-            if(database.checkExistsInFileSystem( fileName )) {
-                File f = new File( database.getFileSystemRoot() + normFileName );
-                file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
-            }
-            else {
-                LOGGER.error( "File \"" + fileName + "\" not found." );
-                return false;
-            }
+		if(!database.checkExistsInFileSystem( fileName )) {
+            LOGGER.error( "Operation DELETE for " + fileName + " not performed. File not found." );
+            LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
+            return false;
+        }
+        
+        String normFileName = database.normalizeFileName( fileName );
+        DistributedFile file = database.getFile( fileName );
+        if(file == null) {
+            File f = new File( database.getFileSystemRoot() + normFileName );
+            file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
         }
 		
 		if(file.isDirectory()) {

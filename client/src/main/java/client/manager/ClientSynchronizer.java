@@ -45,7 +45,7 @@ public class ClientSynchronizer extends Thread
         while(!service.isClosed()) {
             try {
                 // Reload the database.
-                database.loadFiles( false );
+                database.loadFiles();
                 
                 Map<String, Byte> toUpdate = database.getUpdateList();
                 // Send the files according to their state.
@@ -76,21 +76,25 @@ public class ClientSynchronizer extends Thread
     public void checkFiles( final List<RemoteFile> files ) throws DFSException
     {
         for(RemoteFile file : files) {
-            DistributedFile myFile = database.getFile( file.getName() );
+            String fileName = file.getName();
+            DistributedFile myFile = database.getFile( fileName );
             try {
                 if(myFile == null ||
-                   reconcileVersions( file.getName(), myFile.getVersion(), file.getVersion() ) == 1) {
+                   reconcileVersions( fileName, myFile.getVersion(), file.getVersion() ) == 1) {
                     // The received file has the most updated version.
                     // Update the file on database.
                     if(!file.isDeleted())
                         database.saveFile( file, file.getVersion(), null );
                     else
-                        database.deleteFile( file.getName(), file.getVersion(), null );
+                        database.deleteFile( fileName, file.getVersion(), null );
                 }
                 else {
                     // The own file has the most updated version.
-                    // Send this version using the put method.
-                    service.put( myFile.getName() );
+                    // Performs the reconciliation sending back the file.
+                    if(myFile.isDeleted())
+                        service.delete( fileName );
+                    else
+                        service.put( fileName );
                 }
             }
             catch( IOException e ) {}
