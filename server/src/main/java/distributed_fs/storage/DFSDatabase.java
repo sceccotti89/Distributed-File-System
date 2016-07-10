@@ -13,6 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -41,6 +42,7 @@ public class DFSDatabase implements Closeable
 	private CheckHintedHandoffDatabase hhThread;
 	private final AsyncDiskWriter asyncWriter;
 	private List<DBListener> listeners = null;
+	private final Map<String, Byte> toUpdate;
 	
 	private String root;
 	private DB db;
@@ -108,14 +110,8 @@ public class DFSDatabase implements Closeable
         database = db.treeMap( "map" );
         //db.commit();
         
-        // Check if the files in the database are present on disk.
-        for(DistributedFile file : database.values()) {
-            // If the file is no more on disk it will be deleted.
-            if(!DFSUtils.existFile( root + file.getName(), false ))
-                database.remove( file.getId() );
-        }
-        db.commit();
-        loadFiles();
+        toUpdate = new ConcurrentHashMap<>();
+        loadFiles( true );
 		
 		scanDBThread = new ScanDBThread();
 		scanDBThread.start();
@@ -144,37 +140,69 @@ public class DFSDatabase implements Closeable
 	}
 	
 	/**
-     * Loads all the files present in the file system.
+     * Loads all the files present in the file system,
+     * starting from the root.
+     * 
+     * @param saveDuplicated    {@code true} if the replicated file have to be stored on database,
+     *                          {@code false} otherwise
     */
-    public void loadFiles() throws IOException
+    public void loadFiles( final boolean saveDuplicated ) throws IOException
     {
-        doLoadFiles( new File( root ) );
+        checkRemovedFiles();
+        doLoadFiles( new File( root ), saveDuplicated );
         db.commit();
     }
 	
-	private void doLoadFiles( final File dir ) throws IOException
+	private void doLoadFiles( final File dir, final boolean saveDuplicated ) throws IOException
 	{
 		for(File f : dir.listFiles()) {
 			String fileName = f.getPath().replace( "\\", "/" );
 			if(f.isDirectory()) {
-			    doLoadFiles( f );
+			    doLoadFiles( f, saveDuplicated );
 				fileName += "/";
 			}
 			fileName = normalizeFileName( fileName );
 			
 			DistributedFile file = database.get( DFSUtils.getId( fileName ) );
 			if(file == null) {
-			    file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
-			    database.put( file.getId(), file );
-			}
-			else {
-				if(file.getHintedHandoff() != null && hhThread != null)
-					hhThread.saveFile( file );
-			}
+                file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
+                toUpdate.put( file.getName(), Message.PUT );
+                //database.put( file.getId(), file );
+            }
+            else {
+                if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
+                    hhThread.saveFile( file );
+            }
 			
 			LOGGER.debug( "Loaded file: " + file );
 		}
 	}
+	
+	/**
+     * Checks if the files stored on database
+     * are still present on disk.
+    */
+    private void checkRemovedFiles() throws IOException
+    {
+        LOCK_READERS.lock();
+        
+        for(DistributedFile file : database.values()) {
+            // If the file is no more on disk it is putted on the list.
+            if(!DFSUtils.existFile( root + file.getName(), false ) && !file.isDeleted()) {
+                toUpdate.put( file.getName(), Message.DELETE );
+                //database.remove( file.getId() );
+            }
+        }
+        
+        LOCK_READERS.unlock();
+    }
+    
+    /**
+     * Returns the list of files that have to be updated.
+    */
+    public Map<String, Byte> getUpdateList() {
+        return toUpdate;
+    }
 	
 	/**
      * By default all modifications are queued and written into disk on Background Writer Thread.
@@ -229,8 +257,7 @@ public class DFSDatabase implements Closeable
 	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
 								 final String hintedHandoff ) throws IOException
 	{
-		return saveFile( file.getName(), file.getContent(),
-						 clock, hintedHandoff );
+		return saveFile( file.getName(), file.getContent(), clock, hintedHandoff );
 	}
 	
 	/**
