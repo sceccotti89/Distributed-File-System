@@ -196,7 +196,7 @@ public class SystemTest
         
         DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
         DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
-        service.reload();
+        service.reloadDB();
         
         assertTrue( service.delete( "./Clients/ResourcesClient1/ToDelete" ) );
     }
