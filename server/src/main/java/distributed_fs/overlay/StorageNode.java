@@ -360,8 +360,8 @@ public class StorageNode extends DFSNode
 		if(clock == null) // Not updated.
 			quorum_t.closeQuorum( state, agreedNodes );
 		else {
-			file.setVersion( clock );
-			
+		    file.setVersion( clock );
+		    
 			// Send, in parallel, the file to the replica nodes.
 			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, file.isDirectory(), hintedHandoff ) );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
