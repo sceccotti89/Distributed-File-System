@@ -22,7 +22,7 @@ The file system is implemented as a key-value map of type (string, file) with th
 
 - **get**(key) to retrieve a file from the system;
 - **put**(key) to store a file in the system;
-- **delete**(key) to remove a file in the system;
+- **delete**(key) to delete a file in the system. If the target is a folder all its content will be deleted;
 - **getAll**() to retrieve all the files stored in a random node.
 
 ## User Guide
