@@ -169,13 +169,12 @@ public class DFSDatabase implements Closeable
 			    file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
 			    toUpdate.put( file.getName(), Message.PUT );
 			    database.put( file.getId(), file );
+			    LOGGER.debug( "Loaded file: " + file );
 			}
 			else {
 				if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
 					hhThread.saveFile( file );
 			}
-			
-			LOGGER.debug( "Loaded file: " + file );
 		}
 	}
 	
@@ -420,9 +419,11 @@ public class DFSDatabase implements Closeable
         }
 	    
 	    if(file.isDeleted()) {
+	        LOGGER.debug( "Removing file: " + file.getName() );
 		    database.remove( file.getId() );
 		    db.commit();
-		    hhThread.removeFiles( file );
+		    if(hhThread != null)
+		        hhThread.removeFiles( file );
 	    }
         
         LOCK_WRITERS.unlock();
