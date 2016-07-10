@@ -55,11 +55,15 @@ public class RemoteFile implements IOSerializable//, Serializable
 		
 		if(removed || directory)
 			this.content = null;
-		else {
-			byte[] file = DFSUtils.readFileFromDisk( dbRoot + name );
-			// Store the content in compressed form.
-			this.content = DFSUtils.compressData( file );
-		}
+		else
+		    loadContent( dbRoot );
+	}
+	
+	private void loadContent( final String dbRoot ) throws IOException
+	{
+	    byte[] file = DFSUtils.readFileFromDisk( dbRoot + name );
+        // Store the content in compressed form.
+        this.content = DFSUtils.compressData( file );
 	}
 	
 	public String getName()
@@ -107,10 +111,17 @@ public class RemoteFile implements IOSerializable//, Serializable
 	
 	/**
 	 * Sets the deleted value of the file.
+	 * 
+	 * @param delete   {@code true} if the file is deleted, {@code false} otherwise
+	 * @param dbRoot   path to the database root
 	*/
-	public void setDeleted( final boolean delete )
+	public void setDeleted( final boolean delete, final String dbRoot ) throws IOException
 	{
-	    this.deleted = delete;
+	    if(deleted != delete) {
+    	    deleted = delete;
+    	    if(!deleted && !isDirectory)
+    	        loadContent( dbRoot );
+	    }
 	}
 	
 	/**

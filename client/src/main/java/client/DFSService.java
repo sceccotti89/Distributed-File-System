@@ -263,21 +263,22 @@ public class DFSService extends DFSManager implements IDFSService
 		LOGGER.info( "Starting PUT operation: " + fileName );
 		
 		String normFileName = database.normalizeFileName( fileName );
+		String dbRoot = database.getFileSystemRoot();
 		
 		DistributedFile file = database.getFile( fileName );
-		if(file != null)
-		    file.setDeleted( false );
-		else {
-		    if(database.checkExistsInFileSystem( fileName )) {
-		        File f = new File( database.getFileSystemRoot() + normFileName );
-		        file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
-		    }
-		    else {
-				LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
-				LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
-				return false;
-			}
-		}
+		if(file == null || file.isDeleted()) {
+            if(database.checkExistsInFileSystem( fileName )) {
+                if(file == null) {
+                    File f = new File( dbRoot + normFileName );
+                    file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
+                }
+            }
+            else {
+                LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
+                LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
+                return false;
+            }
+        }
 		
         if(!contactRemoteNode( normFileName, Message.PUT ))
 			return false;
@@ -288,7 +289,8 @@ public class DFSService extends DFSManager implements IDFSService
 			//LOGGER.info( "Sending file..." );
 			
 			// Send the file.
-			RemoteFile rFile = new RemoteFile( file, database.getFileSystemRoot() );
+			RemoteFile rFile = new RemoteFile( file, dbRoot );
+			rFile.setDeleted( false, dbRoot );
 			sendPutMessage( rFile, hintedHandoff );
 			//LOGGER.info( "File sent" );
 			

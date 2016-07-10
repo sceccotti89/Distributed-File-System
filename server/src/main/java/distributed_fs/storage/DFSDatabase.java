@@ -64,7 +64,6 @@ public class DFSDatabase implements Closeable
 	
 	
 	
-	
 	/**
 	 * Construct a new Distributed File System database.
 	 * 
@@ -125,6 +124,8 @@ public class DFSDatabase implements Closeable
 	 * 
 	 * @param path			the path to the resources
 	 * @param defaultPath	the default path if {@code path} is {@code null}
+	 * 
+	 * @return the normalized path
 	*/
 	private String createResourcePath( final String path, final String defaultPath )
 	{
@@ -165,44 +166,44 @@ public class DFSDatabase implements Closeable
 			
 			DistributedFile file = database.get( DFSUtils.getId( fileName ) );
 			if(file == null) {
-                file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
-                toUpdate.put( file.getName(), Message.PUT );
-                //database.put( file.getId(), file );
-            }
-            else {
-                if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
-                    hhThread.saveFile( file );
-            }
+			    file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
+			    toUpdate.put( file.getName(), Message.PUT );
+			    database.put( file.getId(), file );
+			}
+			else {
+				if(saveDuplicated && file.getHintedHandoff() != null && hhThread != null)
+					hhThread.saveFile( file );
+			}
 			
 			LOGGER.debug( "Loaded file: " + file );
 		}
 	}
 	
 	/**
-     * Checks if the files stored on database
-     * are still present on disk.
-    */
-    private void checkRemovedFiles() throws IOException
-    {
-        LOCK_READERS.lock();
-        
-        for(DistributedFile file : database.values()) {
+	 * Checks if the files stored on database
+	 * are still present on disk.
+	*/
+	private void checkRemovedFiles() throws IOException
+	{
+	    LOCK_READERS.lock();
+	    
+	    for(DistributedFile file : database.values()) {
             // If the file is no more on disk it is putted on the list.
             if(!DFSUtils.existFile( root + file.getName(), false ) && !file.isDeleted()) {
                 toUpdate.put( file.getName(), Message.DELETE );
                 //database.remove( file.getId() );
             }
         }
-        
-        LOCK_READERS.unlock();
-    }
-    
-    /**
-     * Returns the list of files that have to be updated.
-    */
-    public Map<String, Byte> getUpdateList() {
-        return toUpdate;
-    }
+	    
+	    LOCK_READERS.unlock();
+	}
+	
+	/**
+	 * Returns the list of files that have to be updated.
+	*/
+	public Map<String, Byte> getUpdateList() {
+	    return toUpdate;
+	}
 	
 	/**
      * By default all modifications are queued and written into disk on Background Writer Thread.
@@ -283,9 +284,7 @@ public class DFSDatabase implements Closeable
 		fileName = normalizeFileName( fileName );
 		String fileId = DFSUtils.getId( fileName );
 		
-		//System.out.println( "IN ATTESA DEL LOCK " + LOCK_WRITERS.getHoldCount() );
 		LOCK_WRITERS.lock();
-		//System.out.println( "LOCK ACQUISITO: " + !db.isClosed() );
 		if(db.isClosed()) {
 		    LOCK_WRITERS.unlock();
 		    return null;
@@ -399,13 +398,13 @@ public class DFSDatabase implements Closeable
 	 * @param myClock	the current vector clock
 	 * @param vClock	the input vector clock
 	 * 
-	 * @return {@code true} if the own file is the newest one,
+	 * @return {@code true} if the own file has the most updated version,
 	 * 		   {@code false} otherwise.
 	*/
 	private boolean resolveVersions( final VectorClock myClock, final VectorClock vClock )
-    {
-        return myClock.compare( vClock ) != Occurred.BEFORE;
-    }
+	{
+	    return myClock.compare( vClock ) != Occurred.BEFORE;
+	}
 	
 	/**
 	 * Removes definitely a file from the database.
@@ -704,11 +703,6 @@ public class DFSDatabase implements Closeable
 		    List<String> nodes;
 		    
 			while(!shutDown) {
-				try{ Thread.sleep( CHECK_TIMER ); }
-				catch( InterruptedException e ){
-					break;
-				}
-				
 				MUTEX_LOCK.lock();
 				nodes = new LinkedList<>( upNodes );
 				MUTEX_LOCK.unlock();
@@ -727,7 +721,7 @@ public class DFSDatabase implements Closeable
 					// Retrieve the informations from the saved address.
 					String[] data = address.split( ":" );
 					String host = data[0];
-					int port = Integer.parseInt( data[1] );
+					int port = Integer.parseInt( data[1] ) + 1;
 					
 					if(_fileMgr.sendFiles( host, port, files, true, null, null ) ) {
 					    // If all the files have been successfully delivered,
@@ -738,6 +732,9 @@ public class DFSDatabase implements Closeable
 						removeAddress( address );
 					}
 				}
+				
+				try{ Thread.sleep( CHECK_TIMER ); }
+                catch( InterruptedException e ){}
 			}
 		}
 		
@@ -765,8 +762,6 @@ public class DFSDatabase implements Closeable
 		*/
 		public void saveFile( final DistributedFile file )
 		{
-			//file.setHintedHandoff( hintedHandoff );
-			
 			MUTEX_LOCK.lock();
 			
 			List<DistributedFile> files = hhDatabase.get( file.getHintedHandoff() );
@@ -827,7 +822,7 @@ public class DFSDatabase implements Closeable
 		    MUTEX_LOCK.unlock();
 		    
 		    // Interrupt the node (if not awake),
-		    // forcing it to immediately now the files.
+		    // forcing it to send immediately the files.
             interrupt();
 		}
 		
