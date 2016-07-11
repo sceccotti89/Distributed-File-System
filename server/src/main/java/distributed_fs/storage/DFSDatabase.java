@@ -13,7 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Vector;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -42,7 +42,7 @@ public class DFSDatabase implements Closeable
 	private CheckHintedHandoffDatabase hhThread;
 	private final AsyncDiskWriter asyncWriter;
 	private List<DBListener> listeners = null;
-	private final Map<String, Byte> toUpdate;
+	private final List<String> toUpdate;
 	
 	private String root;
 	private DB db;
@@ -51,9 +51,9 @@ public class DFSDatabase implements Closeable
 	private boolean disableAsyncWrites = false;
 	private boolean shutDown = false;
 	
-    private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
-	private static final ReadLock LOCK_READERS = LOCK.readLock();
-	private static final WriteLock LOCK_WRITERS = LOCK.writeLock();
+    private final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
+	private final ReadLock LOCK_READERS = LOCK.readLock();
+	private final WriteLock LOCK_WRITERS = LOCK.writeLock();
 	
 	// Resources path locations.
 	private static final String RESOURCES_LOCATION = "Resources/";
@@ -109,7 +109,7 @@ public class DFSDatabase implements Closeable
         database = db.treeMap( "map" );
         //db.commit();
         
-        toUpdate = new ConcurrentHashMap<>();
+        toUpdate = new Vector<>();
         loadFiles();
         
         // Add the files to the hinted handoff database.
@@ -175,7 +175,7 @@ public class DFSDatabase implements Closeable
 			        notifyListeners( fileName, Message.GET );
 			    }
 			    
-			    toUpdate.put( file.getName(), Message.PUT );
+			    toUpdate.add( file.getName() );
 			    LOGGER.debug( "Loaded file: " + file );
 			}
 		}
@@ -187,22 +187,27 @@ public class DFSDatabase implements Closeable
 	*/
 	private void checkRemovedFiles() throws IOException
 	{
-	    LOCK_READERS.lock();
+	    List<DistributedFile> files = getAllFiles();
 	    
-	    for(DistributedFile file : database.values()) {
-            // If the file is no more on disk it is putted on the list.
+	    for(DistributedFile file : files) {
+            // If the file is no more on disk it's definitely removed.
             if(!DFSUtils.existFile( root + file.getName(), false ) && !file.isDeleted()) {
-                toUpdate.put( file.getName(), Message.DELETE );
+                LOCK_WRITERS.lock();
+                database.remove( file.getId() );
+                LOCK_WRITERS.unlock();
+                notifyListeners( file.getName(), Message.DELETE );
+                //toUpdate.put( file.getName(), Message.DELETE );
+                
+                if(hhThread != null)
+                    hhThread.removeFiles( file );
             }
         }
-	    
-	    LOCK_READERS.unlock();
 	}
 	
 	/**
 	 * Returns the list of files that have to be updated.
 	*/
-	public Map<String, Byte> getUpdateList() {
+	public List<String> getUpdateList() {
 	    return toUpdate;
 	}
 	
