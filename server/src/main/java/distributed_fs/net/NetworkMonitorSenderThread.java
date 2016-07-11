@@ -21,6 +21,7 @@ public class NetworkMonitorSenderThread extends NetworkMonitorThread
 	public NetworkMonitorSenderThread( final String address, final DFSNode node ) throws IOException
 	{
 		super( address );
+		setName( "NetworkMonitorSender" );
 		
 		this.node = node;
 		this.system = ManagementFactory.getOperatingSystemMXBean();

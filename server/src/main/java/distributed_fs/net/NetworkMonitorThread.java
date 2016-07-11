@@ -46,7 +46,7 @@ public abstract class NetworkMonitorThread extends Thread
 	public abstract NodeStatistics getStatisticsFor( final String address );
 	
 	/**
-	 * Encrypts the incoming message.
+	 * Encrypts the input message.
 	 * 
 	 * @param message
 	*/

@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.swing.Timer;
@@ -36,7 +37,7 @@ public class QuorumThread extends Thread
     private int port;
     private String address;
     private DFSNode node;
-    private boolean shutDown;
+    private AtomicBoolean shutDown = new AtomicBoolean( false );
     
     private Timer timer;
     private long nextId = -1L;
@@ -56,6 +57,8 @@ public class QuorumThread extends Thread
                          final String address,
                          final DFSNode node ) throws IOException
     {
+        setName( "Quorum" );
+        
         this.port = port + PORT_OFFSET;
         this.address = address;
         this.node = node;
@@ -67,7 +70,7 @@ public class QuorumThread extends Thread
             @Override
             public void actionPerformed( final ActionEvent e )
             {
-                if(!shutDown) {
+                if(!shutDown.get()) {
                     QUORUM_LOCK.lock();
                     
                     Iterator<QuorumFile> it = fileLock.values().iterator();
@@ -99,10 +102,10 @@ public class QuorumThread extends Thread
             return;
         }
         
-        //DFSNode.LOGGER.info( "[QUORUM] Waiting on " + address + ":" + port );
+        DFSNode.LOGGER.info( "QuorumThread launched." );
         
         byte[] msg;
-        while(!shutDown) {
+        while(!shutDown.get()) {
             try {
                 TCPSession session = net.waitForConnection();
                 if(session == null)
@@ -157,11 +160,12 @@ public class QuorumThread extends Thread
     /**
      * Starts the quorum phase.
      * 
-     * @param state             state of the caller thread
-     * @param session           the actual TCP connection
-     * @param opType            the operation type
-     * @param fileName          name of the file
-     * @param destId            the destination virtual node
+     * @param state         state of the caller thread
+     * @param session       the actual TCP connection
+     * @param opType        the operation type
+     * @param fileName      name of the file
+     * @param destId        the destination virtual node
+     * @param myAddress     the address of the node in the form {@code hostname:port}
      * 
      * @return list of contacted nodes that have agreed to the quorum
     */
@@ -169,12 +173,13 @@ public class QuorumThread extends Thread
                                          final TCPSession session,
                                          final byte opType,
                                          final String fileName,
-                                         final String destId ) throws IOException
+                                         final String destId,
+                                         final String myAddress ) throws IOException
     {
         // Get the list of successor nodes.
         List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
         if(nodes == null) {
-            nodes = node.getSuccessorNodes( destId, address, QuorumSession.getMaxNodes() );
+            nodes = node.getSuccessorNodes( destId, myAddress, QuorumSession.getMaxNodes() );
             state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
         }
         
@@ -182,7 +187,7 @@ public class QuorumThread extends Thread
         if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
             // If there is a number of nodes less than the quorum,
             // we neither start the protocol.
-            DFSNode.LOGGER.info( "[SN] Quorum failed, due to insufficient replicas: " +
+            DFSNode.LOGGER.info( "[SN] Quorum failed, due to insufficient replica nodes: " +
                                  nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
             sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
             return new ArrayList<>();
@@ -440,7 +445,7 @@ public class QuorumThread extends Thread
     
     public void close()
     {
-        shutDown = true;
+        shutDown.set( true );
         timer.stop();
         interrupt();
     }
@@ -585,23 +590,24 @@ public class QuorumThread extends Thread
 	        return deleters >= W;
 	    }
 	    
-	    public static boolean isQuorum( final byte opType, final int replicaNodes ) {
-	        //return true;
+	    public static boolean isQuorum( final byte opType, final int replicaNodes )
+	    {
 	        if(opType == Message.PUT || opType == Message.DELETE)
 	            return isWriteQuorum( replicaNodes );
 	        else
 	            return isReadQuorum( replicaNodes );
 	    }
 	    
-	    public static boolean unmakeQuorum( final int errors, final byte opType ) {
+	    public static boolean unmakeQuorum( final int errors, final byte opType )
+	    {
 	        if(opType == Message.PUT || opType == Message.DELETE)
 	            return (N - errors) < W;
 	        else
 	            return (N - errors) < R;
 	    }
 	    
-	    public static int getMinQuorum( final byte opType ) {
-	        //return 0;
+	    public static int getMinQuorum( final byte opType )
+	    {
 	        if(opType == Message.GET)
 	            return R;
 	        else

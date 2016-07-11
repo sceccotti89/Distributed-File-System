@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,7 +71,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected volatile FileTransferThread fMgr;
 	
 	protected boolean startGossiping = true;
-	protected boolean shutDown = false;
+	protected AtomicBoolean shutDown = new AtomicBoolean( false );
 	
 	protected ThreadState state;
 	// Actions performed by the thread, during the request processing.
@@ -230,7 +232,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		else {
 		    // Linux command.
-		    // TODO does it work also for Apple Operating Systems??
+		    // TODO does it work also on OS X systems??
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			
@@ -379,7 +381,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 	 * Returns the successor nodes of the input id.
 	 * 
 	 * @param id				source node identifier
-	 * @param addressToRemove	the address to skip during the procedure
+	 * @param addressToRemove	the address to skip during the procedure.
+	 *                          The address must be in the form {@code hostName:port}
 	 * @param numNodes			number of requested nodes
 	 * 
 	 * @return the list of successor nodes;
@@ -391,8 +394,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		Set<String> filterAddress = new HashSet<>();
 		int size = 0;
 		
-		if(!DFSUtils.testing)
-			filterAddress.add( addressToRemove );
+		filterAddress.add( addressToRemove );
 		
 		// Choose the nodes whose address is different than this node.
 		String currId = id, succ;
@@ -404,10 +406,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 			GossipMember node = cHasher.getBucket( succ );
 			if(node != null) {
 				currId = succ;
-				if(!filterAddress.contains( node.getHost() )) {
+				if(!filterAddress.contains( node.getAddress() )) {
 					nodes.add( node );
-					if(!DFSUtils.testing)
-						filterAddress.add( node.getHost() );
+					filterAddress.add( node.getAddress() );
 					size++;
 				}
 			}
@@ -455,22 +456,39 @@ public abstract class DFSNode extends Thread implements GossipListener
 	*/
 	public void close()
 	{
-		shutDown = true;
+	    if(shutDown.get())
+            return;
+	    
+		shutDown.set( true );
 		
+		monitor_t.close();
 		netMonitor.shutDown();
+		
+		try{
+            netMonitor.join();
+            monitor_t.join();
+        }
+        catch( InterruptedException e ) {}
+		
 		_net.close();
 		if(runner.isStarted())
 			runner.getGossipService().shutdown();
+		
 		synchronized( threadPool ) {
 		    threadPool.shutdown();
 		}
+		
+		try { threadPool.awaitTermination( 1, TimeUnit.SECONDS ); }
+		catch( InterruptedException e1 ) { e1.printStackTrace(); }
+		
 		if(fMgr != null)
 			fMgr.shutDown();
-		monitor_t.close();
 		
 		try{
 		    netMonitor.join();
 		    monitor_t.join();
+		    if(fMgr != null)
+	            fMgr.join();
 		}
 		catch( InterruptedException e ) {}
 	}

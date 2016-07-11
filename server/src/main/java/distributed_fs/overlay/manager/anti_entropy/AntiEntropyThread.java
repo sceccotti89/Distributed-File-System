@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
@@ -31,21 +32,30 @@ public abstract class AntiEntropyThread extends Thread
 	protected final TCPnet net;
 	protected final GossipMember me;
 	private final Random random;
-	protected boolean shoutDown = false;
+	protected AtomicBoolean shutDown = new AtomicBoolean( false );
 	
 	protected static final int PORT_OFFSET = 2;
 	
 	/** Type of messages exchanged during the synchronization procedure */
 	protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
 	
+	/** Updating timer. */
+    public static final int EXCH_TIMER = 5000;
+	
 	/** Logger used to print the application state. */
 	protected static final Logger LOGGER = Logger.getLogger( AntiEntropyThread.class.getName() );
+	
+	
+	
+	
 	
 	public AntiEntropyThread( final GossipMember _me,
 							  final DFSDatabase database,
 							  final FileTransferThread fMgr,
 							  final ConsistentHasher<GossipMember, String> _cHasher )
 	{
+	    setName( "AntiEntropy" );
+	    
 		this.me = _me;
 		this.fMgr = fMgr;
 		this.database = database;
@@ -72,7 +82,7 @@ public abstract class AntiEntropyThread extends Thread
 	}
 	
 	/**
-	 * Reduce the level of the tree until the level is reached.
+	 * Reduces the level of the tree until the requested level is not reached.
 	 * 
 	 * @param levels	number of levels to reduce
 	 * @param nodes		list of nodes
@@ -109,7 +119,7 @@ public abstract class AntiEntropyThread extends Thread
 	
 	public void close()
 	{
-		shoutDown = true;
+	    shutDown.set( true );
 		interrupt();
 	}
 }

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -43,7 +44,7 @@ public abstract class DFSManager
 	protected TCPSession session;
 	protected String address;
 	protected int port;
-	protected boolean closed = false;
+	protected AtomicBoolean closed = new AtomicBoolean( false );
 	
 	protected boolean useLoadBalancer;
 	protected List<GossipMember> loadBalancers;
@@ -114,43 +115,43 @@ public abstract class DFSManager
         if(!useLoadBalancer)
             listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
 		
-        if(members != null) {
-            // Get the remote nodes from the input list.
-            loadBalancers = new ArrayList<>( members.size() );
-            
-            for(GossipMember member : members) {
-                if(member.getNodeType() == GossipMember.LOAD_BALANCER)
-                    loadBalancers.add( member );
-                else {
-                    String id = DFSUtils.getNodeId( 1, member.getAddress() );
-                    member.setId( id );
-                    cHasher.addBucket( member, 1 );
-                }
-                
-                LOGGER.debug( "Added remote node: " + member.getAddress() + ":" + member.getNodeType() );
-            }
-        }
-        else {
-            if(file != null) {
-                // Get the remote nodes from the configuration file.
-                JSONArray nodes = file.getJSONArray( "members" );
-                loadBalancers = new ArrayList<>( nodes.length() );
-                for(int i = nodes.length()-1; i >= 0; i--) {
-                    JSONObject data = nodes.getJSONObject( i );
-                    int nodeType = data.getInt( "nodeType" );
-                    String address = data.getString( "host" );
-                    int Port = data.getInt( "port" );
-                    String id = DFSUtils.getNodeId( 1, address + ":" + port );
-                    GossipMember node = new RemoteGossipMember( address, Port, id, 0, nodeType );
-                    if(nodeType == GossipMember.LOAD_BALANCER)
-                        loadBalancers.add( node );
-                    else
-                        cHasher.addBucket( node, 1 );
-                    
-                    LOGGER.debug( "Added remote node: " + node.getAddress() + ":" + nodeType );
-                }
-            }
-        }
+		if(members != null) {
+		    // Get the remote nodes from the input list.
+			loadBalancers = new ArrayList<>( members.size() );
+			
+			for(GossipMember member : members) {
+				if(member.getNodeType() == GossipMember.LOAD_BALANCER)
+				    loadBalancers.add( member );
+				else {
+				    String id = DFSUtils.getNodeId( 1, member.getAddress() );
+	                member.setId( id );
+				    cHasher.addBucket( member, 1 );
+				}
+				
+				LOGGER.debug( "Added remote node: " + member.getAddress() + ":" + member.getNodeType() );
+			}
+		}
+		else {
+			if(file != null) {
+			    // Get the remote nodes from the configuration file.
+			    JSONArray nodes = file.getJSONArray( "members" );
+    			loadBalancers = new ArrayList<>( nodes.length() );
+    			for(int i = nodes.length()-1; i >= 0; i--) {
+    				JSONObject data = nodes.getJSONObject( i );
+    				int nodeType = data.getInt( "nodeType" );
+    				String address = data.getString( "host" );
+    				int Port = data.getInt( "port" );
+    				String id = DFSUtils.getNodeId( 1, address + ":" + port );
+    				GossipMember node = new RemoteGossipMember( address, Port, id, 0, nodeType );
+    				if(nodeType == GossipMember.LOAD_BALANCER)
+    				    loadBalancers.add( node );
+    				else
+    				    cHasher.addBucket( node, 1 );
+    				
+    				LOGGER.debug( "Added remote node: " + node.getAddress() + ":" + nodeType );
+    			}
+		    }
+		}
 		
 		// Some checks...
 		if(!useLoadBalancer && cHasher.isEmpty()) {
@@ -336,7 +337,8 @@ public abstract class DFSManager
 	
 	public void shutDown()
 	{
-	    closed = true;
+	    closed.set( true );
+	    
 	    if(listMgr_t != null) {
     	    listMgr_t.close();
     	    try { listMgr_t.join(); }

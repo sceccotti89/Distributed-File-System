@@ -1,3 +1,6 @@
+/**
+ * @author Stefano Ceccotti
+*/
 
 package client.manager;
 
@@ -8,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
@@ -28,7 +32,7 @@ public class ClientMembershipManagerThread extends Thread
     private List<GossipNode> members;
     private final ConsistentHasher<GossipMember, String> cHasher;
     
-    private boolean closed = false;
+    private AtomicBoolean closed = new AtomicBoolean( false );
     
     private static final Logger LOGGER = Logger.getLogger( ClientMembershipManagerThread.class );
     private static final int TIMER_REQUEST = 10000; // 10 seconds.
@@ -40,6 +44,8 @@ public class ClientMembershipManagerThread extends Thread
                                     final DFSManager service,
                                     final ConsistentHasher<GossipMember, String> cHasher )
     {
+        setName( "ClientMembershipManager" );
+        
         this.net = net;
         this.service = service;
         this.cHasher = cHasher;
@@ -50,8 +56,10 @@ public class ClientMembershipManagerThread extends Thread
     @Override
     public void run()
     {
+        LOGGER.info( "ClientMembershipManager Thread launched." );
+        
         GossipMember server = null;
-        while(!closed) {
+        while(!closed.get()) {
             try {
                 List<GossipMember> members = cHasher.getAllBuckets();
                 // If the list is empty it automatically switches in LoadBalancer mode.
@@ -106,6 +114,8 @@ public class ClientMembershipManagerThread extends Thread
             }
             catch( InterruptedException e ) {}
         }
+        
+        LOGGER.info( "ClientMembershipManager Thread closed." );
     }
     
     /**
@@ -159,7 +169,7 @@ public class ClientMembershipManagerThread extends Thread
     
     public void close()
     {
-        closed = true;
+        closed.set( true );
         interrupt();
     }
 }

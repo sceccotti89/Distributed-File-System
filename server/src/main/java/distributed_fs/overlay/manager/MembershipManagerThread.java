@@ -4,10 +4,12 @@ package distributed_fs.overlay.manager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.GossipNode;
@@ -23,7 +25,7 @@ public class MembershipManagerThread extends Thread
     private GossipManager manager;
     private List<GossipNode> members;
     
-    private boolean closed = false;
+    private AtomicBoolean closed = new AtomicBoolean( false );
     
     public static final int PORT_OFFSET = 4;
     
@@ -36,6 +38,8 @@ public class MembershipManagerThread extends Thread
     public MembershipManagerThread( final String address, final int port,
                                     final GossipMember me, final GossipManager manager )
     {
+        setName( "MembershipManager" );
+        
         this.address = address;
         this.port = port + PORT_OFFSET;
         
@@ -49,6 +53,8 @@ public class MembershipManagerThread extends Thread
     public MembershipManagerThread( final String address, final int port,
                                     final List<GossipMember> members )
     {
+        setName( "MembershipManager" );
+        
         this.address = address;
         this.port = port + PORT_OFFSET;
         
@@ -63,7 +69,9 @@ public class MembershipManagerThread extends Thread
         TCPnet net = new TCPnet();
         net.setSoTimeout( 500 );
         
-        while(!closed) {
+        DFSNode.LOGGER.info( "MembershipManager thread launched." );
+        
+        while(!closed.get()) {
             try {
                 TCPSession session = net.waitForConnection( address, port );
                 if(session == null)
@@ -93,11 +101,13 @@ public class MembershipManagerThread extends Thread
             }
         }
         
+        DFSNode.LOGGER.info( "MembershipManager thread closed." );
+        
         net.close();
     }
     
     public void close()
     {
-        closed = true;
+        closed.set( true );
     }
 }

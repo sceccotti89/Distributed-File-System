@@ -58,7 +58,8 @@ public class LoadBalancer extends DFSNode
 						 final int port,
 						 final List<GossipMember> startupMembers ) throws IOException, InterruptedException
 	{
-		super( ipAddress, port, 0, GossipMember.LOAD_BALANCER, startupMembers );
+		super( ipAddress, port, 1, GossipMember.LOAD_BALANCER, startupMembers );
+		setName( "StorageNode" );
 		
 		// Set the id to the remote nodes.
         List<GossipNode> nodes = runner.getGossipService().getGossipManager().getMemberList();
@@ -103,13 +104,17 @@ public class LoadBalancer extends DFSNode
     public void launch( final boolean launchAsynch )
     {
         if(launchAsynch) {
-            new Thread() {
+            // Create a new Thread.
+            Thread t = new Thread() {
                 @Override
                 public void run()
                 {
                     startProcess();
                 }
-            }.start();
+            };
+            t.setName( "LoadBalancer" );
+            t.setDaemon( true );
+            t.start();
         }
         else {
             startProcess();
@@ -126,7 +131,7 @@ public class LoadBalancer extends DFSNode
 	    
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
-			while(!shutDown) {
+			while(!shutDown.get()) {
 				TCPSession session = _net.waitForConnection( _address, this.port );
 				if(session != null) {
 				    synchronized( threadPool ) {
@@ -167,6 +172,7 @@ public class LoadBalancer extends DFSNode
 						  final NetworkMonitorThread netMonitor ) throws IOException
 	{
 		super( net, null, cHasher );
+		setName( "LoadBalancer" );
 		
 		this.replacedThread = replacedThread;
 		this.netMonitor = netMonitor;
@@ -293,7 +299,7 @@ public class LoadBalancer extends DFSNode
 		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
 		List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
 		if(nodes == null) {
-		    nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
+		    nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
 		    nodes.add( sourceNode );
 		    state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
 		}
@@ -403,18 +409,4 @@ public class LoadBalancer extends DFSNode
         
         return node;
     }
-	
-	/*public static void main( final String args[] ) throws Exception
-	{
-		ArgumentsParser.parseArgs( args );
-		if(ArgumentsParser.hasOnlyHelpOptions())
-            return;
-		
-		String ipAddress = ArgumentsParser.getIpAddress();
-		int port = ArgumentsParser.getPort();
-		List<GossipMember> members = ArgumentsParser.getNodes();
-		
-		LoadBalancer balancer = new LoadBalancer( ipAddress, port, members );
-		balancer.launch( true );
-	}*/
 }

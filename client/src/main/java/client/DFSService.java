@@ -120,8 +120,7 @@ public class DFSService extends DFSManager implements IDFSService
 	
 	/**
 	 * Realoads the database, forcing it to
-	 * checks if some brand spanking new file is present
-	 * or if some of them has been removed.
+	 * checks if some brand spanking new file is present.
 	*/
 	public void reloadDB() throws IOException
 	{
@@ -131,6 +130,11 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public List<RemoteFile> getAllFiles() throws DFSException
 	{
+	    if(isClosed()) {
+            LOGGER.error( "Sorry but the service is closed." );
+            return null;
+        }
+	    
 		LOGGER.info( "Synchonizing..." );
 		
 		if(!initialized) {
@@ -141,12 +145,14 @@ public class DFSService extends DFSManager implements IDFSService
 		List<RemoteFile> files = null;
 		boolean completed = true;
 		
-		if(!contactRemoteNode( "", Message.GET_ALL ))
+		// Here the name of the file is not important.
+		final String fileName = "";
+		if(!contactRemoteNode( fileName, Message.GET_ALL ))
 		    return null;
 		
 		try{
 			//LOGGER.debug( "Sending message..." );
-			sendGetAllMessage( "" );
+			sendGetAllMessage( fileName );
 			//LOGGER.debug( "Request message sent" );
 			
 			if(useLoadBalancer) {
@@ -175,6 +181,11 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public DistributedFile get( final String fileName ) throws DFSException
 	{
+	    if(isClosed()) {
+            LOGGER.error( "Sorry but the service is closed." );
+            return null;
+        }
+	    
 		Utils.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
@@ -254,6 +265,11 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public boolean put( final String fileName ) throws DFSException, IOException
 	{
+	    if(isClosed()) {
+            LOGGER.error( "Sorry but the service is closed." );
+            return false;
+        }
+	    
 	    Utils.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
@@ -263,16 +279,16 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		LOGGER.info( "Starting PUT operation: " + fileName );
 		
-		if(!database.checkExistsInFileSystem( fileName )) {
+		String dbRoot = database.getFileSystemRoot();
+		String normFileName = database.normalizeFileName( fileName );
+		if(!DFSUtils.existFile( dbRoot + normFileName, false )) {
             LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
             LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
             return false;
         }
-        
-        String dbRoot = database.getFileSystemRoot();
-        String normFileName = database.normalizeFileName( fileName );
-        DistributedFile file = database.getFile( fileName );
-        if(file == null) {
+		
+		DistributedFile file = database.getFile( fileName );
+		if(file == null) {
             File f = new File( dbRoot + normFileName );
             file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
         }
@@ -328,6 +344,11 @@ public class DFSService extends DFSManager implements IDFSService
 	@Override
 	public boolean delete( final String fileName ) throws IOException, DFSException
 	{
+	    if(isClosed()) {
+            LOGGER.error( "Sorry but the service is closed." );
+	        return false;
+	    }
+	    
 	    Utils.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
@@ -337,22 +358,23 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		boolean completed = true;
 		
-		if(!database.checkExistsInFileSystem( fileName )) {
+		String dbRoot = database.getFileSystemRoot();
+        String normFileName = database.normalizeFileName( fileName );
+        if(!DFSUtils.existFile( dbRoot + normFileName, false )) {
             LOGGER.error( "Operation DELETE for " + fileName + " not performed. File not found." );
             LOGGER.error( "The file must be present in one of the sub-directories of the root: " + database.getFileSystemRoot() );
             return false;
         }
-        
-        String normFileName = database.normalizeFileName( fileName );
-        DistributedFile file = database.getFile( fileName );
-        if(file == null) {
-            File f = new File( database.getFileSystemRoot() + normFileName );
+		
+		DistributedFile file = database.getFile( fileName );
+		if(file == null) {
+		    File f = new File( dbRoot + normFileName );
             file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
-        }
+		}
 		
 		if(file.isDirectory()) {
 		    // Delete recursively all the files present in the directory and sub-directories.
-		    File inputFile = new File( database.getFileSystemRoot() + normFileName );
+		    File inputFile = new File( dbRoot + normFileName );
 			for(File f: inputFile.listFiles()) {
 				LOGGER.debug( "Name: " + f.getPath() + ", Directory: " + f.isDirectory() );
 				completed |= delete( f.getPath() );
@@ -626,13 +648,16 @@ public class DFSService extends DFSManager implements IDFSService
 	*/
 	public boolean isClosed()
 	{
-		return closed;
+		return closed.get();
 	}
 	
 	@Override
 	public void shutDown()
 	{
 	    super.shutDown();
+	    
+	    if(!disableSyncThread)
+	        syncClient.shutDown();
 		
 		if(session != null && !session.isClosed())
 			session.close();

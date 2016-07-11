@@ -40,8 +40,9 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	private BitSet bitSet = new BitSet(); // Used to keep track of the common files.
 	private final Set<String> addresses = new HashSet<>();
 	
-	/** Updating timer. */
-	public static final int EXCH_TIMER = 5000;
+	
+	
+	
 	
 	public AntiEntropySenderThread( final GossipMember _me,
 									final DFSDatabase _database,
@@ -49,6 +50,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 									final ConsistentHasher<GossipMember, String> cHasher )
 	{
 		super( _me, _database, fMgr, cHasher );
+		setName( "AntiEntropySender" );
 	}
 	
 	@Override
@@ -58,13 +60,12 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		
 		// Used to ensure that a request doesn't start too soon.
 		try{ Thread.sleep( 300 ); }
-        catch( InterruptedException e ){ return; }
+        catch( InterruptedException e ){
+            LOGGER.info( "Anti-entropy Sender Thread closed." );
+            return;
+        }
 		
-		while(!shoutDown) {
-		    addresses.clear();
-		    if(!DFSUtils.testing)
-	            addresses.add( me.getHost() );
-		    
+		while(!shutDown.get()) {
 		    // Each virtual node sends the Merkle tree to its successor node,
 			// and to a random predecessor node.
 			List<String> vNodes = cHasher.getVirtualBucketsFor( me );
@@ -72,12 +73,9 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			    // The successor node.
 			    String succId = cHasher.getNextBucket( vNodeId );
 			    GossipMember succNode;
-			    // Each virtual node takes the corresponding files from the successor node,
-			    // founded in the consistent hashing table.
 			    if(succId != null && (succNode = cHasher.getBucket( succId )) != null) {
-					if(!addresses.contains( succNode.getHost() )) {
-						if(!DFSUtils.testing)
-							addresses.add( succNode.getHost() );
+					if(!addresses.contains( succNode.getAddress() )) {
+						addresses.add( succNode.getAddress() );
 						try{ startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN ); }
 						catch( IOException | InterruptedException e ){
 						    // Ignored.
@@ -86,9 +84,12 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 						}
 					}
 				}
-				
-				List<String> nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
+			    
+			    List<String> nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
 				while(nodes.size() > 0) {
+				    if(shutDown.get())
+	                    break;
+				    
 				    // A random predecessor node.
 				    String randomPeer = selectPartner( nodes );
 					GossipMember node = cHasher.getBucket( randomPeer );
@@ -134,9 +135,9 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		m_tree = createMerkleTree( files );
 		
 		LOGGER.debug( "vNodeId: " + vNodeId );
-		LOGGER.debug( "FILES: " + files );
 		LOGGER.debug( "Type: " + msg_type + ", fromNode: " + me.getPort() + ", toNode: " + node.getPort() +
-		              ", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() );
+		              ", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() +
+		              ", FILES: " + files );
 		
 		handShake( node, msg_type, vNodeId, destId );
 		
@@ -300,8 +301,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		List<String> predecessors = new ArrayList<>( numNodes );
 		int size = 0;
 		
-		if(!DFSUtils.testing)
-			addresses.add( me.getHost() );
+		addresses.clear();
+		addresses.add( me.getAddress() );
 		
 		// Choose the nodes whose address is different than this node.
 		String currId = id, prev;
@@ -313,15 +314,23 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			GossipMember node = cHasher.getBucket( prev );
 			if(node != null) {
 				currId = prev;
-				if(!addresses.contains( node.getHost() )) {
+				if(!addresses.contains( node.getAddress() )) {
 					predecessors.add( currId = prev );
-					if(!DFSUtils.testing)
-						addresses.add( node.getHost() );
+					addresses.add( node.getAddress() );
 					size++;
 				}
 			}
 		}
 		
 		return predecessors;
+	}
+	
+	@Override
+	public void close()
+	{
+	    super.close();
+	    
+	    if(session != null)
+	        session.close();
 	}
 }

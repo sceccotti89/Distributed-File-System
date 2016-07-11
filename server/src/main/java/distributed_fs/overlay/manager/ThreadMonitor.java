@@ -7,12 +7,13 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.NetworkMonitorReceiverThread;
 import distributed_fs.net.NetworkMonitorSenderThread;
+import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.overlay.DFSNode;
@@ -42,7 +43,7 @@ public class ThreadMonitor extends Thread
     private String databaseLocation;
     // ======================================================== //
 	
-	private boolean closed = false;
+	private AtomicBoolean closed = new AtomicBoolean( false );
 	
 	
 	
@@ -54,6 +55,8 @@ public class ThreadMonitor extends Thread
 	                      final int port,
 	                      final int MAX_USERS )
 	{
+	    setName( "ThreadMonitor" );
+	    
 	    this.node = parentNode;
 		this.threadPool = threadPool;
 		this.threads = threads;
@@ -80,7 +83,9 @@ public class ThreadMonitor extends Thread
 	@Override
 	public void run()
 	{
-		while(!closed) {
+	    DFSNode.LOGGER.info( "ThreadMonitor launched." );
+	    
+		while(!closed.get()) {
 			try{ sleep( SLEEP ); }
 			catch( InterruptedException e1 ) { break; }
 			
@@ -89,6 +94,8 @@ public class ThreadMonitor extends Thread
                 e.printStackTrace();
             }
 		}
+		
+		DFSNode.LOGGER.info( "ThreadMonitor closed." );
 	}
 	
 	private synchronized void scanThreads() throws IOException
@@ -169,7 +176,7 @@ public class ThreadMonitor extends Thread
 	
 	public void close()
 	{
-	    closed = true;
+	    closed.set( true );
 	    interrupt();
 	}
 	

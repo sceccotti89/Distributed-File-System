@@ -10,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
@@ -40,12 +42,12 @@ public class FileTransferThread extends Thread
 	private boolean disabledAntiEntropy = false;
 	private final ConsistentHasher<GossipMember, String> cHasher;
 	private final GossipMember node;
-	private boolean shutDown = false;
+	private AtomicBoolean shutDown = new AtomicBoolean( false );
 	
 	private final TCPnet net;
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
-	public static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
+	private static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
 	private static final int PORT_OFFSET = 1;
 	
 	// Messages used to exchange files with the destination node.
@@ -61,6 +63,8 @@ public class FileTransferThread extends Thread
 							   final String resourcesLocation,
 							   final String databaseLocation ) throws IOException, DFSException
 	{
+	    setName( "FileTransfer" );
+	    
 		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
 		
 		this.node = node;
@@ -69,14 +73,13 @@ public class FileTransferThread extends Thread
 		receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
 		
 		net = new TCPnet( node.getHost(), port + PORT_OFFSET );
+		net.setSoTimeout( 500 );
 		
 		//threadPoolSend = Executors.newCachedThreadPool();
 		threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
 		threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
 		
 		this.quorum_t = quorum_t;
-		
-		LOGGER.info( "File Manager Thread successfully initialized" );
 	}
 	
 	@Override
@@ -86,12 +89,15 @@ public class FileTransferThread extends Thread
     		receiveAE_t.start();
     		sendAE_t.start();
 	    }
+	    
+	    LOGGER.info( "FileTransferThread launched." );
 		
 		try {
-			LOGGER.info( "File Manager Thread launched" );
-			
-			while(!shutDown) {
+		    while(!shutDown.get()) {
 				TCPSession session = net.waitForConnection();
+				if(session == null)
+				    continue;
+				
 				LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
 				synchronized( threadPoolReceive ) {
 				    if(threadPoolReceive.isShutdown())
@@ -102,12 +108,12 @@ public class FileTransferThread extends Thread
 			}
 		}
 		catch( IOException e ) {
-			//e.printStackTrace();
+			e.printStackTrace();
 		}
 		
 		net.close();
 		
-		LOGGER.info( "Thread Manager Thread closed." );
+		LOGGER.info( "FileTransferThread closed." );
 	}
 	
 	/**
@@ -275,7 +281,7 @@ public class FileTransferThread extends Thread
 				updateQuorum( node );
 		}
 		catch( IOException e ) {
-			//e.printStackTrace();
+			e.printStackTrace();
 			complete = false;
 			if(synchNodeId != null) {
 				receiveAE_t.removeFromSynch( synchNodeId );
@@ -314,16 +320,30 @@ public class FileTransferThread extends Thread
 	*/
 	public void shutDown()
 	{
-	    shutDown = true;
+	    shutDown.set( true );
+	    
 	    synchronized( threadPoolSend ) {
 	        threadPoolSend.shutdown();
 	    }
 		synchronized( threadPoolReceive ) {
 		    threadPoolReceive.shutdown();
 		}
+		
+		try {
+            threadPoolSend.awaitTermination( 1, TimeUnit.SECONDS );
+            threadPoolReceive.awaitTermination( 1, TimeUnit.SECONDS );
+        } catch( InterruptedException e1 ) {
+            e1.printStackTrace();
+        }
+		
 		database.close();
 		sendAE_t.close();
 		receiveAE_t.close();
+		
+		try {
+		    sendAE_t.join();
+		    receiveAE_t.join();
+		} catch( InterruptedException e ){ e.printStackTrace(); }
 	}
 
 	/**
@@ -335,6 +355,8 @@ public class FileTransferThread extends Thread
 		
 		public ReceiveFilesThread( final TCPSession session )
 		{
+		    setName( "ReceiverFile" );
+		    
 			this.session = session;
 		}
 		
@@ -373,6 +395,8 @@ public class FileTransferThread extends Thread
 								final String synchNodeId,
 								final QuorumNode node )
 		{
+		    setName( "SendFiles" );
+		    
 			this.port = port;
 			this.files = files;
 			this.address = address;

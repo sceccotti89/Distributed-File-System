@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPSession;
@@ -44,16 +45,20 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	/** Map used to manage the nodes in the synchronization phase */
 	private final Map<String, Integer> syncNodes = new HashMap<>( 8 );
 	
+	
+	
+	
 	public AntiEntropyReceiverThread( final GossipMember _me,
 	                                  final DFSDatabase database,
 	                                  final FileTransferThread fMgr,
 	                                  final ConsistentHasher<GossipMember, String> cHasher )
 	{
 	    super( _me, database, fMgr, cHasher );
+	    setName( "AntiEntropyReceiver" );
 	    
 	    threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
 	    addToSynch( me.getId() );
-	    net.setSoTimeout( 2000 );
+	    net.setSoTimeout( 500 );
 	}
 	
 	@Override
@@ -62,12 +67,18 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	    LOGGER.info( "Anti Entropy Receiver Thread launched" );
 	    LOGGER.info( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + PORT_OFFSET) );
 	    
-	    while(!shoutDown) {
+	    while(!shutDown.get()) {
 	        try {
 	            TCPSession session = net.waitForConnection( me.getHost(), me.getPort() + PORT_OFFSET );
 	            if(session == null)
 	                continue;
-	            threadPool.execute( new AntiEntropyNode( session ) );
+	            
+	            synchronized ( threadPool ) {
+	                if(threadPool.isShutdown())
+                        break;
+	                
+	                threadPool.execute( new AntiEntropyNode( session ) );
+                }
 	        }
 	        catch( IOException e ) {
 	            e.printStackTrace();
@@ -93,6 +104,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		
 		public AntiEntropyNode( final TCPSession session )
 		{
+		    setName( "AntiEntropyNode" );
+		    
 			this.session = session;
 		}
 		
@@ -115,24 +128,24 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				int inputHeight = (inputTree == (byte) 0x0) ?
 								  0 : DFSUtils.byteArrayToInt( DFSUtils.getNextBytes( data ) );
 				
-				LOGGER.debug( "TYPE: " + msg_type );
 				List<DistributedFile> files;
 				if(msg_type == MERKLE_FROM_MAIN) {
 				    // Here the sourceId is the destId.
 				    String fromId = cHasher.getPreviousBucket( sourceId );
 					files = database.getKeysInRange( fromId, sourceId );
-					LOGGER.debug( "Node: " + me.getPort() +
+					LOGGER.debug( "MAIN - Node: " + me.getPort() +
 					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
-					              ", to: " + cHasher.getBucket( sourceId ).getAddress() );
+					              ", to: " + cHasher.getBucket( sourceId ).getAddress() +
+					              ", FILES: " + files );
 				}
 				else {
 					// Get the virtual destination node identifier.
 				    String destId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
 				    String fromId = cHasher.getPreviousBucket( destId );
-					LOGGER.debug( "Node: " + me.getPort() +
+				    files = database.getKeysInRange( fromId, destId );
+					LOGGER.debug( "REPLICA - Node: " + me.getPort() +
 					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
 					              ", to: " + cHasher.getBucket( destId ).getAddress() );
-					files = database.getKeysInRange( fromId, destId );
 				}
 				
 				if(files == null) {
@@ -412,5 +425,21 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			syncNodes.remove( nodeId );
 		else
 			syncNodes.put( nodeId, value - 1 );
+	}
+	
+	@Override
+	public void close()
+	{
+	    super.close();
+	    
+	    synchronized( threadPool ) {
+            threadPool.shutdown();
+        }
+        
+        try {
+            threadPool.awaitTermination( EXCH_TIMER, TimeUnit.MILLISECONDS );
+        } catch( InterruptedException e1 ) {
+            e1.printStackTrace();
+        }
 	}
 }

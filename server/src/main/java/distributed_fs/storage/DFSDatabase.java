@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -49,7 +50,7 @@ public class DFSDatabase implements Closeable
 	private BTreeMap<String, DistributedFile> database;
 	
 	private boolean disableAsyncWrites = false;
-	private boolean shutDown = false;
+	private AtomicBoolean shutDown = new AtomicBoolean( false );
 	
     private final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
 	private final ReadLock LOCK_READERS = LOCK.readLock();
@@ -81,7 +82,7 @@ public class DFSDatabase implements Closeable
 						final String databaseLocation,
 						final FileTransferThread fileMgr ) throws IOException, DFSException
 	{
-		_fileMgr = fileMgr;
+	    _fileMgr = fileMgr;
 		if(_fileMgr != null) {
 			hhThread = new CheckHintedHandoffDatabase();
 			hhThread.start();
@@ -632,7 +633,7 @@ public class DFSDatabase implements Closeable
     @Override
 	public void close()
 	{
-		shutDown = true;
+		shutDown.set( true );
 		
 		if(hhThread != null) hhThread.shutDown();
 		scanDBThread.shutDown();
@@ -651,6 +652,8 @@ public class DFSDatabase implements Closeable
 		if(!db.isClosed())
 		    db.close();
 		LOCK_WRITERS.unlock();
+		
+		LOGGER.info( "Database closed." );
 	}
     
     public static interface DBListener
@@ -667,14 +670,19 @@ public class DFSDatabase implements Closeable
 		// Time to wait before to check the database (1 minute).
 		private static final int CHECK_TIMER = 60000;
 		
-		public ScanDBThread() {}
+		public ScanDBThread()
+		{
+		    setName( "ScanDB" );
+		}
 		
 		@Override
 		public void run()
 		{
+		    LOGGER.info( "Database scanner thread launched." );
+		    
 		    List<DistributedFile> files;
 		    
-			while(!shutDown) {
+			while(!shutDown.get()) {
 				try{ Thread.sleep( CHECK_TIMER );}
 				catch( InterruptedException e ){ break; }
 				
@@ -687,6 +695,8 @@ public class DFSDatabase implements Closeable
 					}
 				}
 			}
+			
+			LOGGER.info( "Database scanner thread closed." );
 		}
 		
 		public void shutDown()
@@ -711,6 +721,8 @@ public class DFSDatabase implements Closeable
 		
 		public CheckHintedHandoffDatabase()
 		{
+		    setName( "HintedHandoff" );
+		    
 			upNodes = new LinkedList<String>();
 			hhDatabase = new HashMap<String, List<DistributedFile>>();
 		}
@@ -718,9 +730,11 @@ public class DFSDatabase implements Closeable
 		@Override
 		public void run()
 		{
+		    LOGGER.info( "HintedHandoff thread launched." );
+		    
 		    List<String> nodes;
 		    
-			while(!shutDown) {
+			while(!shutDown.get()) {
 				MUTEX_LOCK.lock();
 				nodes = new LinkedList<>( upNodes );
 				MUTEX_LOCK.unlock();
@@ -754,6 +768,8 @@ public class DFSDatabase implements Closeable
 				try{ Thread.sleep( CHECK_TIMER ); }
                 catch( InterruptedException e ){}
 			}
+			
+			LOGGER.info( "HintedHandoff thread closed." );
 		}
 		
 		/**
@@ -865,13 +881,17 @@ public class DFSDatabase implements Closeable
 	    
 	    public AsyncDiskWriter()
 	    {
+	        setName( "AsyncWriter" );
+	        
 	        files = new LinkedMap<>( 64 );
         }
 	    
 	    @Override
 	    public void run()
 	    {
-	        while(!shutDown) {
+	        LOGGER.info( "AsyncWriter thread launched." );
+	        
+	        while(!shutDown.get()) {
 	            try {
 	                QueueNode node = dequeue();
 	                // Write or delete a file on disk.
@@ -886,6 +906,8 @@ public class DFSDatabase implements Closeable
                     e1.printStackTrace();
                 }
 	        }
+	        
+	        LOGGER.info( "AsyncWriter thread closed." );
 	    }
 	    
 	    private QueueNode dequeue() throws InterruptedException

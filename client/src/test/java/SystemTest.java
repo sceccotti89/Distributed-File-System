@@ -18,7 +18,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import client.DFSService;
-import distributed_fs.overlay.manager.anti_entropy.AntiEntropySenderThread;
+import distributed_fs.overlay.manager.anti_entropy.AntiEntropyThread;
 import distributed_fs.exception.DFSException;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.LoadBalancer;
@@ -34,10 +34,11 @@ public class SystemTest
     
     private List<DFSService> clients;
     private List<GossipMember> members;
-    private List<DFSNode> nodes;
+    private List<DFSNode> servers;
     
     private static final int NUMBER_OF_BALANCERS = 2;
     private static final int NUMBER_OF_STORAGES = 5;
+    private static final int CLIENTS = 2;
     
     
     
@@ -51,7 +52,7 @@ public class SystemTest
         DFSUtils.deleteDirectory( new File( "Clients" ) );
         
         runServers();
-        runClients( IpAddress, 2 );
+        runClients( IpAddress, CLIENTS );
     }
     
     private void runServers() throws IOException, DFSException, InterruptedException
@@ -75,13 +76,13 @@ public class SystemTest
 			members.add( new RemoteGossipMember( IpAddress, port, id, 1, GossipMember.STORAGE ) );
 		}
 		
-		nodes = new ArrayList<>( members.size() );
+		servers = new ArrayList<>( members.size() );
 		
 		// Start the load balancer nodes.
 		for(int i = 0; i < NUMBER_OF_BALANCERS; i++) {
 			LoadBalancer node = new LoadBalancer( IpAddress, members.get( i ).getPort(), members );
 			node.setGossipingMechanism( false );
-			nodes.add( node );
+			servers.add( node );
 			node.launch( true );
 		}
 		
@@ -95,7 +96,7 @@ public class SystemTest
 												resources + (i+2) + "/", database + (i+2) + "/" );
 			node.setAntiEntropy( enableAntiEntropy );
 			node.setGossipingMechanism( false );
-			nodes.add( node );
+			servers.add( node );
 			node.launch( true );
 		}
     }
@@ -118,11 +119,11 @@ public class SystemTest
     public void startTests() throws IOException, DFSException, InterruptedException
     {
         testNoLoadBalancers();
-        //testSingleClient();
-        //testDeleteFolder();
-        //stressTest();
-        //testAntiEntropy();
-        //testHintedHandoff();
+        testSingleClient();
+        testDeleteFolder();
+        stressTest();
+        testAntiEntropy();
+        testHintedHandoff();
     }
     
     private void testNoLoadBalancers() throws IOException, DFSException, InterruptedException
@@ -258,7 +259,7 @@ public class SystemTest
 		Thread.sleep( 1000 );
 	}
 	
-    private void testAntiEntropy() throws IOException, DFSException, InterruptedException
+    public void testAntiEntropy() throws IOException, DFSException, InterruptedException
 	{
 		System.out.println( "\n\nTEST ANTI ENTROPY" );
 		
@@ -271,12 +272,11 @@ public class SystemTest
 		
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
-		Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 1000 );
+		Thread.sleep( AntiEntropyThread.EXCH_TIMER * 2 + 1000 );
 		System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
-							", FILE: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+							", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
-		readFile( "./Servers/Resources6/" + file );
-		assertNotNull( nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+		assertNotNull( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
 		/*assertTrue( clients.get( 0 ).delete( file ) );
 		//assertTrue( clients.get( 0 ).delete( "test4.txt" ) );
@@ -284,15 +284,8 @@ public class SystemTest
         // Wait the necessary time before to check if the last node have received the updated file.
         Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 1000 );
         System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
-                            ", FILE: " + nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
-        assertNull( nodes.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );*/
-	}
-	
-	private void readFile( final String file ) throws IOException
-	{
-		BufferedReader br = new BufferedReader( new FileReader( file ) );
-		System.out.println( "Line: " + br.readLine() );
-		br.close();
+                            ", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+        assertNull( servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );*/
 	}
 	
 	private void modifyTextFile( final String file ) throws IOException
@@ -310,8 +303,8 @@ public class SystemTest
     	DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
     	
     	int index = 4 + NUMBER_OF_BALANCERS;
-    	String hh = nodes.get( index ).getAddress() + ":" + nodes.get( index ).getPort();
-    	nodes.get( index ).close();
+    	String hh = servers.get( index ).getAddress() + ":" + servers.get( index ).getPort();
+    	servers.get( index ).close();
     	System.out.println( "Node: " + members.get( index ) + " closed." );
     	
     	Thread.sleep( 2000 );
@@ -321,8 +314,8 @@ public class SystemTest
     	Thread.sleep( 2000 );
     	
     	//assertEquals( service.get( file ), service.getFile( file ) );
-    	System.out.println( "HH: " + nodes.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
-    	assertEquals( nodes.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+    	System.out.println( "HH: " + servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
+    	assertEquals( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
     
     @After
@@ -333,11 +326,13 @@ public class SystemTest
                 service.shutDown();
         }
         
-        if(nodes != null) {
-            for(DFSNode node : nodes)
+        if(servers != null) {
+            for(DFSNode node : servers)
                 node.close();
-            for(DFSNode node : nodes)
+            for(DFSNode node : servers)
                 node.join();
         }
+        
+        System.exit( 0 );
     }
 }

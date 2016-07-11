@@ -17,6 +17,7 @@ public class NetworkMonitorReceiverThread extends NetworkMonitorThread
 	{
 		super( address );
 		
+		setName( "NetworkMonitorReceiver" );
 		setDaemon( true );
 		
 		nodes = new HashMap<String, NodeStatistics>();
@@ -32,11 +33,10 @@ public class NetworkMonitorReceiverThread extends NetworkMonitorThread
 				if(data == null)
 					continue;
 				
-				//TODO LOGGER.debug( "Received a message from " + net.getSrcAddress() );
+				//LOGGER.debug( "Received a message from " + net.getSrcAddress() );
 				
 				// save the statistics
 				NodeStatistics stats = DFSUtils.deserializeObject( decryptMessage( data ) );
-				//TODO LOGGER.debug( "Stats: " + stats );
 				nodes.put( net.getSrcAddress(), stats );
 			}
 			catch( Exception e ) {

@@ -21,8 +21,8 @@ import client.manager.SystemSimulation;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DFSDatabase.DBListener;
-import distributed_fs.utils.DFSUtils;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 import gossiping.RemoteGossipMember;
 import jline.ArgumentCompletor;
@@ -49,11 +49,13 @@ public class Client implements DBListener
 	
 	
 	
+	
 	public static void main( final String args[] )
 	        throws ParseException, IOException, DFSException, InterruptedException
     {
-	    ClientArgsParser.parseArgs( args );
-        if(ClientArgsParser.hasOnlyHelpOptions())
+	    //ClientArgsParser.parseArgs( args );
+	    ClientArgsParser.parseArgs( new String[]{ "-locale" } );
+	    if(ClientArgsParser.hasOnlyHelpOptions())
             return;
         
         JSONObject configFile = ClientArgsParser.getConfigurationFile();
@@ -173,12 +175,10 @@ public class Client implements DBListener
 			e.printStackTrace();
 		}
 		
-		//if(service != null)
-			//service.shutDown();
+		if(service != null)
+			service.shutDown();
 		if(sim != null)
 		    sim.close();
-		
-		System.exit( 0 );
 	}
 	
 	private Operation checkInput() throws DFSException

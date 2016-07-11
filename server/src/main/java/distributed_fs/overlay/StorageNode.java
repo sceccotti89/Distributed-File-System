@@ -9,9 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import org.json.JSONObject;
@@ -45,7 +43,7 @@ import gossiping.GossipNode;
 
 public class StorageNode extends DFSNode
 {
-	private static GossipMember me;
+	private GossipMember me;
 	private QuorumThread quorum_t;
 	private String resourcesLocation;
 	private String databaseLocation;
@@ -87,6 +85,7 @@ public class StorageNode extends DFSNode
 	                    final String databaseLocation ) throws IOException, InterruptedException, DFSException
 	{
 		super( address, port, virtualNodes, GossipMember.STORAGE, startupMembers );
+		setName( "StorageNode" );
 		
 		me = runner.getGossipService().getGossipManager().getMyself();
 		me.setId( DFSUtils.getNodeId( 1, me.getAddress() ) );
@@ -161,13 +160,16 @@ public class StorageNode extends DFSNode
 	{
 	    if(launchAsynch) {
 	        // Create a new Thread.
-	        new Thread() {
+	        Thread t = new Thread() {
 	            @Override
 	            public void run()
 	            {
 	                startProcess();
 	            }
-	        }.start();
+	        };
+	        t.setName( "StorageNode" );
+	        t.setDaemon( true );
+	        t.start();
 	    }
 	    else {
 	        startProcess();
@@ -189,7 +191,7 @@ public class StorageNode extends DFSNode
 		
 		try {
 			_net.setSoTimeout( WAIT_CLOSE );
-			while(!shutDown) {
+			while(!shutDown.get()) {
 				TCPSession session = _net.waitForConnection( _address, port );
 				if(session != null) {
 				    synchronized( threadPool ) {
@@ -241,6 +243,7 @@ public class StorageNode extends DFSNode
                          final NetworkMonitorThread netMonitor ) throws IOException
     {
     	super( net, fMgr, cHasher );
+    	setName( "StorageNode" );
     	setId( id );
     	
     	this.replacedThread = replacedThread;
@@ -288,8 +291,7 @@ public class StorageNode extends DFSNode
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				//qSession = new QuorumSession( resourcesLocation, id );
-				agreedNodes = quorum_t.checkQuorum( state, session, opType, fileName, destId );
+				agreedNodes = quorum_t.checkQuorum( state, session, opType, fileName, destId, _address + ":" + port );
 				int replicaNodes = agreedNodes.size();
 				
 				// Check if the quorum has been completed successfully.
@@ -387,9 +389,9 @@ public class StorageNode extends DFSNode
 			
 			// The replica files can be less than the quorum.
 			LOGGER.info( "Receive the files from the replica nodes..." );
-			Map<RemoteFile, byte[]> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
+			List<RemoteFile> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
 			if(filesToSend == null) {
-			    filesToSend = new HashMap<>( QuorumSession.getMaxNodes() + 1 ); // +1 for the own copy.
+			    filesToSend = new ArrayList<>( QuorumSession.getMaxNodes() + 1 ); // +1 for the own copy.
 			    state.setValue( ThreadState.FILES_TO_SEND, filesToSend );
 			}
 			
@@ -404,7 +406,7 @@ public class StorageNode extends DFSNode
     			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
     			if(dFile != null) {
     				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
-    				filesToSend.put( rFile, rFile.read() );
+    				filesToSend.add( rFile );
     			}
     			
     			// Try a first reconciliation.
@@ -459,8 +461,11 @@ public class StorageNode extends DFSNode
 	
 	/**
 	 * Gets the replica versions.
+	 * 
+	 * @param filesToSend      
+	 * @param openSessions     
 	*/
-	private void getReplicaVersions( final Map<RemoteFile, byte[]> filesToSend,
+	private void getReplicaVersions( final List<RemoteFile> filesToSend,
 	                                 final List<TCPSession> openSessions ) throws IOException
 	{
 	    // Get the value of the indexes.
@@ -491,7 +496,7 @@ public class StorageNode extends DFSNode
                         if(data.get() == (byte) 0x1) {
                             // Replica node owns the requested file.
                             byte[] file = DFSUtils.getNextBytes( data );
-                            filesToSend.put( new RemoteFile( file ), file );
+                            filesToSend.add( new RemoteFile( file ) );
                             
                             // Update the list of agreedNodes.
                             agreedNodes.remove( index - offset );
@@ -526,14 +531,13 @@ public class StorageNode extends DFSNode
 	 * 
 	 * @return The list of uncorrelated versions.
 	*/
-	private List<RemoteFile> makeReconciliation( final Map<RemoteFile, byte[]> files )
+	private List<RemoteFile> makeReconciliation( final List<RemoteFile> files )
 	{
 		List<Versioned<RemoteFile>> versions = new ArrayList<>();
-		for(RemoteFile file : files.keySet())
+		for(RemoteFile file : files)
 			versions.add( new Versioned<RemoteFile>( file, file.getVersion() ) );
 		
-		//VectorClockInconsistencyResolver<RemoteFile> vec_resolver = new VectorClockInconsistencyResolver<>();
-		//List<Versioned<RemoteFile>> inconsistency = vec_resolver.resolveConflicts( versions );
+		// Resolve the versions..
 		List<Versioned<RemoteFile>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
 		// Get the uncorrelated files.
@@ -749,22 +753,18 @@ public class StorageNode extends DFSNode
 	@Override
 	public void close()
 	{
-	    lMgr_t.close();
+	    if(shutDown.get())
+	        return;
+	    
 	    super.close();
+	    
+	    quorum_t.close();
+	    lMgr_t.close();
+	    
+	    try {
+	        quorum_t.join();
+	        lMgr_t.join();
+	    }
+	    catch( InterruptedException e ) {}
 	}
-	
-	/*public static void main( final String args[] ) throws Exception
-	{
-	    ArgumentsParser.parseArgs( args );
-		if(ArgumentsParser.hasOnlyHelpOptions())
-            return;
-		
-		String ipAddress = ArgumentsParser.getIpAddress();
-		List<GossipMember> members = ArgumentsParser.getNodes();
-		String resourceLocation = ArgumentsParser.getResourceLocation();
-		String databaseLocation = ArgumentsParser.getDatabaseLocation();
-		
-		StorageNode node = new StorageNode( ipAddress, members, resourceLocation, databaseLocation );
-		node.launch( true );
-	}*/
 }

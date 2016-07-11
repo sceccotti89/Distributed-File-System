@@ -121,6 +121,7 @@ public class DFSUtils
 		}
 		else {
 		    // Linux command.
+		    // TODO does it work also on OS X systems??
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			
@@ -375,7 +376,7 @@ public class DFSUtils
 	/**
 	 * Compresses data using a GZIP compressor.
 	 * 
-	 * @param data	the bytes to compress
+	 * @param data	 bytes to compress
 	 * 
 	 * @return the compressed bytes array
 	*/

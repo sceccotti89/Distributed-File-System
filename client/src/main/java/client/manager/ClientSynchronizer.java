@@ -4,14 +4,12 @@ package client.manager;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Scanner;
-import java.util.Map.Entry;
+
+import org.apache.log4j.Logger;
 
 import client.DFSService;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.messages.Message;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
@@ -32,9 +30,16 @@ public class ClientSynchronizer extends Thread
     
     // Time to wait before to check the database (30 seconds).
     private static final int CHECK_TIMER = 30000;
+    protected static final Logger LOGGER = Logger.getLogger( ClientSynchronizer.class );
+    
+    
+    
+    
     
     public ClientSynchronizer( final DFSService service, final DFSDatabase database )
     {
+        setName( "ClientSynchronizer" );
+        
         this.service = service;
         this.database = database;
     }
@@ -42,6 +47,8 @@ public class ClientSynchronizer extends Thread
     @Override
     public void run()
     {
+        LOGGER.info( "ClientSynchronizer Thread launched." );
+        
         while(!service.isClosed()) {
             try {
                 // Reload the database.
@@ -55,11 +62,13 @@ public class ClientSynchronizer extends Thread
                 if(files != null)
                     checkFiles( files );
             }
-            catch( IOException | DFSException e ){}
+            catch( IOException | DFSException e ) {}
             
             try { sleep( CHECK_TIMER ); }
             catch( InterruptedException e ) { break; }
         }
+        
+        LOGGER.info( "ClientSynchronizer Thread closed." );
     }
     
     /**
@@ -139,5 +148,10 @@ public class ClientSynchronizer extends Thread
             else
                 System.out.println( "Error: select a number in the range [1-" + size + "]" );
         }
+    }
+    
+    public void shutDown()
+    {
+        interrupt();
     }
 }
