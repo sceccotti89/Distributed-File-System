@@ -31,6 +31,7 @@ All the project can be built using **gradle**. You don't need to download it, be
 
 If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are, respectively, **Resources/** and **Database/**.
 The setting files, when not specified, are: for client **Settings/ClientSettings.json**, for LoadBalancer and StorageNode **Settings/NodeSettings.json**.
+
 The structure of the **ClientSettings.json** file is the following:
 
 - `network_interface` it can contains `type:`, `IPversion:` and `address:``
@@ -44,6 +45,8 @@ The structure of the **NodeSettings.json** file is the following:
 - `ResourcesLocation` resources location
 - `DatabaseLocation` database location
 - `members` list of nodes in the form `host:, port:, nodeType:`
+
+All the elements specified above are optional. Any missing parameter will be setted automatically by the application.
 
 The files for logs and gossiping cannot be changed, and their path is, respectively, **Settings/log4j.properties** and **Settings/GossipSettings.json**.
 You can put your files either in a folder of the same directory of the jar or inside the jar itself. If you want to update the jar just type:
