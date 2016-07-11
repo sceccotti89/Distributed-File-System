@@ -90,7 +90,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 	// Configuration path.
     private static final String DISTRIBUTED_FS_CONFIG = "Settings/NodeSettings.json";
     
-    // Not yet implemented.
     public static final int PORT_OFFSET = 1;
     
 	
