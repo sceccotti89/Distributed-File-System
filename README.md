@@ -80,7 +80,7 @@ The only mandatory parameter is:
 Optional parameters:
 
 - `-f [--file] <path>` file used to configure the initial parameters. If present this must be the only specified option
-- `-p [--port] <value>` port used to listen the incoming requests
+- `-p [--port] <value>` port used to launch the gossiping protocol; the next 5 ports are then used
 - `-a [--addr] <value>` set the ip address of the node
 - `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
 - `-v [--vnodes] <value>` set the number of virtual nodes. This option is valid only for StorageNode nodes
