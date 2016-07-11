@@ -1,16 +1,18 @@
 package gossiping;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import gossiping.utils.ResourceLoader;
 
 /**
  * This object represents the settings used when starting the gossip service.
@@ -187,9 +189,11 @@ public class StartupSettings
 	/**
 	 * Parse the settings for the gossip service from a JSON file.
 	 *
-	 * @param jsonFile	The file object which refers to the JSON config file.
-	 * @param _address	IP address of this machine
-	 * @param nodeType	Type of the node.
+	 * @param jsonFile	       The file path which refers to the JSON config file.
+	 * @param _address         IP address of this machine
+	 * @param port             Port used to start the gossiping. If {@code 0} it will be taken from the given file
+	 * @param nodeType	       Type of the node.
+	 * @param virtualNodes     number of virtual nodes
 	 * 
 	 * @return The StartupSettings object with the settings from the config file.
 	 * 
@@ -197,10 +201,14 @@ public class StartupSettings
 	 * @throws FileNotFoundException	Thrown when the file cannot be found.
 	 * @throws IOException	            Thrown when reading the file gives problems.
 	*/
-	public static StartupSettings fromJSONFile( final File jsonFile, final String _address, final int virtualNodes, final int nodeType )
+	public static StartupSettings fromJSONFile( final String jsonFile, final String _address, int port, final int virtualNodes, final int nodeType )
 			throws JSONException, FileNotFoundException, IOException
 	{
-		BufferedReader file = new BufferedReader( new FileReader( jsonFile ) );
+	    InputStream stream;
+	    try { stream = ResourceLoader.getResourceAsStream( jsonFile ); }
+	    catch( RuntimeException e ) { throw new FileNotFoundException(); }
+	    BufferedReader file = new BufferedReader( new InputStreamReader( stream ) );
+	    //BufferedReader file = new BufferedReader( new FileReader( jsonFile ) );
 		StringBuilder content = new StringBuilder( 512 );
 		String line;
 		while((line = file.readLine()) != null)
@@ -210,7 +218,7 @@ public class StartupSettings
 		JSONObject gossiping = new JSONObject( content.toString() );
 		
 		// Get the port number.
-		int port = gossiping.getInt( "port" );
+		if(port == 0) port = gossiping.getInt( "port" );
 		// Get the log level from the config file.
 		int logLevel = LogLevel.fromString( gossiping.getString( "log_level" ) );
 		// Get the gossip_interval from the config file.

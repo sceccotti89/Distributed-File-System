@@ -1,6 +1,5 @@
 package gossiping;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -18,12 +17,12 @@ public class GossipRunner
 	/** Checks whether the gossiping is started. */
 	private boolean started = false;
 	
-	public GossipRunner( final File configFile, final GossipListener listener, final String _address, final int virtualNodes, final int nodeType ) 
+	public GossipRunner( final String configFile, final GossipListener listener, final String _address, final int port, final int virtualNodes, final int nodeType ) 
 	{
-		if (configFile != null && configFile.exists()) {
+		if (configFile != null) {
 			try {
 				System.out.println( "Parsing the configuration file " + configFile + "..." );
-				StartupSettings settings = StartupSettings.fromJSONFile( configFile, _address, virtualNodes, nodeType );
+				StartupSettings settings = StartupSettings.fromJSONFile( configFile, _address, port, virtualNodes, nodeType );
 				gossipService = new GossipService( settings, listener );
 				System.out.println( "Gossip service successfully initialized." );
 			} catch ( FileNotFoundException e ) {
@@ -37,8 +36,8 @@ public class GossipRunner
 			}
 		} else {
 			System.out.println(
-				"The " + configFile.getName() + " file is not found.\n\n" +
-				"Either specify the path to the startup settings file or place the " + configFile.getName() +
+				"The " + configFile + " file is not found.\n\n" +
+				"Either specify the path to the startup settings file or place the " + configFile +
 				" file in the same folder as the JAR file."
 			);
 		}

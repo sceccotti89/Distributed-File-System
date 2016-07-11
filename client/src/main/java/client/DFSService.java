@@ -17,6 +17,7 @@ import client.manager.DFSManager;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DFSDatabase.DBListener;
@@ -478,7 +479,7 @@ public class DFSService extends DFSManager implements IDFSService
 				filterAddress.add( partner.getHost() );
 				if(opType != Message.GET_ALL)
 				    LOGGER.info( "Contacting " + partner + "..." );
-				try{ session = net.tryConnect( partner.getHost(), partner.getPort(), 2000 ); }
+				try{ session = net.tryConnect( partner.getHost(), partner.getPort() + DFSNode.PORT_OFFSET, 2000 ); }
 				catch( IOException e ) {
 					//e.printStackTrace();
 					nodes.remove( partner );
@@ -528,7 +529,7 @@ public class DFSService extends DFSManager implements IDFSService
                 if(opType != Message.GET_ALL)
                     LOGGER.debug( "[CLIENT] Contacting: " + member );
                 try {
-                    session = net.tryConnect( member.getHost(), member.getPort(), 2000 );
+                    session = net.tryConnect( member.getHost(), member.getPort() + DFSNode.PORT_OFFSET, 2000 );
                     destId = member.getId();
                     return true;
                 } catch( IOException e ) {
@@ -589,8 +590,8 @@ public class DFSService extends DFSManager implements IDFSService
         Set<String> filterAddress = new HashSet<>();
         int size = 0;
         
-        if(!DFSUtils.testing)
-            filterAddress.add( addressToRemove );
+        //if(!DFSUtils.testing)
+        filterAddress.add( addressToRemove );
         
         // Choose the nodes whose address is different than this node
         String currId = id, succ;
@@ -602,10 +603,10 @@ public class DFSService extends DFSManager implements IDFSService
             GossipMember node = cHasher.getBucket( succ );
             if(node != null) {
                 currId = succ;
-                if(!filterAddress.contains( node.getHost() )) {
+                if(!filterAddress.contains( node.getAddress() )) {
                     nodes.add( node );
-                    if(!DFSUtils.testing)
-                        filterAddress.add( node.getHost() );
+                    //if(!DFSUtils.testing)
+                    filterAddress.add( node.getAddress() );
                     size++;
                 }
             }

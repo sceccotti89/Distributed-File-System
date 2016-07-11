@@ -27,7 +27,7 @@ public class MembershipManagerThread extends Thread
     
     private AtomicBoolean closed = new AtomicBoolean( false );
     
-    public static final int PORT_OFFSET = 4;
+    public static final int PORT_OFFSET = 5;
     
     
     

@@ -73,9 +73,9 @@ public class StorageNode extends DFSNode
 	 * @param virtualNodes          number of virtual nodes. If <= 0 it's computed using the capabilities of the machine.
 	 * @param startupMembers		list of nodes
 	 * @param resourcesLocation		the root where the resources are taken from.
-	 * 								If {@code null} the default one will be selected ({@link DFSUtils#RESOURCE_LOCATION});
+	 * 								If {@code null} the default one will be selected ({@link distributed_fs.storage.DFSDatabase#RESOURCES_LOCATION});
 	 * @param databaseLocation		the root where the database is located.
-	 * 								If {@code null} the default one will be selected ({@link Utils#});
+	 * 								If {@code null} the default one will be selected ({@link distributed_fs.storage.DFSDatabase#DATABASE_LOCATION});
 	*/
 	public StorageNode( final String address,
 	                    final int port,
@@ -98,7 +98,7 @@ public class StorageNode extends DFSNode
 		    member.setId( DFSUtils.getNodeId( 1, member.getAddress() ) );
 		}
 		
-		if(DFSUtils.testing && startupMembers != null) {
+		if(startupMembers != null) {
             for(GossipMember member : startupMembers) {
                 if(member.getNodeType() != GossipMember.LOAD_BALANCER)
                     cHasher.addBucket( member, member.getVirtualNodes() );
@@ -118,6 +118,8 @@ public class StorageNode extends DFSNode
 		threadsList = new ArrayList<>( MAX_USERS );
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port, MAX_USERS );
 		monitor_t.addElements( me, quorum_t, cHasher, resourcesLocation, databaseLocation );
+	
+		this.port += PORT_OFFSET;
 	}
 	
 	/**
@@ -162,8 +164,7 @@ public class StorageNode extends DFSNode
 	        // Create a new Thread.
 	        Thread t = new Thread() {
 	            @Override
-	            public void run()
-	            {
+	            public void run() {
 	                startProcess();
 	            }
 	        };
@@ -627,7 +628,7 @@ public class StorageNode extends DFSNode
 				TCPSession session;
 				// Get the remote connection.
 				if(!replacedThread || actionsList.isEmpty()) {
-				    session = _net.tryConnect( node.getHost(), node.getPort(), 2000 );
+				    session = _net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
 				    state.setValue( ThreadState.REPLICA_REQUEST_CONN, session );
 				    actionsList.addLast( DONE );
 				}

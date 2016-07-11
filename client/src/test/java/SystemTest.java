@@ -45,9 +45,6 @@ public class SystemTest
     @Before
     public void setup() throws IOException, DFSException, InterruptedException
     {
-        DFSUtils.testing = true;
-        System.out.println( "Start tests..." );
-        
         DFSUtils.deleteDirectory( new File( "Servers" ) );
         DFSUtils.deleteDirectory( new File( "Clients" ) );
         
@@ -118,6 +115,8 @@ public class SystemTest
     @Test
     public void startTests() throws IOException, DFSException, InterruptedException
     {
+        System.out.println( "Start tests..." );
+        
         testNoLoadBalancers();
         testSingleClient();
         testDeleteFolder();
@@ -332,7 +331,5 @@ public class SystemTest
             for(DFSNode node : servers)
                 node.join();
         }
-        
-        System.exit( 0 );
     }
 }

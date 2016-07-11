@@ -45,7 +45,7 @@ public class QuorumThread extends Thread
     private final Map<String, QuorumFile> fileLock = new HashMap<>( 64 );
     private final ReentrantLock QUORUM_LOCK = new ReentrantLock( true );
 	
-    private static final int PORT_OFFSET = 3;
+    private static final int PORT_OFFSET = 4;
     private static final short BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
     private static final byte ACCEPT_QUORUM_REQUEST = 0, DECLINE_QUORUM_REQUEST = 1;

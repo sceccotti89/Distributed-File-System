@@ -68,7 +68,7 @@ public class LoadBalancer extends DFSNode
             member.setId( DFSUtils.getNodeId( 1, member.getAddress() ) );
         }
 		
-		if(DFSUtils.testing && startupMembers != null) {
+		if(startupMembers != null) {
 		    for(GossipMember member : startupMembers) {
 	            if(member.getNodeType() != GossipMember.LOAD_BALANCER)
 	                cHasher.addBucket( member, member.getVirtualNodes() );
@@ -78,6 +78,8 @@ public class LoadBalancer extends DFSNode
 		netMonitor = new NetworkMonitorReceiverThread( _address );
 		threadsList = new ArrayList<>( MAX_USERS );
 		monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, this.port, MAX_USERS );
+	
+		this.port += PORT_OFFSET;
 	}
 	
 	/**
@@ -99,7 +101,8 @@ public class LoadBalancer extends DFSNode
      * It can be launched in an asynchronous way, creating a new Thread that
      * runs this process.
      * 
-     * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
+     * @param launchAsynch   {@code true} to launch the process asynchronously,
+     *                       {@code false} otherwise
     */
     public void launch( final boolean launchAsynch )
     {
@@ -107,8 +110,7 @@ public class LoadBalancer extends DFSNode
             // Create a new Thread.
             Thread t = new Thread() {
                 @Override
-                public void run()
-                {
+                public void run() {
                     startProcess();
                 }
             };
@@ -231,11 +233,12 @@ public class LoadBalancer extends DFSNode
 				for(int i = index - 1; i >= 0; i--) {
 				    // Send the request to the "best" node, based on load informations.
 					GossipMember targetNode = getBalancedNode( nodes );
+					int port = targetNode.getPort() + PORT_OFFSET;
 					
 					// Contact the target node.
 					LOGGER.debug( "[LB] Contacting: " + targetNode );
 					if(!replacedThread || actionsList.isEmpty()) {
-    					try{ newSession = _net.tryConnect( targetNode.getHost(), targetNode.getPort() + PORT_OFFSET, 2000 ); }
+    					try{ newSession = _net.tryConnect( targetNode.getHost(), port, 2000 ); }
     					catch( IOException e ){ /* Ignored. e.printStackTrace();*/ }
     					state.setValue( ThreadState.BALANCED_NODE_CONN, newSession );
     					actionsList.addLast( DONE );
@@ -260,7 +263,7 @@ public class LoadBalancer extends DFSNode
 					    nodes.remove( targetNode );
                         
                         if(opType == Message.PUT && hintedHandoff == null) {
-                            hintedHandoff = targetNode.getHost() + ":" + targetNode.getPort();
+                            hintedHandoff = targetNode.getHost() + ":" + port;
                             LOGGER.debug( "[LB] Hinted Handoff: " + hintedHandoff );
                         }
 					}

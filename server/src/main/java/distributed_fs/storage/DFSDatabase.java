@@ -753,7 +753,7 @@ public class DFSDatabase implements Closeable
 					// Retrieve the informations from the saved address.
 					String[] data = address.split( ":" );
 					String host = data[0];
-					int port = Integer.parseInt( data[1] ) + 1;
+					int port = Integer.parseInt( data[1] );
 					
 					if(_fileMgr.sendFiles( host, port, files, true, null, null ) ) {
 					    // If all the files have been successfully delivered,

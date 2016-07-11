@@ -48,7 +48,7 @@ public class FileTransferThread extends Thread
 	
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
 	private static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
-	private static final int PORT_OFFSET = 1;
+	private static final int PORT_OFFSET = 2;
 	
 	// Messages used to exchange files with the destination node.
 	private static final byte[] MSG_PUT = { Message.PUT }, MSG_DELETE = { Message.DELETE };

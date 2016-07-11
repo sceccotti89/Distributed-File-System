@@ -5,7 +5,6 @@
 package distributed_fs.overlay;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -92,7 +91,7 @@ public abstract class DFSNode extends Thread implements GossipListener
     private static final String DISTRIBUTED_FS_CONFIG = "Settings/NodeSettings.json";
     
     // Not yet implemented.
-    protected static final int PORT_OFFSET = 0;
+    public static final int PORT_OFFSET = 1;
     
 	
 	
@@ -104,13 +103,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	                final List<GossipMember> startupMembers ) throws IOException
 	{
 		_address = address;
-		this.port = port;
-		if(this.port <= 0) {
-		    if(nodeType == GossipMember.LOAD_BALANCER)
-		        this.port = DFSUtils.SERVICE_PORT;
-		    else
-		        this.port = GossipManager.GOSSIPING_PORT + PORT_OFFSET;
-		}
+		this.port = (port <= 0) ? GossipManager.GOSSIPING_PORT : port;
 		
 		setConfigure();
 		
@@ -124,21 +117,19 @@ public abstract class DFSNode extends Thread implements GossipListener
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
 		if(startupMembers == null || startupMembers.size() == 0)
-			runner = new GossipRunner( new File( DFSUtils.GOSSIP_CONFIG ), this, _address, vNodes, nodeType );
+			runner = new GossipRunner( DFSUtils.GOSSIP_CONFIG, this, _address, this.port, vNodes, nodeType );
 		else
 		    runner = new GossipRunner( this, _address, this.port, DFSUtils.getNodeId( 1, _address ), vNodes, nodeType, startupMembers );
 		
-		if(!DFSUtils.testing) {
-    		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
-    		{
-    			@Override
-    			public void run() 
-    			{
-    				close();
-    				LOGGER.info( "Service has been shutdown..." );
-    			}
-    		}));
-		}
+		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
+		{
+			@Override
+			public void run() 
+			{
+				close();
+				LOGGER.info( "Service has been shutdown..." );
+			}
+		}));
 	}
 	
 	/**
@@ -308,8 +299,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		
 		JSONObject file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
-		String inet = file.getString( "inet" );
-        int IPversion = file.getInt( "IPversion" );
+		JSONArray inetwork = file.getJSONArray( "network_interface" );
+        String inet = inetwork.getJSONObject( 0 ).getString( "type" );
+        int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
 		
 		// Load the address only if it's null.
 		if(_address == null)

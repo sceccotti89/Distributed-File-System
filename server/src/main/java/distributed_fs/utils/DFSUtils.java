@@ -48,9 +48,6 @@ public class DFSUtils
 	/** Default port used to send/receive data in the service. */
 	public static final int SERVICE_PORT = 9000;
 	
-	/** Decides whether the program is running in test mode or not. */
-	public static boolean testing = false;
-	
 	/** Decides whether the configurations are initialized. */
 	public static boolean initConfig = false;
 	
