@@ -53,8 +53,7 @@ You can put your files either in a folder of the same directory of the jar or in
 
 ```bash
 jar uf jar-file input-file(s)
-```
-```bash
+
 zip -d file.jar unwanted_file(s)
 ```
 
