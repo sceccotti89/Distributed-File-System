@@ -5,6 +5,7 @@ mainClassName = 'client.Client'
 jar {
     baseName = 'Client'
     version =  '1.0'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     
     manifest {
         attributes("Implementation-Title": project.name,

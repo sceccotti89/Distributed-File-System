@@ -6,6 +6,7 @@ mainClassName = ""
 jar {
     baseName = 'gossiping'
     version =  '1.0'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     
     manifest {
         //attributes("Implementation-Title": project.name,

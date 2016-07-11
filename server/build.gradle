@@ -5,6 +5,7 @@ mainClassName = 'distributed_fs.NodeLauncher'
 jar {
     baseName = 'NodeLauncher'
     version =  '1.0'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     
     manifest {
         attributes("Implementation-Title": project.name,
