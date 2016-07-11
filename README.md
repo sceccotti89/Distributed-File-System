@@ -40,7 +40,7 @@ The structure of the **ClientSettings.json** file is the following:
 The structure of the **NodeSettings.json** file is the following:
 
 - `network_interface` it can contains `type:`, `IPversion:` and `address:``
-- `Port` Port used to communicate
+- `Port` Port used to communicate; it could be 0
 - `vNodes` number of virtual nodes; it could be 0
 - `ResourcesLocation` resources location
 - `DatabaseLocation` database location
