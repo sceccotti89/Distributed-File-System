@@ -64,7 +64,7 @@ public class NodeArgsParser
 	    options = new Options();
 	    options.addOption( TYPE, "type", true, "Set the node type." );
 	    
-		options.addOption( PORT, "port", true, "Set the listening port." );
+		options.addOption( PORT, "port", true, "Set the gossiping port." );
 		if(nodeType == GossipMember.STORAGE) {
 		    options.addOption( V_NODES, "vnodes", true, "Set the number of virtual nodes." );
     		options.addOption( RESOURCES, "rloc", true, "Set the location of the resources." );
