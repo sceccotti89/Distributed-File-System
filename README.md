@@ -81,7 +81,7 @@ Optional parameters:
 - `-locale` start the system in the local environment
 - `-h [--help]` show the help informations
 
-If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are respectively **Resources** and **Database**.
+If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are respectively **Resources/** and **Database/**.
 The setting files, when not specified, are: for client **Settings/ClientSettings.json**, for LoadBalancer and StorageNode **Settings/NodeSettings.json**.
 The files for logs and gossiping cannot be changed, and their path is, respectively, **Settings/log4j.properties** and **Settings/GossipSettings.json**.
 You can put your files either in a folder of the same directory of the the jar or inside the jar itself. If you want to update the jar just type:
