@@ -569,7 +569,7 @@ public class DFSService extends DFSManager implements IDFSService
     private List<GossipMember> getNodesFromPreferenceList( final String id, final GossipMember sourceNode )
     {
         final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
-        List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getHost(), PREFERENCE_LIST );
+        List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
         nodes.add( sourceNode );
         return nodes;
     }
@@ -590,7 +590,6 @@ public class DFSService extends DFSManager implements IDFSService
         Set<String> filterAddress = new HashSet<>();
         int size = 0;
         
-        //if(!DFSUtils.testing)
         filterAddress.add( addressToRemove );
         
         // Choose the nodes whose address is different than this node
@@ -605,7 +604,6 @@ public class DFSService extends DFSManager implements IDFSService
                 currId = succ;
                 if(!filterAddress.contains( node.getAddress() )) {
                     nodes.add( node );
-                    //if(!DFSUtils.testing)
                     filterAddress.add( node.getAddress() );
                     size++;
                 }
