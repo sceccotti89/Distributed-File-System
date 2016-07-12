@@ -40,8 +40,8 @@ The structure of the **ClientSettings.json** file is the following:
 The structure of the **NodeSettings.json** file is the following:
 
 - `network_interface` it can contains `type:`, `IPversion:` and `address:``
-- `Port` Port used to start the gossiping protocol; it could be 0
-- `vNodes` number of virtual nodes; it could be 0
+- `Port` Port used to start the gossiping protocol; it can be 0
+- `vNodes` number of virtual nodes; it can be 0
 - `ResourcesLocation` resources location
 - `DatabaseLocation` database location
 - `members` list of nodes in the form `host:, port:, nodeType:`
@@ -49,7 +49,7 @@ The structure of the **NodeSettings.json** file is the following:
 All the elements specified above are optional. Any missing parameter will be setted automatically by the application.
 
 The files for logs and gossiping cannot be changed, and their path is, respectively, **Settings/log4j.properties** and **Settings/GossipSettings.json**.
-You can put your files either in a folder of the same directory of the jar or inside the jar itself. If you want to insert or delete a file in the jar just type, respectively:
+All the setting files must be placed in the same folder as the JAR file. If you want to insert or delete a file in the JAR just type, respectively:
 
 ```bash
 jar uf jar-file input-file(s)
