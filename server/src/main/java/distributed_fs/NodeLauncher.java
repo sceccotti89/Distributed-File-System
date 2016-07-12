@@ -40,7 +40,7 @@ public class NodeLauncher
                 List<GossipMember> members = NodeArgsParser.getNodes();
                 
                 LoadBalancer balancer = new LoadBalancer( ipAddress, port, members );
-                balancer.launch( true );
+                balancer.launch( false );
                 break;
                 
             case( GossipMember.STORAGE ):
@@ -57,7 +57,7 @@ public class NodeLauncher
                     
                     node = new StorageNode( ipAddress, port, vNodes, members, resourceLocation, databaseLocation );
                 }
-                node.launch( true );
+                node.launch( false );
                 break;
         }
     }

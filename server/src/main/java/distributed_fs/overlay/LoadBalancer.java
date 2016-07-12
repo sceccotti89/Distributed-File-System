@@ -126,6 +126,7 @@ public class LoadBalancer extends DFSNode
 	private void startProcess()
 	{
 	    netMonitor.start();
+	    monitor_t.start();
 	    if(startGossiping)
 	        runner.start();
 	    
@@ -147,7 +148,7 @@ public class LoadBalancer extends DFSNode
 				}
 				
 				// Check if the monitor thread is alive: if not a new instance is activated.
-                if(!monitor_t.isAlive()) {
+                if(!shutDown.get() && !monitor_t.isAlive()) {
                     monitor_t = new ThreadMonitor( this, threadPool, threadsList, _address, port, MAX_USERS );
                     monitor_t.start();
                 }
