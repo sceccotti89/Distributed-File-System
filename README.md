@@ -117,7 +117,7 @@ The operations provided by the client, in addition to the ones mentioned before,
 - **help** to show the helper;
 - **exit** to close the service.
 
-The disableLB mode is maintained until the client owns at least one storage node, otherwise the system automatically goes back to using load balancer nodes.
+The disableLB mode is maintained until the client owns at least one storage node, otherwise the system automatically goes back to using again load balancer nodes.
 
 ### Local Environment
 
