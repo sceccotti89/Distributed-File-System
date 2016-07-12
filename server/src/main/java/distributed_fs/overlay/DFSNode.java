@@ -61,7 +61,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected TCPnet _net;
 	
 	protected volatile ConsistentHasher<GossipMember, String> cHasher;
-	protected HashSet<String> filterAddress;
+	protected Set<String> filterAddress;
 	protected GossipRunner runner;
 	
 	protected ExecutorService threadPool;

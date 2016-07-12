@@ -53,7 +53,8 @@ public class Client implements DBListener
 	public static void main( final String args[] )
 	        throws ParseException, IOException, DFSException, InterruptedException
     {
-	    ClientArgsParser.parseArgs( args );
+	    //ClientArgsParser.parseArgs( args );
+	    ClientArgsParser.parseArgs( new String[]{ "-locale" } );
 	    if(ClientArgsParser.hasOnlyHelpOptions())
             return;
         
@@ -76,7 +77,7 @@ public class Client implements DBListener
         }
     }
 	
-	public static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
+	private static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
 	{
 	    String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
         int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
@@ -93,7 +94,7 @@ public class Client implements DBListener
      * 
      * @param configFile    the configuration file
     */
-    protected static List<GossipMember> getStartupMembers( final JSONObject configFile )
+    private static List<GossipMember> getStartupMembers( final JSONObject configFile )
     {
         List<GossipMember> members = null;
         if(!configFile.has( "members" ))

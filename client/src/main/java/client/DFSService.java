@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
+
 import client.manager.ClientSynchronizer;
 import client.manager.DFSManager;
 import distributed_fs.exception.DFSException;
@@ -24,7 +26,6 @@ import distributed_fs.storage.DFSDatabase.DBListener;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
-import distributed_fs.utils.Utils;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 
@@ -187,7 +188,7 @@ public class DFSService extends DFSManager implements IDFSService
             return null;
         }
 	    
-		Utils.checkNotNull( fileName, "fileName cannot be null." );
+	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
 		    throw new DFSException( "The system has not been initialized.\n" +
@@ -271,7 +272,7 @@ public class DFSService extends DFSManager implements IDFSService
             return false;
         }
 	    
-	    Utils.checkNotNull( fileName, "fileName cannot be null." );
+	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
             throw new DFSException( "The system has not been initialized.\n" +
@@ -350,7 +351,7 @@ public class DFSService extends DFSManager implements IDFSService
 	        return false;
 	    }
 	    
-	    Utils.checkNotNull( fileName, "fileName cannot be null." );
+	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
 		
 		if(!initialized) {
             throw new DFSException( "The system has not been initialized.\n" +
@@ -592,7 +593,7 @@ public class DFSService extends DFSManager implements IDFSService
         
         filterAddress.add( addressToRemove );
         
-        // Choose the nodes whose address is different than this node
+        // Choose the nodes whose address is different than the input node.
         String currId = id, succ;
         while(size < numNodes) {
             succ = cHasher.getNextBucket( currId );

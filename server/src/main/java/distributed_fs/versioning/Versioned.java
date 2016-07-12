@@ -20,7 +20,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Objects;
 
-import distributed_fs.utils.Utils;
+import distributed_fs.utils.VersioningUtils;
 
 /**
  * A wrapper for an object that adds a Version.
@@ -28,7 +28,7 @@ import distributed_fs.utils.Utils;
  * This class is bad to use in map, as the hashCode calls object.hashCode. Most
  * likely the object is byte array and hashCode for array will be different for
  * different objects though the contents are the same
- */
+*/
 public final class Versioned<T> implements Serializable
 {
     private static final long serialVersionUID = 1;
@@ -72,7 +72,7 @@ public final class Versioned<T> implements Serializable
 
         Versioned<?> versioned = (Versioned<?>) o;
         return Objects.equals( getVersion(), versioned.getVersion() )
-               && Utils.deepEquals( getValue(), versioned.getValue() );
+               && VersioningUtils.deepEquals( getValue(), versioned.getValue() );
     }
     
     @Override

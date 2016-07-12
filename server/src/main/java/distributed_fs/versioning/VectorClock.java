@@ -22,7 +22,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import distributed_fs.utils.Utils;
+import com.google.common.base.Preconditions;
+
 import distributed_fs.utils.VersioningUtils;
 
 /**
@@ -37,12 +38,12 @@ public class VectorClock implements Version, Serializable
 
     private static final long MAX_NUMBER_OF_VERSIONS = 10;
 
-    /** A map of versions keyed by nodeId */
+    /** A map of versions keyed by nodeId. */
     private TreeMap<String, Long> versionMap;
-    /** A map of timestamps keyed by nodeId */
+    /** A map of timestamps keyed by nodeId. */
     private TreeMap<String, Long> timestampMap;
 
-    /** The time of the last update on the server on which the update was performed */
+    /** The time of the last update on the server on which the update was performed. */
     private volatile long timestamp;
 
     /**
@@ -53,11 +54,6 @@ public class VectorClock implements Version, Serializable
     {
         this( System.currentTimeMillis() );
     }
-    
-    /*public VectorClock( final byte[] data )
-    {
-    	write( data );
-    }*/
     
     public VectorClock( final long timestamp ) 
     {
@@ -82,7 +78,7 @@ public class VectorClock implements Version, Serializable
     }
     
     /**
-     * Only used for cloning
+     * Only used for cloning.
      * 
      * @param versionMap
      * @param timestampMap
@@ -91,15 +87,10 @@ public class VectorClock implements Version, Serializable
     private VectorClock( final TreeMap<String, Long> versionMap, final TreeMap<String, Long> timestampMap,
     					 final long timestamp ) 
     {
-        this.versionMap = Utils.checkNotNull( versionMap );
-        this.timestampMap = Utils.checkNotNull( timestampMap );
+        this.versionMap = Preconditions.checkNotNull( versionMap );
+        this.timestampMap = Preconditions.checkNotNull( timestampMap );
         this.timestamp = timestamp;
     }
-    
-    /*public VectorClock( final byte[] data )
-	{
-		write( data );
-	}*/
 	
 	/**
      * Increment the version info associated with the given node

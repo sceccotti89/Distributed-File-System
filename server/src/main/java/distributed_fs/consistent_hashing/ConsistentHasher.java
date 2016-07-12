@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import distributed_fs.utils.Utils;
+import com.google.common.base.Preconditions;
+
 import gossiping.GossipMember;
 
 /**
@@ -245,7 +246,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
             @Override
             public byte[] convert( final String data ) 
             {
-                Utils.checkNotNull( data );
+                Preconditions.checkNotNull( data );
                 return data.getBytes();
             }
         };

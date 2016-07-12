@@ -28,10 +28,11 @@ import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 
+import com.google.common.base.Preconditions;
+
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
 import distributed_fs.utils.DFSUtils;
-import distributed_fs.utils.Utils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 import gossiping.event.GossipState;
@@ -298,8 +299,8 @@ public class DFSDatabase implements Closeable
 								 final VectorClock clock, final String hintedHandoff )
 								         throws IOException
 	{
-		Utils.checkNotNull( fileName, "fileName cannot be null." );
-		Utils.checkNotNull( clock,    "clock cannot be null." );
+		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
+		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
 		fileName = normalizeFileName( fileName );
@@ -367,8 +368,8 @@ public class DFSDatabase implements Closeable
 	                               final VectorClock clock,
 	                               final String hintedHandoff )
 	{
-		Utils.checkNotNull( fileName, "fileName cannot be null." );
-		Utils.checkNotNull( clock,    "clock cannot be null." );
+	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
+	    Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
 		fileName = normalizeFileName( fileName );
