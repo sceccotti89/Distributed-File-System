@@ -63,7 +63,7 @@ public class ClientSynchronizer extends Thread
         int count = tick;
         
         while(!service.isClosed()) {
-            LOGGER.info( "Synchonizing..." );
+            LOGGER.debug( "Synchonizing..." );
             
             try {
                 // First update the database.
