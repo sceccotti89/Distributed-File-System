@@ -63,14 +63,19 @@ public class ClientSynchronizer extends Thread
         int count = tick;
         
         while(!service.isClosed()) {
+            LOGGER.info( "Synchonizing..." );
+            
             try {
                 // First update the database.
                 updateDB();
                 
-                // Then looks for updated versions in remote nodes.
+                if(service.isClosed())
+                    break;
+                
                 if(count < tick)
                     count++;
                 else {
+                    // Then looks for updated versions in remote nodes.
                     count = 0;
                     List<RemoteFile> files = service.getAllFiles();
                     if(files != null)
@@ -94,6 +99,7 @@ public class ClientSynchronizer extends Thread
     {
         database.loadFiles();
         List<String> toUpdate = database.getUpdateList();
+        // All the new files are sent using a put request.
         for(String fileName : toUpdate)
             service.put( fileName );
         toUpdate.clear();
@@ -125,8 +131,14 @@ public class ClientSynchronizer extends Thread
                         database.deleteFile( fileName, clock, file.isDirectory(), null );
                 }
                 else {
-                    if(!myFile.isDeleted())
-                        service.put( fileName );
+                    // If the deleted state of the own file is different than
+                    // the received one, it's write-back.
+                    if(myFile.isDeleted() != file.isDeleted()) {
+                        if(myFile.isDeleted())
+                            service.delete( fileName );
+                        else
+                            service.put( fileName );
+                    }
                 }
             }
             catch( IOException e ) {}

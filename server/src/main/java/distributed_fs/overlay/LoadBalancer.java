@@ -98,7 +98,7 @@ public class LoadBalancer extends DFSNode
     }
     
     /**
-     * Removes a node.
+     * Removes a given node from its data structures.
      * 
      * @param member    member to add
     */
@@ -109,10 +109,9 @@ public class LoadBalancer extends DFSNode
     }
     
     /**
-     * Adds a node.
+     * Adds a given node to its data structures.
      * 
      * @param member    member to remove
-     * @param vNodes    number of virtual nodes associated to the node
     */
     public void addNode( final GossipMember member )
     {

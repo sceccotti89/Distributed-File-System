@@ -18,6 +18,7 @@ import com.google.common.base.Preconditions;
 import client.manager.ClientSynchronizer;
 import client.manager.DFSManager;
 import distributed_fs.exception.DFSException;
+import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
@@ -145,8 +146,6 @@ public class DFSService extends DFSManager implements IDFSService
             LOGGER.error( "Sorry but the service is closed." );
             return null;
         }
-	    
-		LOGGER.info( "Synchonizing..." );
 		
 		if(!initialized) {
             throw new DFSException( "The system has not been initialized.\n" +
@@ -158,12 +157,13 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		// Here the name of the file is not important.
 		final String fileName = "";
-		if(!contactRemoteNode( fileName, Message.GET_ALL ))
+		TCPSession session = null;
+		if((session = contactRemoteNode( fileName, Message.GET_ALL )) == null)
 		    return null;
 		
 		try{
 			//LOGGER.debug( "Sending message..." );
-			sendGetAllMessage( fileName );
+			sendGetAllMessage( session, fileName );
 			//LOGGER.debug( "Request message sent" );
 			
 			if(useLoadBalancer) {
@@ -171,7 +171,7 @@ public class DFSService extends DFSManager implements IDFSService
 			    if(!checkResponse( session, "GET_ALL", true ))
 	                throw new IOException();
 			    
-			    if(!waitRemoteConnection())
+			    if((session = waitRemoteConnection( session )) == null)
                     throw new IOException();
             }
 			
@@ -209,13 +209,14 @@ public class DFSService extends DFSManager implements IDFSService
 		boolean unlock = false;
 		
 		String normFileName = database.normalizeFileName( fileName );
-		if(!contactRemoteNode( normFileName, Message.GET ))
+		TCPSession session = null;
+		if((session = contactRemoteNode( normFileName, Message.GET )) == null)
 			return null;
 		
 		try {
 			// Send the request.
 			//LOGGER.info( "Sending message..." );
-			sendGetMessage( normFileName );
+			sendGetMessage( session, normFileName );
 			//LOGGER.info( "Message sent" );
 			
 			// Checks whether the load balancer has found an available node,
@@ -225,7 +226,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			if(useLoadBalancer) {
 			    // Checks whether the request has been forwarded to the storage node.
-			    if(!waitRemoteConnection() ||
+			    if((session = waitRemoteConnection( session )) == null ||
     			   !checkResponse( session, "GET", true ))
     				throw new IOException();
 			}
@@ -338,7 +339,8 @@ public class DFSService extends DFSManager implements IDFSService
             file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
         }
 		
-        if(!contactRemoteNode( normFileName, Message.PUT )) {
+		TCPSession session = null;
+        if((session = contactRemoteNode( normFileName, Message.PUT )) == null) {
             lock.unlock();
             return false;
         }
@@ -351,7 +353,7 @@ public class DFSService extends DFSManager implements IDFSService
 			// Send the file.
 			RemoteFile rFile = new RemoteFile( file, dbRoot );
 			rFile.setDeleted( false, dbRoot );
-			sendPutMessage( rFile, hintedHandoff );
+			sendPutMessage( session, rFile, hintedHandoff );
 			//LOGGER.info( "File sent" );
 			
 			// Checks whether the load balancer has found an available node,
@@ -361,7 +363,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			if(useLoadBalancer) {
 			    // Checks whether the request has been forwarded to the storage node.
-			    if(!waitRemoteConnection() ||
+			    if((session = waitRemoteConnection( session )) == null ||
     			   !checkResponse( session, "PUT", true ))
     				throw new IOException();
 			}
@@ -439,13 +441,14 @@ public class DFSService extends DFSManager implements IDFSService
             file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
 		}
 		
-		if(!contactRemoteNode( normFileName, Message.DELETE )) {
+		TCPSession session = null;
+		if((session = contactRemoteNode( normFileName, Message.DELETE )) == null) {
 			lock.unlock();
 		    return false;
 		}
 		
 		try {
-			sendDeleteMessage( file, hintedHandoff );
+			sendDeleteMessage( session, file, hintedHandoff );
 			
 			// Checks whether the load balancer has found an available node,
             // or (with no balancers) if the quorum has been completed successfully.
@@ -454,7 +457,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			if(useLoadBalancer) {
 			    // Checks whether the request has been forwarded to the storage node.
-			    if(!waitRemoteConnection() ||
+			    if((session = waitRemoteConnection( session )) == null ||
     			   !checkResponse( session, "DELETE", true ))
     				throw new IOException();
 			}
@@ -470,14 +473,15 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		catch( IOException e ) {
 			e.printStackTrace();
-			LOGGER.info( "Operation DELETE for \"" + fileName + "\" not performed." +
+			LOGGER.info( "Operation DELETE for \"" + fileName + "\" not performed. " +
 			             "Try again later." );
 			completed = false;
 		}
 		
 		lock.unlock();
 		
-		LOGGER.info( "DELETE operation for \"" + fileName + "\" completed successfully." );
+		if(completed)
+		    LOGGER.info( "DELETE operation for \"" + fileName + "\" completed successfully." );
 		session.close();
 		
 		return completed;
@@ -490,39 +494,41 @@ public class DFSService extends DFSManager implements IDFSService
 	}
 	
 	/**
-     * Try a connection with the first available remote node.
+     * Tries a connection with the first available remote node.
      * 
      * @param fileName    name of the file
      * @param opType      operation type
      * 
-     * @return {@code true} if at least one remote node is available,
-     *         {@code false} otherwise.
+     * @return the TCP session if at least one remote node is available,
+     *         {@code null} otherwise.
     */
-	private boolean contactRemoteNode( final String fileName, final byte opType )
+	private TCPSession contactRemoteNode( final String fileName, final byte opType )
 	{
-	    if(useLoadBalancer && contactLoadBalancerNode( opType ))
-	        return true;
+	    TCPSession session;
 	    
-	    if(!useLoadBalancer && contactStorageNode( fileName, opType ))
-	        return true;
+	    if(useLoadBalancer && (session = contactLoadBalancerNode( opType )) != null)
+	        return session;
 	    
-	    return false;
+	    if(!useLoadBalancer && (session = contactStorageNode( fileName, opType )) != null)
+	        return session;
+	    
+	    return null;
 	}
 	
 	/**
-	 * Try a connection with the first available LoadBalancer node.
+	 * Tries a connection with the first available LoadBalancer node.
 	 * 
 	 * @param opType   type of the operation
 	 * 
-	 * @return {@code true} if at least one remote node is available,
+	 * @return the TCP session if at least one remote node is available,
 	 * 		   {@code false} otherwise.
 	*/
-	private boolean contactLoadBalancerNode( final byte opType )
+	private TCPSession contactLoadBalancerNode( final byte opType )
 	{
 	    if(opType != Message.GET_ALL)
 	        LOGGER.info( "Contacting a balancer node..." );
 		
-		session = null;
+		TCPSession session = null;
 		HashSet<String> filterAddress = new HashSet<>();
 		List<GossipMember> nodes = new ArrayList<>( loadBalancers );
 		
@@ -549,34 +555,34 @@ public class DFSService extends DFSManager implements IDFSService
 		if(session == null) {
 		    if(opType != Message.GET_ALL)
 		        LOGGER.error( "Sorry, but the service is not available. Retry later." );
-			return false;
+			return null;
 		}
 		
-		return true;
+		return session;
 	}
 	
 	/**
-     * Try a connection with the first available StorageNode node.
+     * Tries a connection with the first available StorageNode node.
      * 
      * @param fileName    name of the file
      * @param opType      operation type
      * 
-     * @return {@code true} if at least one remote node is available,
-     *         {@code false} otherwise.
+     * @return the TCP session if at least one remote node is available,
+     *         {@code null} otherwise.
     */
-    private boolean contactStorageNode( final String fileName, final byte opType )
+    private TCPSession contactStorageNode( final String fileName, final byte opType )
     {
         if(opType != Message.GET_ALL)
             LOGGER.info( "Contacting a storage node..." );
         
         String fileId = DFSUtils.getId( fileName );
-        session = null;
+        TCPSession session = null;
         List<GossipMember> nodes = null;
         synchronized( cHasher ) {
             String nodeId = cHasher.getNextBucket( fileId );
-            if(nodeId == null) return false;
+            if(nodeId == null) return null;
             GossipMember node = cHasher.getBucket( nodeId );
-            if(node == null) return false;
+            if(node == null) return null;
             nodes = getNodesFromPreferenceList( nodeId, node );
         }
         
@@ -589,7 +595,7 @@ public class DFSService extends DFSManager implements IDFSService
                 try {
                     session = net.tryConnect( member.getHost(), member.getPort() + DFSNode.PORT_OFFSET, 2000 );
                     destId = member.getId();
-                    return true;
+                    return session;
                 } catch( IOException e ) {
                     // Ignored.
                     //e.printStackTrace();
@@ -605,12 +611,12 @@ public class DFSService extends DFSManager implements IDFSService
         
         // Start now the background thread
         // for the membership.
-        if(nodeDown)
+        if(nodeDown && listMgr_t.isAlive())
             listMgr_t.wakeUp();
         
         if(opType != Message.GET_ALL)
             LOGGER.error( "Sorry, but the service is not available. Retry later." );
-        return false;
+        return null;
     }
     
     /**
@@ -674,15 +680,16 @@ public class DFSService extends DFSManager implements IDFSService
     /**
 	 * Wait the incoming connection from the StorageNode.
 	 * 
-	 * @return {@code true} if the connection if it has been established,
-	 * 		   {@code false} otherwise
+	 * @param session  the current TCP session
+	 * 
+	 * @return the TCP session if the connection if it has been established,
+	 * 		   {@code null} otherwise
 	*/
-	private boolean waitRemoteConnection() throws IOException
+	private TCPSession waitRemoteConnection( final TCPSession session ) throws IOException
 	{
 	    session.close();
 		LOGGER.info( "Wait the incoming connection..." );
-		session = net.waitForConnection();
-		return (session != null);
+		return net.waitForConnection();
 	}
 	
 	/**
@@ -716,8 +723,8 @@ public class DFSService extends DFSManager implements IDFSService
 	    if(!disableSyncThread)
 	        syncClient.shutDown();
 		
-		if(session != null && !session.isClosed())
-			session.close();
+		//if(session != null && !session.isClosed())
+			//session.close();
 		net.close();
 		
 		if(!testing)

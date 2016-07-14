@@ -730,8 +730,8 @@ public class StorageNode extends DFSNode
 	/**
 	 * Start a thread, replacing an inactive one.
 	 * 
-	 * @param threadPool
-	 * @param state
+	 * @param threadPool   the pool of threads
+	 * @param state        the state of the dead Thread
 	*/
 	public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException
 	{

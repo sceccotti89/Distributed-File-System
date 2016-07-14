@@ -4,6 +4,7 @@
 
 package distributed_fs.net;
 
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class Networking
 		return buffer.array();
 	}
 	
-	public class TCPSession
+	public class TCPSession implements Closeable
 	{
 		private final DataInputStream in;
 		private final DataOutputStream out;
@@ -197,13 +198,7 @@ public class Networking
 			}
 		}
 		
-		/**
-	     * Closes this stream and releases any system resources associated
-	     * with it. If the stream is already closed then invoking this
-	     * method has no effect.
-	     *
-	     * @throws IOException if an I/O error occurs
-	    */
+		@Override
 		public void close()
 		{
 			if(!close) {
@@ -219,7 +214,7 @@ public class Networking
 		}
 	}
 	
-	public static class TCPnet extends Networking
+	public static class TCPnet extends Networking implements Closeable
 	{
 		private ServerSocket servSocket;
 		private int soTimeout = 0;
@@ -333,13 +328,7 @@ public class Networking
 			return session;
 		}
 
-		/**
-         * Closes this stream and releases any system resources associated
-         * with it. If the stream is already closed then invoking this
-         * method has no effect.
-         *
-         * @throws IOException if an I/O error occurs
-        */
+		@Override
 		public void close()
 		{
 		    if(!closed) {
@@ -357,7 +346,7 @@ public class Networking
 		}
 	}
 	
-	public static class UDPnet extends Networking
+	public static class UDPnet extends Networking implements Closeable
 	{
 		//private int soTimeout = 0;
 		private MulticastSocket udpSocket;
@@ -481,13 +470,7 @@ public class Networking
 			return DFSUtils.getNextBytes( buffer );
 		}
 		
-		/**
-         * Closes this stream and releases any system resources associated
-         * with it. If the stream is already closed then invoking this
-         * method has no effect.
-         *
-         * @throws IOException if an I/O error occurs
-        */
+		@Override
 		public void close()
 		{
 		    if(!closed) {

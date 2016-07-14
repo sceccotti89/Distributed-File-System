@@ -66,50 +66,63 @@ public class AntiEntropySenderThread extends AntiEntropyThread
         }
 		
 		while(!shutDown.get()) {
-		    // Each virtual node sends the Merkle tree to its successor node,
-			// and to a random predecessor node.
+		    // Each virtual node sends the Merkle tree to a
+		    // random successor and predecessor node.
 			List<String> vNodes = cHasher.getVirtualBucketsFor( me );
 			for(String vNodeId : vNodes) {
-			    // The successor node.
-			    String succId = cHasher.getNextBucket( vNodeId );
-			    GossipMember succNode;
-			    if(succId != null && (succNode = cHasher.getBucket( succId )) != null) {
-					if(!addresses.contains( succNode.getAddress() )) {
-						addresses.add( succNode.getAddress() );
-						try{ startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN ); }
-						catch( IOException | InterruptedException e ){
-						    // Ignored.
-						    //e.printStackTrace();
-						    //System.err.println( "Node: " + me );
-						}
-					}
-				}
-			    
-			    List<String> nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
-				while(nodes.size() > 0) {
-				    if(shutDown.get())
-	                    break;
-				    
-				    // A random predecessor node.
-				    String randomPeer = selectPartner( nodes );
-					GossipMember node = cHasher.getBucket( randomPeer );
-					if(node != null) {
-						try {
-							startAntiEntropy( node, vNodeId, randomPeer, MERKLE_FROM_REPLICA );
-							break;
-						} catch( IOException | InterruptedException e ) {
-						    // Ignored.
-						    //e.printStackTrace();
-						    //System.err.println( "Node: " + me + ", Contacting: " + node );
-						    /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
-						                        ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
-						                        ", To: " + cHasher.getBucket( randomPeer ) +
-						                        ", Contacting: " + node );*/
-						}
-					}
-					
-					nodes.remove( randomPeer );
-				}
+			    List<String> nodes = getSuccessorNodes( vNodeId, QuorumSession.getMaxNodes() );
+                while(nodes.size() > 0) {
+                    if(shutDown.get())
+                        break;
+                    
+                    // A random successor node.
+                    int randomNodeIndex = selectPartner( nodes );
+                    String randomPeer = nodes.get( randomNodeIndex );
+                    GossipMember succNode = cHasher.getBucket( randomPeer );
+                    if(succNode != null) {
+                        try {
+                            startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN );
+                            break;
+                        } catch( IOException | InterruptedException e ) {
+                            // Ignored.
+                            //e.printStackTrace();
+                            //System.err.println( "Node: " + me + ", Contacting: " + node );
+                            /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
+                                                ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
+                                                ", To: " + cHasher.getBucket( randomPeer ) +
+                                                ", Contacting: " + node );*/
+                        }
+                    }
+                    
+                    nodes.remove( randomNodeIndex );
+                }
+                
+                nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
+                while(nodes.size() > 0) {
+                    if(shutDown.get())
+                        break;
+                    
+                    // A random predecessor node.
+                    int randomNodeIndex = selectPartner( nodes );
+                    String randomPeer = nodes.get( randomNodeIndex );
+                    GossipMember prevNode = cHasher.getBucket( randomPeer );
+                    if(prevNode != null) {
+                        try {
+                            startAntiEntropy( prevNode, vNodeId, randomPeer, MERKLE_FROM_REPLICA );
+                            break;
+                        } catch( IOException | InterruptedException e ) {
+                            // Ignored.
+                            //e.printStackTrace();
+                            //System.err.println( "Node: " + me + ", Contacting: " + node );
+                            /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
+                                                ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
+                                                ", To: " + cHasher.getBucket( randomPeer ) +
+                                                ", Contacting: " + node );*/
+                        }
+                    }
+                    
+                    nodes.remove( randomNodeIndex );
+                }
 			}
 			
 			try{ Thread.sleep( EXCH_TIMER ); }
@@ -324,6 +337,43 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		
 		return predecessors;
 	}
+	
+	/**
+     * Returns the successor nodes respect to the input id.
+     * 
+     * @param id            source node identifier
+     * @param numNodes      maximum number of nodes required
+     * 
+     * @return the list of successor nodes. It could contains less than num_nodes elements.
+    */
+    private List<String> getSuccessorNodes( final String id, final int numNodes )
+    {
+        List<String> successors = new ArrayList<>( numNodes );
+        int size = 0;
+        
+        addresses.clear();
+        addresses.add( me.getAddress() );
+        
+        // Choose the nodes whose address is different than this node.
+        String currId = id, prev;
+        while(size < numNodes) {
+            prev = cHasher.getNextBucket( currId );
+            if(prev == null || prev.equals( id ))
+                break;
+            
+            GossipMember node = cHasher.getBucket( prev );
+            if(node != null) {
+                currId = prev;
+                if(!addresses.contains( node.getAddress() )) {
+                    successors.add( currId = prev );
+                    addresses.add( node.getAddress() );
+                    size++;
+                }
+            }
+        }
+        
+        return successors;
+    }
 	
 	@Override
 	public void close()

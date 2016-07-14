@@ -100,22 +100,20 @@ public abstract class AntiEntropyThread extends Thread
 	}
 	
 	/**
-	 * [The selectToSend() function.] Find a random peer from the local
-	 * membership list. In the case where this client is the only member in the
-	 * list, this method will return null.
-	 *
-	 * @return Member random member if list is greater than 1, null otherwise
-	 */
-	protected String selectPartner( final List<String> memberList ) 
-	{
-	    String member = null;
-		if (memberList.size() > 0) {
-			int randomNeighborIndex = random.nextInt( memberList.size() );
-			member = memberList.get( randomNeighborIndex );
-		}
-		
-		return member;
-	}
+     * [The selectToSend() function.] Find a random peer from the local
+     * membership list. In the case where this client is the only member in the
+     * list, this method will return null.
+     *
+     * @return Index of the random member if list is greater than 1, -1 otherwise
+    */
+    protected int selectPartner( final List<String> memberList ) 
+    {
+        int randomNeighborIndex = -1;
+        if (memberList.size() > 0)
+            randomNeighborIndex = random.nextInt( memberList.size() );
+        
+        return randomNeighborIndex;
+    }
 	
 	public void close()
 	{

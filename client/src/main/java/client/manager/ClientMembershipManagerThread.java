@@ -33,7 +33,7 @@ public class ClientMembershipManagerThread extends Thread
     
     private static final Logger LOGGER = Logger.getLogger( ClientMembershipManagerThread.class );
     private static final int TIMER_REQUEST = 10000; // 10 seconds.
-    private static final int MAX_POOL_SIZE = 20; // Maximum number of nodes.
+    private static final int MAX_POOL_SIZE = 128; // Maximum number of nodes.
     
     
     

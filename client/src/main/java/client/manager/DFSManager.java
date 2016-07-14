@@ -41,7 +41,6 @@ import gossiping.RemoteGossipMember;
 public abstract class DFSManager
 {
 	protected TCPnet net;
-	protected TCPSession session;
 	protected String address;
 	protected int port;
 	protected AtomicBoolean closed = new AtomicBoolean( false );
@@ -219,7 +218,7 @@ public abstract class DFSManager
         }
     }
 	
-	protected void sendPutMessage( final RemoteFile file, final String hintedHandoff ) throws IOException
+	protected void sendPutMessage( final TCPSession session, final RemoteFile file, final String hintedHandoff ) throws IOException
 	{
 	    LOGGER.info( "Sending data..." );
 		
@@ -237,7 +236,7 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected void sendGetMessage( final String fileName ) throws IOException
+	protected void sendGetMessage( final TCPSession session, final String fileName ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
 		
@@ -260,7 +259,7 @@ public abstract class DFSManager
 	    return readGetAllResponse( session );
     }
 	
-	protected void sendGetAllMessage( final String fileName ) throws IOException
+	protected void sendGetAllMessage( final TCPSession session, final String fileName ) throws IOException
     {
 	    MessageRequest message;
 	    
@@ -298,7 +297,7 @@ public abstract class DFSManager
         return files;
 	}
 	
-	protected void sendDeleteMessage( final DistributedFile file, final String hintedHandoff ) throws IOException
+	protected void sendDeleteMessage( final TCPSession session, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
 		
