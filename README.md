@@ -109,7 +109,7 @@ Optional parameters:
 - `-locale` start the system in the local environment
 - `-h [--help]` show the help informations
 
-The operations provided by the client, in addition to the **get, put and delete** mentioned before, are:
+The operations provided by the client, in addition to the **get**, **put and delete** mentioned before, are:
 
 - **list** print on screen a list of all the files present in the client’s database;
 - **enableLB** enable the utilization of the remote load balancer nodes;
