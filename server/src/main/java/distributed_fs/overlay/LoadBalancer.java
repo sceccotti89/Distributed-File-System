@@ -228,7 +228,8 @@ public class LoadBalancer extends DFSNode
 			clientAddress = data.getMetadata().getClientAddress();
 			LOGGER.info( "[LB] New request from: " + clientAddress );
 			
-			String fileName = data.getFileName();
+			String fileName = (opType == Message.GET_ALL) ? DFSUtils.createRandomFile() :
+                                                            data.getFileName();
 			
 			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
 			
@@ -330,13 +331,9 @@ public class LoadBalancer extends DFSNode
 		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
 		List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
 		if(nodes == null) {
-		    // TODO se modifico i test rimuovendo e aggiungendo dopo il nodo in questione
-		    // TODO potrei aggiungere in testa questo, che sarebbe anche piu' sensato.
-		    nodes = new ArrayList<>( PREFERENCE_LIST );
+		    nodes = new ArrayList<>( PREFERENCE_LIST + 1 );
 		    nodes.add( sourceNode );
 		    nodes.addAll( getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST ) );
-		    //nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
-		    //nodes.add( sourceNode );
 		    state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
 		}
 		return nodes;
@@ -372,25 +369,26 @@ public class LoadBalancer extends DFSNode
 	/** 
 	 * Forward the message to the target node.
 	 * 
-	 * @param session
-	 * @param opType
-	 * @param destId
-	 * @param hintedHandoff
-	 * @param fileName
-	 * @param file
+	 * @param session          the TCP session opened with the client
+     * @param opType           the operation type
+     * @param destId           the destination identifier
+     * @param hintedHandoff    the hinted handoff address
+     * @param fileName         the requested file
+     * @param fileContent      content of the file
 	*/
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
-	                             final String hintedHandoff, final String fileName, final byte[] file ) throws IOException
+	                             final String hintedHandoff, final String fileName, final byte[] fileContent )
+	                                     throws IOException
 	{
 	    if(!replacedThread || actionsList.isEmpty()) {
     		MessageRequest message;
     		Metadata meta = new Metadata( clientAddress, hintedHandoff );
     		
     		if(opType == Message.GET_ALL)
-    			message = new MessageRequest( opType, fileName, null, false, null, meta );
+    			message = new MessageRequest( opType, "", null, false, null, meta );
     		else {
         		if(opType != Message.GET) // PUT and DELETE operations
-        		    message = new MessageRequest( opType, fileName, file, true, destId, meta );
+        		    message = new MessageRequest( opType, fileName, fileContent, true, destId, meta );
         		else // GET operation
         		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
     		}
