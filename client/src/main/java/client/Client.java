@@ -20,7 +20,7 @@ import org.json.JSONObject;
 import client.manager.SystemSimulation;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
-import distributed_fs.storage.DFSDatabase.DBListener;
+import distributed_fs.storage.DBManager.DBListener;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
@@ -53,7 +53,8 @@ public class Client implements DBListener
 	public static void main( final String args[] )
 	        throws ParseException, IOException, DFSException, InterruptedException
     {
-	    ClientArgsParser.parseArgs( args );
+	    //ClientArgsParser.parseArgs( args );
+	    ClientArgsParser.parseArgs( new String[]{ "-locale" } );
 	    if(ClientArgsParser.hasOnlyHelpOptions())
             return;
         
@@ -164,7 +165,8 @@ public class Client implements DBListener
 							service.put( op.file );
 							break;
 						case( Message.DELETE ):
-							service.delete( op.file );
+						    if(checkDeleteConfirm())
+						        service.delete( op.file );
 							break;
 					}
 				}
@@ -269,6 +271,18 @@ public class Client implements DBListener
 			System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
 		
 		return null;
+	}
+	
+	/**
+	 * Checks the confirm to remove a file.
+	 * 
+	 * @return {@code true} to confirm, {@code false} otherwise
+	*/
+	private boolean checkDeleteConfirm() throws IOException
+	{
+	    System.out.print( "[CLIENT] Do you really want to delete the file (y/n)? " );
+	    String line = reader.readLine( "" );
+	    return line.isEmpty() || line.equalsIgnoreCase( "y" ) || line.equalsIgnoreCase( "yes" );
 	}
 	
 	@Override

@@ -25,6 +25,7 @@ import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
+import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.MembershipManagerThread;
 import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
@@ -32,7 +33,6 @@ import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileTransferThread;
 import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
@@ -100,7 +100,8 @@ public class StorageNode extends DFSNode
 		
 		if(startupMembers != null) {
             for(GossipMember member : startupMembers) {
-                if(member.getNodeType() != GossipMember.LOAD_BALANCER)
+                if(member.getVirtualNodes() > 0 &&
+                   member.getNodeType() != GossipMember.LOAD_BALANCER)
                     cHasher.addBucket( member, member.getVirtualNodes() );
             }
         }
@@ -191,7 +192,6 @@ public class StorageNode extends DFSNode
 		LOGGER.info( "[SN] Waiting on: " + _address + ":" + port );
 		
 		try {
-			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown.get()) {
 				TCPSession session = _net.waitForConnection( _address, port );
 				if(session != null) {
@@ -215,7 +215,10 @@ public class StorageNode extends DFSNode
 			}
 		}
 		catch( IOException e ) {
-		    //e.printStackTrace();
+		    if(!shutDown.get()) {
+                e.printStackTrace();
+                close();
+            }
 		}
 		
 		LOGGER.info( "[SN] '" + _address + ":" + port + "' Closed." );
@@ -350,7 +353,7 @@ public class StorageNode extends DFSNode
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
 		    clock = file.getVersion().incremented( _address );
-		    clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff );
+		    clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff, true );
 		    state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
 		    actionsList.addLast( DONE );
 		}
@@ -366,7 +369,7 @@ public class StorageNode extends DFSNode
 		    file.setVersion( clock );
 		    
 			// Send, in parallel, the file to the replica nodes.
-			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, file.isDirectory(), hintedHandoff ) );
+			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, hintedHandoff ) );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
@@ -460,7 +463,63 @@ public class StorageNode extends DFSNode
 		}
 	}
 	
-	/**
+	/** 
+     * Sends the actual request to the replica nodes.
+     * 
+     * @param fileName		name of the file to send
+     * 
+     * @return list of sessions opened with other replica nodes.
+    */
+    private List<TCPSession> sendRequestToReplicaNodes( final String fileName )
+    {
+    	List<TCPSession> openSessions = state.getValue( ThreadState.OPENED_SESSIONS );
+    	if(openSessions == null) {
+    	    openSessions = new ArrayList<>( QuorumSession.getMaxNodes() );
+    	    state.setValue( ThreadState.OPENED_SESSIONS, openSessions );
+    	}
+    	
+    	LOGGER.info( "Send request to replica nodes..." );
+    	int errNodes = 0;
+    	for(QuorumNode qNode : agreedNodes) {
+    		try{
+    			GossipMember node = qNode.getNode();
+    			TCPSession session;
+    			// Get the remote connection.
+    			if(!replacedThread || actionsList.isEmpty()) {
+    			    session = _net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
+    			    state.setValue( ThreadState.REPLICA_REQUEST_CONN, session );
+    			    actionsList.addLast( DONE );
+    			}
+    			else {
+    			    session = state.getValue( ThreadState.REPLICA_REQUEST_CONN );
+    			    actionsList.removeFirst();
+    			}
+    			
+    			// Check the response (if any).
+    			if(session != null) {
+    			    if(!replacedThread || actionsList.isEmpty()) {
+    				    MessageRequest msg = new MessageRequest( Message.GET, fileName, DFSUtils.longToByteArray( qNode.getId() ) );
+    					session.sendMessage( msg, true );
+    					openSessions.add( session );
+    					actionsList.add( DONE );
+    			    }
+    			    else
+    			        actionsList.removeFirst();
+    			}
+    			else {
+    			    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
+    			        return null;
+    			}
+    		} catch( IOException e ) {
+    		    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
+                    return null;
+    		}
+    	}
+    	
+    	return openSessions;
+    }
+
+    /**
 	 * Gets the replica versions.
 	 * 
 	 * @param filesToSend      
@@ -576,7 +635,7 @@ public class StorageNode extends DFSNode
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
     		clock = file.getVersion().incremented( _address );
-    		clock = fMgr.getDatabase().deleteFile( file.getName(), clock, hintedHandoff );
+    		clock = fMgr.getDatabase().deleteFile( file.getName(), clock, file.isDirectory(), hintedHandoff );
     		state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
             actionsList.addLast( DONE );
         }
@@ -603,62 +662,6 @@ public class StorageNode extends DFSNode
 		}
 		
 		sendClientResponse( clock );
-	}
-	
-	/** 
-	 * Sends the actual request to the replica nodes.
-	 * 
-	 * @param fileName		name of the file to send
-	 * 
-	 * @return list of sessions opened with other replica nodes.
-	*/
-	private List<TCPSession> sendRequestToReplicaNodes( final String fileName )
-	{
-		List<TCPSession> openSessions = state.getValue( ThreadState.OPENED_SESSIONS );
-		if(openSessions == null) {
-		    openSessions = new ArrayList<>( QuorumSession.getMaxNodes() );
-		    state.setValue( ThreadState.OPENED_SESSIONS, openSessions );
-		}
-		
-		LOGGER.info( "Send request to replica nodes..." );
-		int errNodes = 0;
-		for(QuorumNode qNode : agreedNodes) {
-			try{
-				GossipMember node = qNode.getNode();
-				TCPSession session;
-				// Get the remote connection.
-				if(!replacedThread || actionsList.isEmpty()) {
-				    session = _net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
-				    state.setValue( ThreadState.REPLICA_REQUEST_CONN, session );
-				    actionsList.addLast( DONE );
-				}
-				else {
-				    session = state.getValue( ThreadState.REPLICA_REQUEST_CONN );
-				    actionsList.removeFirst();
-				}
-				
-				// Check the response (if any).
-				if(session != null) {
-				    if(!replacedThread || actionsList.isEmpty()) {
-    				    MessageRequest msg = new MessageRequest( Message.GET, fileName, DFSUtils.longToByteArray( qNode.getId() ) );
-    					session.sendMessage( msg, true );
-    					openSessions.add( session );
-    					actionsList.add( DONE );
-				    }
-				    else
-				        actionsList.removeFirst();
-				}
-				else {
-				    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
-				        return null;
-				}
-			} catch( IOException e ) {
-			    if(!QuorumSession.unmakeQuorum( ++errNodes, Message.GET ))
-                    return null;
-			}
-		}
-		
-		return openSessions;
 	}
 	
 	/** 

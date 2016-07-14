@@ -38,10 +38,10 @@ import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.NodeStatistics;
 import distributed_fs.net.messages.Message;
+import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.resources.ResourceLoader;
 import gossiping.GossipMember;
@@ -111,6 +111,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
 		_net = new TCPnet();
+		_net.setSoTimeout( WAIT_CLOSE );
 		
 		//threadPool = Executors.newCachedThreadPool();
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );

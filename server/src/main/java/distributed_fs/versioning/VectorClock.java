@@ -208,6 +208,14 @@ public class VectorClock implements Version, Serializable
         return max;
     }
     
+    /**
+     * Merges this clock with the given one taking all the single versions
+     * and the maximum between the common versions.
+     * 
+     * @param clock    the given clock
+     * 
+     * @return a new clock.
+    */
     public VectorClock merge( final VectorClock clock ) 
     {
         VectorClock newClock = new VectorClock();

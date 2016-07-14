@@ -19,7 +19,6 @@ import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;
-import distributed_fs.storage.FileTransferThread;
 import gossiping.GossipMember;
 
 public class ThreadMonitor extends Thread

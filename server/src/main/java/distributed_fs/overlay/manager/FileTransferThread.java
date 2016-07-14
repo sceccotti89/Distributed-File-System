@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.storage;
+package distributed_fs.overlay.manager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -21,10 +21,12 @@ import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
-import distributed_fs.overlay.manager.QuorumThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.overlay.manager.anti_entropy.AntiEntropyReceiverThread;
 import distributed_fs.overlay.manager.anti_entropy.AntiEntropySenderThread;
+import distributed_fs.storage.DFSDatabase;
+import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
@@ -168,13 +170,13 @@ public class FileTransferThread extends Thread
 			if(data.get() == Message.PUT) {
 				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.saveFile( file, file.getVersion(), null );
+				database.saveFile( file, file.getVersion(), null, true );
 			}
 			else {
 			    // DELETE operation.
 				DistributedFile file = DFSUtils.deserializeObject( DFSUtils.getNextBytes( data ) );
 				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.deleteFile( file.getName(), file.getVersion(), file.getHintedHandoff() );
+				database.deleteFile( file );
 				//System.out.println( "ID: " + file.getId() );
 			}
 		}

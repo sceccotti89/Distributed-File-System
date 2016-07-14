@@ -4,7 +4,6 @@
 
 package distributed_fs.net;
 
-import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -64,7 +63,7 @@ public class Networking
 		return buffer.array();
 	}
 	
-	public class TCPSession implements Closeable
+	public class TCPSession
 	{
 		private final DataInputStream in;
 		private final DataOutputStream out;
@@ -198,7 +197,13 @@ public class Networking
 			}
 		}
 		
-		@Override
+		/**
+	     * Closes this stream and releases any system resources associated
+	     * with it. If the stream is already closed then invoking this
+	     * method has no effect.
+	     *
+	     * @throws IOException if an I/O error occurs
+	    */
 		public void close()
 		{
 			if(!close) {
@@ -214,12 +219,13 @@ public class Networking
 		}
 	}
 	
-	public static class TCPnet extends Networking implements Closeable
+	public static class TCPnet extends Networking
 	{
 		private ServerSocket servSocket;
 		private int soTimeout = 0;
 		/** Keep track of all the opened TCP sessions. */ 
 		private List<TCPSession> sessions = new ArrayList<>( 32 );
+		private boolean closed = false;
 		
 		public TCPnet() {}
 		
@@ -327,22 +333,31 @@ public class Networking
 			return session;
 		}
 
-		@Override
+		/**
+         * Closes this stream and releases any system resources associated
+         * with it. If the stream is already closed then invoking this
+         * method has no effect.
+         *
+         * @throws IOException if an I/O error occurs
+        */
 		public void close()
 		{
-			try {
-				for(TCPSession session : sessions)
-					session.close();
-				sessions.clear();
-				
-				if(servSocket != null)
-					servSocket.close();
-			}
-			catch( IOException e ){}
+		    if(!closed) {
+    			closed = true;
+		        try {
+    				for(TCPSession session : sessions)
+    					session.close();
+    				sessions.clear();
+    				
+    				if(servSocket != null)
+    					servSocket.close();
+    			}
+    			catch( IOException e ){}
+		    }
 		}
 	}
 	
-	public static class UDPnet extends Networking implements Closeable
+	public static class UDPnet extends Networking
 	{
 		//private int soTimeout = 0;
 		private MulticastSocket udpSocket;
@@ -351,6 +366,8 @@ public class Networking
 		
 		private String srcAddress;
 		private int srcPort;
+		
+		private boolean closed = false;
 		
 		private static final int PORT_GROUP = 4680;
 		private static final String multicastIP = "230.0.1.0";
@@ -464,15 +481,25 @@ public class Networking
 			return DFSUtils.getNextBytes( buffer );
 		}
 		
-		@Override
+		/**
+         * Closes this stream and releases any system resources associated
+         * with it. If the stream is already closed then invoking this
+         * method has no effect.
+         *
+         * @throws IOException if an I/O error occurs
+        */
 		public void close()
 		{
-		    if(!udpSocket.isClosed() && joinMulticastGroup) {
-		        try { udpSocket.leaveGroup( mAddress ); }
-		        catch( IOException e ) { e.printStackTrace(); }
+		    if(!closed) {
+                closed = true;
+                
+    		    if(!udpSocket.isClosed() && joinMulticastGroup) {
+    		        try { udpSocket.leaveGroup( mAddress ); }
+    		        catch( IOException e ) { e.printStackTrace(); }
+    		    }
+    		    
+    			udpSocket.close();
 		    }
-		    
-			udpSocket.close();
 		}
 	}
 }

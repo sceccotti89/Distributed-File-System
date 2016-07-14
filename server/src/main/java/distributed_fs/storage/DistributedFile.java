@@ -12,12 +12,14 @@ import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Version;
 
-public class DistributedFile implements /*IOSerializable,*/ Serializable
+public class DistributedFile implements Serializable
 {
 	private String name;
 	private VectorClock version;
 	private boolean deleted = false;
 	private boolean isDirectory;
+	
+	//private long lastModified;
 	
 	private String fileId;
 	private String HintedHandoff;
@@ -28,27 +30,31 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 	private long currTime, liveness;
 	private static transient final int TTL = 3600000; // 1 hour
 	
-	/* Generated Serial ID */
+	// Generated serial ID.
     private static final long serialVersionUID = 7522473187709784849L;
-
-    /**
-	 * Constructor used when the file has been serialized with
-	 * the {@link IOSerializable} interface.
-	*/
-	/*public DistributedFile( final byte[] data )
-	{
-		write( data );
-		fileId = DFSUtils.byteBufferToHex( DFSUtils.getId( this.name ) );
-	}*/
+    
+    
+    
 	
     /**
-     * General constructor.
+     * Constructor.
     */
-	public DistributedFile( final RemoteFile file, final boolean isDirectory, final String hintedHandoff )
+    public DistributedFile( final RemoteFile file )
+    {
+        this( file, null );
+    }
+    
+    /**
+     * Constructor.
+    */
+	public DistributedFile( final RemoteFile file, final String hintedHandoff )
 	{
-		this( file.getName(), isDirectory, file.getVersion(), hintedHandoff );
+		this( file.getName(), file.isDirectory(), file.getVersion(), hintedHandoff );
 	}
 	
+	/**
+     * Constructor.
+    */
 	public DistributedFile( final String name, final boolean isDirectory, final VectorClock version, final String hintedHandoff )
 	{
 		this.name = name;
@@ -78,7 +84,11 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 	    return fileId;
 	}
 	
-	public boolean isDeleted() {
+	public boolean isDirectory() {
+    	return isDirectory;
+    }
+
+    public boolean isDeleted() {
 		return deleted;
 	}
 	
@@ -91,10 +101,6 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 			else
 				liveness = 0;
 		}
-	}
-	
-	public boolean isDirectory() {
-		return isDirectory;
 	}
 	
 	/**
@@ -162,6 +168,22 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 		version.incrementVersion( nodeId );
 	}
 	
+	/**
+	 * Sets the last updated of the file.
+	 * 
+	 * @param timestamp    time of the last update
+	*/
+	/*public void setLastModified( final long lastModified ) {
+	    this.lastModified = lastModified;
+	}*/
+	
+	/**
+	 * Gets the time of the last updated.
+	*/
+	/*public long lastModified() {
+	    return lastModified;
+	}*/
+	
 	@Override
 	public boolean equals( final Object o )
 	{
@@ -180,41 +202,4 @@ public class DistributedFile implements /*IOSerializable,*/ Serializable
 				", HintedHandoff: " + HintedHandoff +
 				", Deleted: " + deleted + " }";
 	}
-
-	/*@Override
-	public byte[] read()
-	{
-		byte[] clock = DFSUtils.serializeObject( version );
-		int hintedHandoffSize = (HintedHandoff == null) ? 0 : (HintedHandoff.length() + Integer.BYTES);
-		int capacity = Integer.BYTES * 2 + name.length() + clock.length + Byte.BYTES * 2 + Long.BYTES * 2 + hintedHandoffSize;
-		ByteBuffer buffer = ByteBuffer.allocate( capacity );
-		buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
-		buffer.putInt( clock.length ).put( clock );
-		buffer.put( (deleted) ? (byte) 0x1 : (byte) 0x0 );
-		if(deleted) {
-    		buffer.putLong( currTime );
-    		buffer.putLong( liveness );
-		}
-		buffer.put( (isDirectory) ? (byte) 0x1 : (byte) 0x0 );
-		if(hintedHandoffSize > 0)
-			buffer.putInt( HintedHandoff.length() ).put( HintedHandoff.getBytes( StandardCharsets.UTF_8 ) );
-		
-		return buffer.array();
-	}
-
-	@Override
-	public void write( byte[] data )
-	{
-		ByteBuffer buffer = ByteBuffer.wrap( data );
-		name = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-		version = DFSUtils.deserializeObject( DFSUtils.getNextBytes( buffer ) );
-		deleted = (buffer.get() == (byte) 0x1);
-		if(deleted) {
-            currTime = buffer.getLong();
-            liveness = buffer.getLong();
-        }
-		isDirectory = (buffer.get() == (byte) 0x1);
-		if(buffer.remaining() > 0)
-			HintedHandoff = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-	}*/
 }

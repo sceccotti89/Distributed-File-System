@@ -70,7 +70,8 @@ public class LoadBalancer extends DFSNode
 		
 		if(startupMembers != null) {
 		    for(GossipMember member : startupMembers) {
-	            if(member.getNodeType() != GossipMember.LOAD_BALANCER)
+	            if(member.getVirtualNodes() > 0 &&
+	               member.getNodeType() != GossipMember.LOAD_BALANCER)
 	                cHasher.addBucket( member, member.getVirtualNodes() );
 	        }
 		}
@@ -94,6 +95,29 @@ public class LoadBalancer extends DFSNode
         List<GossipMember> members = getStartupMembers( configFile );
         
         return new LoadBalancer( address, port, members );
+    }
+    
+    /**
+     * Removes a node.
+     * 
+     * @param member    member to add
+    */
+    public void removeNode( final GossipMember member ) throws InterruptedException
+    {
+        cHasher.removeBucket( member );
+        runner.getGossipService().getGossipManager().removeMember( member );
+    }
+    
+    /**
+     * Adds a node.
+     * 
+     * @param member    member to remove
+     * @param vNodes    number of virtual nodes associated to the node
+    */
+    public void addNode( final GossipMember member )
+    {
+        cHasher.addBucket( member, member.getVirtualNodes() );
+        runner.getGossipService().getGossipManager().addMember( member );
     }
 	
 	/**
@@ -133,7 +157,6 @@ public class LoadBalancer extends DFSNode
 	    LOGGER.info( "[LB] Waiting on: " + _address + ":" + port );
 	    
 		try {
-			_net.setSoTimeout( WAIT_CLOSE );
 			while(!shutDown.get()) {
 				TCPSession session = _net.waitForConnection( _address, this.port );
 				if(session != null) {
@@ -154,7 +177,12 @@ public class LoadBalancer extends DFSNode
                 }
 			}
 		}
-		catch( IOException e ) {}
+		catch( IOException e ) {
+		    if(!shutDown.get()) {
+		        e.printStackTrace();
+		        close();
+		    }
+		}
 		
 		LOGGER.info( "[LB] '" + _address + ":" + port + "' Closed." );
 	}
@@ -303,8 +331,13 @@ public class LoadBalancer extends DFSNode
 		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
 		List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
 		if(nodes == null) {
-		    nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
+		    // TODO se modifico i test rimuovendo e aggiungendo dopo il nodo in questione
+		    // TODO potrei aggiungere in testa questo, che sarebbe anche piu' sensato.
+		    nodes = new ArrayList<>( PREFERENCE_LIST );
 		    nodes.add( sourceNode );
+		    nodes.addAll( getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST ) );
+		    //nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
+		    //nodes.add( sourceNode );
 		    state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
 		}
 		return nodes;

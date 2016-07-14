@@ -117,6 +117,18 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	    GossipNode node = new GossipNode( member );
         members.put( node, state );
 	}
+	
+	public void removeMember( final GossipMember member )
+	{
+	    GossipNode node = new GossipNode( member );
+        members.remove( node );
+	}
+	
+	public void addMember( final GossipMember member )
+    {
+	    GossipNode node = new GossipNode( member );
+        members.put( node, GossipState.UP );
+    }
 
 	public GossipSettings getSettings() 
 	{
@@ -129,7 +141,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		for(Entry<GossipNode, GossipState> entry : members.entrySet())
 			if(GossipState.UP.equals( entry.getValue() ))
 				up.add( entry.getKey() );
-
+		
 		return Collections.unmodifiableList( up );
 	}
 

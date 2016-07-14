@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Logger;
 
@@ -26,22 +27,31 @@ public class ClientSynchronizer extends Thread
     private final DFSService service;
     private final DFSDatabase database;
     
+    private final ReentrantLock lock;
+    
     private static final Scanner SCAN = new Scanner( System.in );
     
-    // Time to wait before to check the database (30 seconds).
-    private static final int CHECK_TIMER = 30000;
+    // Time to wait before to check the database (0.5 seconds).
+    private static final int DB_CHECK_TIMER = 500;
+    // Time to wait before to synchronize the client (30 seconds).
+    private static final int SYNCH_TIMER = 30000;
+    
     protected static final Logger LOGGER = Logger.getLogger( ClientSynchronizer.class );
     
     
     
     
     
-    public ClientSynchronizer( final DFSService service, final DFSDatabase database )
+    public ClientSynchronizer( final DFSService service,
+                               final DFSDatabase database,
+                               final ReentrantLock lock )
     {
         setName( "ClientSynchronizer" );
         
         this.service = service;
         this.database = database;
+        
+        this.lock = lock;
     }
     
     @Override
@@ -49,26 +59,44 @@ public class ClientSynchronizer extends Thread
     {
         LOGGER.info( "ClientSynchronizer Thread launched." );
         
+        final int tick = SYNCH_TIMER / DB_CHECK_TIMER;
+        int count = tick;
+        
         while(!service.isClosed()) {
             try {
-                // Reload the database.
-                database.loadFiles();
-                List<String> toUpdate = database.getUpdateList();
-                for(String fileName : toUpdate)
-                    service.put( fileName );
-                toUpdate.clear();
+                // First update the database.
+                updateDB();
                 
-                List<RemoteFile> files = service.getAllFiles();
-                if(files != null)
-                    checkFiles( files );
+                // Then looks for updated versions in remote nodes.
+                if(count < tick)
+                    count++;
+                else {
+                    count = 0;
+                    List<RemoteFile> files = service.getAllFiles();
+                    if(files != null)
+                        checkFiles( files );
+                }
             }
             catch( IOException | DFSException e ) {}
             
-            try { sleep( CHECK_TIMER ); }
+            try { sleep( DB_CHECK_TIMER ); }
             catch( InterruptedException e ) { break; }
         }
         
         LOGGER.info( "ClientSynchronizer Thread closed." );
+    }
+    
+    /**
+     * Reload the database looking for some files
+     * that have to be updated.
+    */
+    private void updateDB() throws IOException, DFSException
+    {
+        database.loadFiles();
+        List<String> toUpdate = database.getUpdateList();
+        for(String fileName : toUpdate)
+            service.put( fileName );
+        toUpdate.clear();
     }
     
     /**
@@ -80,65 +108,70 @@ public class ClientSynchronizer extends Thread
     {
         for(RemoteFile file : files) {
             String fileName = file.getName();
+            
+            lock.lock();
+            
             DistributedFile myFile = database.getFile( fileName );
-            //System.out.println( "MY: " + myFile + ", IN_FILE: " + file );
             try {
-                if(myFile == null ||
-                   reconcileVersions( fileName, myFile.getVersion(), file.getVersion() ) == 1) {
+                VectorClock clock = file.getVersion();
+                if(myFile != null) clock = clock.merge( myFile.getVersion() );
+                
+                if(myFile == null || !reconcileVersions( myFile, file )) {
                     // The received file has the most updated version.
                     // Update the file on database.
                     if(!file.isDeleted())
-                        database.saveFile( file, file.getVersion(), null );
+                        database.saveFile( file, clock, null, true );
                     else
-                        database.deleteFile( fileName, file.getVersion(), null );
+                        database.deleteFile( fileName, clock, file.isDirectory(), null );
                 }
                 else {
-                    // The own file has the most updated version.
-                    // Performs the reconciliation sending back the file.
                     if(!myFile.isDeleted())
                         service.put( fileName );
                 }
             }
             catch( IOException e ) {}
+            
+            lock.unlock();
         }
     }
     
     /**
      * Makes the reconciliation among different vector clocks.
      * 
-     * @param fileName     name of the associated file
-     * @param myClock      clock associated to the own file
-     * @param otherClock   clock associated to the received file
+     * @param myFile       the own file
+     * @param otherFile    the received file
      * 
-     * @return Index of the selected file
+     * @return {@code true} if the own file has the most updated version,
+     *         {@code false} otherwise
     */
-    private int reconcileVersions( final String fileName,
-                                   final VectorClock myClock,
-                                   final VectorClock otherClock )
+    private boolean reconcileVersions( final DistributedFile myFile,
+                                       final RemoteFile otherFile )
     {
+        VectorClock myClock = myFile.getVersion();
+        VectorClock otherClock = otherFile.getVersion();
+        
         Occurred occ = myClock.compare( otherClock );
-        if(occ == Occurred.AFTER) return 0;
-        if(occ == Occurred.BEFORE) return 1;
-        return makeReconciliation( fileName, Arrays.asList( myClock, otherClock ) );
+        if(occ == Occurred.AFTER) return true;
+        if(occ == Occurred.BEFORE) return false;
+        return makeReconciliation( Arrays.asList( myFile, new DistributedFile( otherFile ) ) ) == 0;
     }
 
     /**
      * Asks to the client which is the correct version.
      * 
-     * @param fileName  the name of the file
-     * @param clocks    list of vector clocks
+     * @param versions    list of versions for the same file
      * 
      * @return Index of the selected file
     */
-    public synchronized int makeReconciliation( final String fileName, final List<VectorClock> clocks )
+    public synchronized int makeReconciliation( final List<DistributedFile> versions )
     {
-        int size = clocks.size();
+        int size = versions.size();
         if(size == 1)
             return 0;
         
-        System.out.println( "There are multiple versions of the file '" + fileName + "', which are: " );
+        System.out.println( "There are multiple versions of the file '" + versions.get( 0 ).getName() + "', which are: " );
         for(int i = 0; i < size; i++)
-            System.out.println( (i + 1) + ") " + clocks.get( i ) );
+            System.out.println( (i + 1) + ") " + versions.get( i ) );
         
         while(true) {
             System.out.print( "Choose the correct version: " );

@@ -24,33 +24,31 @@ public class DatabaseTest
         
         DFSUtils.deleteDirectory( new File( "Resources" ) );
         DFSUtils.deleteDirectory( new File( "Database" ) );
-        
-        DFSDatabase database = new DFSDatabase( null, null, null );
+		
+		DFSDatabase database = new DFSDatabase( null, null, null );
 		DistributedFile file;
 		
 		for(int i = 1; i <= 10; i++) {
 		    String fileName = "FileTest" + i + ".txt";
-			DFSUtils.existFile( database.getFileSystemRoot() + fileName, true );
-		    DFSUtils.readFileFromDisk( database.getFileSystemRoot() + fileName );
-			assertNotNull( database.saveFile( fileName, null, new VectorClock(), null ) );
+			assertNotNull( database.saveFile( fileName, null, new VectorClock(), false, null, false ) );
 		}
 		
 		assertNull( database.getFile( "FileTest0.txt" ) );
 		assertNotNull( file = database.getFile( "FileTest1.txt" ) );
 		file = new DistributedFile( file.getName(), false, file.getVersion().clone(), file.getHintedHandoff() );
 		file.incrementVersion( "pippo" );
-		assertNotNull( database.saveFile( file.getName(), null, file.getVersion(), null ) );
+		assertNotNull( database.saveFile( file.getName(), null, file.getVersion(), false, null, false ) );
 		
 		assertNotNull( file = database.getFile( "FileTest1.txt" ) );
 		file = new DistributedFile( file.getName(), false, file.getVersion().clone(), file.getHintedHandoff() );
 		file.setVersion( new VectorClock() );
-		assertNull( database.saveFile( file.getName(), null, file.getVersion(), null ) );
+		assertNull( database.saveFile( file.getName(), null, file.getVersion(), false, null, false ) );
 		
 		assertNull( database.getFile( "" ) );
 		assertNull( database.getFile( "FileTest11.txt" ) );
 		
-		assertNull( database.deleteFile( file.getName(), file.getVersion(), null ) );
-		assertNotNull( database.deleteFile( file.getName(), new VectorClock().incremented( "pippo" ).incremented( "pippo" ), null ) );
+		assertNull( database.deleteFile( file.getName(), file.getVersion(), false, null ) );
+		assertNotNull( database.deleteFile( file.getName(), new VectorClock().incremented( "pippo" ).incremented( "pippo" ), false, null ) );
 		assertTrue( database.getFile( file.getName() ).isDeleted() );
 		
 		database.close();

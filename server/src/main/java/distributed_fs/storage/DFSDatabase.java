@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Vector;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -32,28 +31,25 @@ import com.google.common.base.Preconditions;
 
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
+import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 import gossiping.event.GossipState;
 
-public class DFSDatabase implements Closeable
+public class DFSDatabase extends DBManager implements Closeable
 {
 	private final FileTransferThread _fileMgr;
 	private final ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
 	private final AsyncDiskWriter asyncWriter;
-	private List<DBListener> listeners = null;
 	private final List<String> toUpdate;
 	
 	private String root;
 	private DB db;
 	private BTreeMap<String, DistributedFile> database;
 	
-	private boolean disableAsyncWrites = false;
-	private AtomicBoolean shutDown = new AtomicBoolean( false );
-	
-    private final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
+	private final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
 	private final ReadLock LOCK_READERS = LOCK.readLock();
 	private final WriteLock LOCK_WRITERS = LOCK.writeLock();
 	
@@ -71,10 +67,10 @@ public class DFSDatabase implements Closeable
 	 * 
 	 * @param resourcesLocation		location of the files on disk.
 	 *                              If {@code null}, will be set
-	 * 								the default one ({@link DFSUtils#RESOURCE_LOCATION}).
+	 * 								the default one ({@link #RESOURCES_LOCATION}).
 	 * @param databaseLocation		location of the database resources.
 	 *                              If {@code null}, will be set
-	 * 								the default one ({@link VersioningDatabase#DB_LOCATION}).
+	 * 								the default one ({@link #DATABASE_LOCATION}).
 	 * @param fileMgr				the manager used to send/receive files.
 	 *								If {@code null} the database for the hinted handoff
 	 * 								nodes does not start
@@ -197,9 +193,8 @@ public class DFSDatabase implements Closeable
                 LOCK_WRITERS.lock();
                 database.remove( file.getId() );
                 LOCK_WRITERS.unlock();
-                notifyListeners( file.getName(), Message.DELETE );
-                //toUpdate.put( file.getName(), Message.DELETE );
                 
+                notifyListeners( file.getName(), Message.DELETE );
                 if(hhThread != null)
                     hhThread.removeFiles( file );
             }
@@ -212,59 +207,6 @@ public class DFSDatabase implements Closeable
 	public List<String> getUpdateList() {
 	    return toUpdate;
 	}
-	
-	/**
-     * By default all modifications are queued and written into disk on Background Writer Thread.
-     * So all modifications are performed in asynchronous mode and do not block.
-     * <p/>
-     * It is possible to disable Background Writer Thread, but this greatly hurts concurrency.
-     * Without async writes, all threads remain blocked until all previous writes are not finished (single big lock).
-     *
-     * <p/>
-     * This may workaround some problems.
-     *
-     * @return this builder
-    */
-	public DFSDatabase disableAsyncWrites()
-	{
-	    disableAsyncWrites = true;
-	    return this;
-	}
-	
-	/**
-	 * Adds a new database listener.
-	*/
-	public void addListener( final DBListener listener )
-	{
-	    if(listener != null) {
-    	    if(listeners == null)
-    	        listeners = new ArrayList<>( 4 );
-    	    listeners.add( listener );
-	    }
-	}
-	
-	/**
-	 * Removes the given listener.
-	*/
-	public void removeListener( final DBListener listener )
-	{
-	    if(listener != null && listeners != null)
-	        listeners.remove( listener );
-	}
-	
-	/**
-     * Notifies all the attached listeners.
-     * 
-     * @param fileName     name of the file
-     * @param operation    type of operation ({@code PUT} or {@code DELETE})
-    */
-    private void notifyListeners( final String fileName, final byte operation )
-    {
-        if(listeners != null) {
-            for(DBListener listener : listeners)
-                listener.dbEvent( fileName, operation );
-        }
-    }
 
     /** 
 	 * Save a file on the database.
@@ -278,9 +220,10 @@ public class DFSDatabase implements Closeable
 	 * @return the new clock, if updated, {@code null} otherwise
 	*/
 	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
-								 final String hintedHandoff ) throws IOException
+								 final String hintedHandoff, final boolean saveOnDisk )
+								         throws IOException
 	{
-		return saveFile( file.getName(), file.getContent(), clock, hintedHandoff );
+		return saveFile( file.getName(), file.getContent(), clock, file.isDirectory(), hintedHandoff, saveOnDisk );
 	}
 	
 	/**
@@ -296,7 +239,8 @@ public class DFSDatabase implements Closeable
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
 	public VectorClock saveFile( String fileName, final byte[] content,
-								 final VectorClock clock, final String hintedHandoff )
+								 final VectorClock clock, final boolean isDirectory,
+								 final String hintedHandoff, final boolean saveOnDisk )
 								         throws IOException
 	{
 		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
@@ -314,19 +258,19 @@ public class DFSDatabase implements Closeable
 		
 		DistributedFile file = database.get( fileId );
 		
-		if(file != null) {
+		if(file == null) {
+		    file = new DistributedFile( fileName, isDirectory, updated = clock.clone(), hintedHandoff );
+            doSave( file, content, saveOnDisk );
+		}
+		else {
 			if(!resolveVersions( file.getVersion(), clock )) {
 				// The input version is newer than mine, then
 				// it overrides the current one.
 				file.setVersion( updated = clock.clone() );
 				file.setDeleted( false );
 				file.setHintedHandoff( hintedHandoff );
-				doSave( file, content );
+				doSave( file, content, saveOnDisk );
 			}
-		}
-		else {
-			file = new DistributedFile( fileName, new File( root + fileName ).isDirectory(), updated = clock.clone(), hintedHandoff );
-			doSave( file, content );
 		}
 		
 		if(hintedHandoff != null && hhThread != null)
@@ -334,23 +278,70 @@ public class DFSDatabase implements Closeable
     	
 		LOCK_WRITERS.unlock();
 		
-		if(updated != null)
+		if(saveOnDisk && updated != null)
 		    notifyListeners( fileName, Message.GET );
 		
 		return updated;
 	}
 	
 	private void doSave( final DistributedFile file,
-						 final byte[] content ) throws IOException
+						 final byte[] content, final boolean saveOnDisk ) throws IOException
 	{
+		if(saveOnDisk) {
+    		if(disableAsyncWrites)
+    		    DFSUtils.saveFileOnDisk( root + file.getName(), content );
+    		else
+    		    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
+		}
+		
+		addParentFile( new File( file.getName() ).getParentFile(), saveOnDisk );
+		
 		database.put( file.getId(), file );
 		db.commit();
-		
-		if(disableAsyncWrites)
-		    DFSUtils.saveFileOnDisk( root + file.getName(), content );
-		else
-		    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
 	}
+	
+	/**
+     * Add the parent of a file on database (if it doesn't exist).
+     * 
+     * @param f    the current file
+    */
+    private void addParentFile( final File f, final boolean saveOnDisk ) throws IOException
+    {
+        if(f == null)
+            return;
+        addParentFile( f.getParentFile(), saveOnDisk );
+        
+        // Add the file on database. It's obviously a directory.
+        String fileName = normalizeFileName( f.getPath() );
+        if(!database.containsKey( DFSUtils.getId( fileName ) )) {
+            DistributedFile file = new DistributedFile( fileName, true, new VectorClock(), null );
+            database.put( file.getId(), file );
+            if(saveOnDisk) {
+                if(disableAsyncWrites)
+                    DFSUtils.saveFileOnDisk( root + fileName, null );
+                else
+                    asyncWriter.enqueue( null, root + fileName, Message.PUT );
+            }
+            
+            notifyListeners( fileName, Message.GET );
+        }
+    }
+    
+    /**
+     * Deletes a file on database and on disk.<br>
+     * The file is not intended to be definitely removed from the database,
+     * but only marked as deleted.
+     * The file is keep on database until its TimeToLive is not expired.
+     * 
+     * @param file      the file to remove
+     * 
+     * @return the new clock, if updated, {@code null} otherwise.
+    */
+    public VectorClock deleteFile( final DistributedFile file )
+    {
+        return deleteFile( file.getName(), file.getVersion(),
+                           file.isDirectory(), file.getHintedHandoff() );
+    }
 	
 	/**
 	 * Deletes a file on database and on disk.<br>
@@ -366,6 +357,7 @@ public class DFSDatabase implements Closeable
 	*/
 	public VectorClock deleteFile( String fileName,
 	                               final VectorClock clock,
+	                               final boolean isDirectory,
 	                               final String hintedHandoff )
 	{
 	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
@@ -387,19 +379,23 @@ public class DFSDatabase implements Closeable
 		if(file == null || !resolveVersions( file.getVersion(), clock )) {
 		    updated = clock.clone();
             if(file == null)
-                file = new DistributedFile( fileName, new File( root + fileName ).isDirectory(), clock, hintedHandoff );
-            else
+                file = new DistributedFile( fileName, isDirectory, clock, hintedHandoff );
+            
+            if(!file.isDeleted()) {
                 file.setVersion( clock );
-            
-            file.setDeleted( true );
-            
-            database.put( fileId, file );
-            db.commit();
-            
-            if(disableAsyncWrites)
-                DFSUtils.deleteFileOnDisk( root + fileName );
-            else
-                asyncWriter.enqueue( null, root + fileName, Message.DELETE );
+                file.setDeleted( true );
+                
+                database.put( fileId, file );
+                
+                if(disableAsyncWrites)
+                    DFSUtils.deleteFileOnDisk( root + fileName );
+                else
+                    asyncWriter.enqueue( null, root + fileName, Message.DELETE );
+                
+                if(isDirectory)
+                    removeDirectory( new File( root + fileName ) );
+                db.commit();
+            }
         }
     	
 		LOCK_WRITERS.unlock();
@@ -409,6 +405,37 @@ public class DFSDatabase implements Closeable
 		
 		return updated;
 	}
+	
+	/**
+	 * Delete recursively all the content of a folder.
+	 * 
+	 * @param dir  current directory
+	*/
+    private void removeDirectory( final File dir )
+    {
+        File[] files = dir.listFiles();
+        if(files != null) {
+            for(File f : files) {
+                String fileName = f.getPath().replace( "\\", "/" );
+                if(f.isDirectory()) {
+                    removeDirectory( f );
+                    fileName += "/";
+                }
+                fileName = normalizeFileName( fileName );
+                
+                DistributedFile file = database.get( DFSUtils.getId( fileName ) );
+                if(file != null && !file.isDeleted()) {
+                    file.setDeleted( true );
+                    database.put( file.getId(), file );
+                    if(disableAsyncWrites)
+                        DFSUtils.deleteFileOnDisk( root + fileName );
+                    else
+                        asyncWriter.enqueue( null, root + fileName, Message.DELETE );
+                    notifyListeners( fileName, Message.DELETE );
+                }
+            }
+        }
+    }
 	
 	/**
 	 * Resolve the (possible) inconsistency through the versions.
@@ -421,6 +448,9 @@ public class DFSDatabase implements Closeable
 	*/
 	private boolean resolveVersions( final VectorClock myClock, final VectorClock vClock )
 	{
+	    if(disableReconciliation)
+	        return false;
+	    
 	    return myClock.compare( vClock ) != Occurred.BEFORE;
 	}
 	
@@ -542,6 +572,31 @@ public class DFSDatabase implements Closeable
 	}
 	
 	/**
+	 * Updates the lastModified parameter of the given file.
+	 * 
+	 * @param fileName         name of the file to update
+	 * @param lastModified     the last modified value
+	*/
+	/*public void updateLastModified( final String fileName, final long lastModified )
+	{
+	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
+	    LOCK_WRITERS.lock();
+        if(db.isClosed()) {
+            LOCK_WRITERS.unlock();
+            return;
+        }
+        
+        DistributedFile file = database.get( fileId );
+        if(file != null) {
+            file.setLastModified( lastModified );
+            database.put( fileId, file );
+            db.commit();
+        }
+        
+        LOCK_WRITERS.unlock();
+	}*/
+	
+	/**
 	 * Checks the existence of a file in the application file system,
 	 * starting from the root.
 	 * 
@@ -656,15 +711,11 @@ public class DFSDatabase implements Closeable
 		
 		LOGGER.info( "Database closed." );
 	}
-    
-    public static interface DBListener
-    {
-        public void dbEvent( final String fileName, final byte code );
-    }
 	
 	/**
 	 * Class used to periodically test
-	 * if a file has to be removed from the database.
+	 * if a file has to be definitely removed
+	 * from the database.
 	*/
 	private class ScanDBThread extends Thread
 	{
@@ -896,8 +947,10 @@ public class DFSDatabase implements Closeable
 	            try {
 	                QueueNode node = dequeue();
 	                // Write or delete a file on disk.
-	                if(node.opType == Message.PUT)
+	                if(node.opType == Message.PUT) {
 	                    DFSUtils.saveFileOnDisk( node.path, node.file );
+	                    //updateLastModified( node.path, new File( node.path ).lastModified() );
+	                }
 	                else
 	                    DFSUtils.deleteFileOnDisk( node.path );
                 } catch ( InterruptedException e ) {

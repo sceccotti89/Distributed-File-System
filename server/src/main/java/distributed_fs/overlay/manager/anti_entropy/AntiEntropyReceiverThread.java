@@ -20,11 +20,11 @@ import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
@@ -42,8 +42,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 {
     private ExecutorService threadPool;
 	
-	/** Map used to manage the nodes in the synchronization phase */
-	private final Map<String, Integer> syncNodes = new HashMap<>( 8 );
+	/** Map used to manage nodes in the synchronization phase */
+	private final Map<String, Integer> syncNodes = new HashMap<>();
 	
 	
 	
@@ -390,7 +390,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 			}
 			
-			// send the files to delete
+			// Send the files to delete.
 			if(filesToRemove.size() > 0) {
 				addToSynch( sourceNodeId );
 				fMgr.sendFiles( address, port, filesToRemove, false, sourceNodeId, null );
@@ -400,7 +400,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		}
 	}
 	
-	private synchronized boolean isSynch( final String nodeId ) {
+	private synchronized boolean isSynch( final String nodeId )
+	{
 	    return syncNodes.containsKey( nodeId );
 	}
 	

@@ -1,6 +1,7 @@
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
@@ -117,12 +118,29 @@ public class SystemTest
     {
         System.out.println( "Start tests..." );
         
+        testDeleteFolder();
         testNoLoadBalancers();
         testSingleClient();
-        testDeleteFolder();
         stressTest();
         testAntiEntropy();
         testHintedHandoff();
+    }
+    
+    private void testDeleteFolder() throws IOException, DFSException
+    {
+        DFSService service = clients.get( 0 );
+        
+        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
+        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
+        service.reloadDB();
+        
+        assertTrue( service.put( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt" ) );
+        
+        assertTrue( service.delete( "./Clients/ResourcesClient1/ToDelete" ) );
+        assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1" ) );
+        assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt" ) );
+        assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt" ) );
+        assertNull( service.get( "./Clients/ResourcesClient1/ToDelete/sub_1" ) );
     }
     
     private void testNoLoadBalancers() throws IOException, DFSException, InterruptedException
@@ -190,7 +208,7 @@ public class SystemTest
 		assertEquals( service.getFile( file ), null );
 	}
 	
-	private void testDeleteFolder() throws IOException, DFSException
+	/*private void testDeleteFolder() throws IOException, DFSException
 	{
 	    DFSService service = clients.get( 0 );
         
@@ -199,7 +217,7 @@ public class SystemTest
         service.reloadDB();
         
         assertTrue( service.delete( "./Clients/ResourcesClient1/ToDelete" ) );
-    }
+    }*/
 	
 	private void stressTest() throws InterruptedException
     {
@@ -262,6 +280,10 @@ public class SystemTest
 	{
 		System.out.println( "\n\nTEST ANTI ENTROPY" );
 		
+		GossipMember member = members.get( 1 + NUMBER_OF_BALANCERS );
+		for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
+		    ((LoadBalancer) servers.get( i )).removeNode( member );
+		
 		String file = "test3.txt";
 		DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
 		
@@ -276,6 +298,9 @@ public class SystemTest
 							", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
 		
 		assertNotNull( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
+		
+		for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
+            ((LoadBalancer) servers.get( i )).addNode( member );
 		
 		/*assertTrue( clients.get( 0 ).delete( file ) );
 		//assertTrue( clients.get( 0 ).delete( "test4.txt" ) );
@@ -301,7 +326,7 @@ public class SystemTest
     	String file = "chord_sigcomm.pdf";
     	DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
     	
-    	int index = 4 + NUMBER_OF_BALANCERS;
+    	int index = 3 + NUMBER_OF_BALANCERS;
     	String hh = servers.get( index ).getAddress() + ":" + servers.get( index ).getPort();
     	servers.get( index ).close();
     	System.out.println( "Node: " + members.get( index ) + " closed." );
@@ -313,8 +338,8 @@ public class SystemTest
     	Thread.sleep( 2000 );
     	
     	//assertEquals( service.get( file ), service.getFile( file ) );
-    	System.out.println( "HH: " + servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
-    	assertEquals( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+    	System.out.println( "HH: " + servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
+    	assertEquals( servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
     
     @After

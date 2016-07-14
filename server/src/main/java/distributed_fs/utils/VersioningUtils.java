@@ -58,7 +58,7 @@ public class VersioningUtils {
      */
     public static Occurred compare( final VectorClock v1, final VectorClock v2 ) 
     {
-        if (v1 == null || v2 == null)
+        if(v1 == null || v2 == null)
             throw new IllegalArgumentException( "Can't compare null vector clocks!" );
         
         // We do two checks: v1 <= v2 and v2 <= v1 if both are true then
@@ -82,8 +82,8 @@ public class VersioningUtils {
         }
         // compare the common parts
         for (String nodeId: commonNodes) {
-            // no need to compare more
-            if (v1Bigger && v2Bigger) {
+            // no need to compare more: they are concurrently
+            if(v1Bigger && v2Bigger) {
                 break;
             }
             long v1Version = v1.getVersionMap().get( nodeId );
@@ -100,13 +100,13 @@ public class VersioningUtils {
          * that the we would throw back an ObsoleteVersionException for online
          * writes with the same clock.
          */
-        if (!v1Bigger && !v2Bigger)
-            return Occurred.BEFORE;
+        if(!v1Bigger && !v2Bigger)
+            return Occurred.AFTER;
         /* This is the case where v1 is a successor clock to v2 */
-        else if (v1Bigger && !v2Bigger)
+        else if(v1Bigger && !v2Bigger)
             return Occurred.AFTER;
         /* This is the case where v2 is a successor clock to v1 */
-        else if (!v1Bigger && v2Bigger)
+        else if(!v1Bigger && v2Bigger)
             return Occurred.BEFORE;
         /* This is the case where both clocks are parallel to one another */
         else
