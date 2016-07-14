@@ -1,6 +1,6 @@
 # Distributed File System
 
-The Distributed File System project is an eventually consistent distributed file system, which makes use of different techniques such as Gossiping, Consistent Hashing, Vector Clocks and Anti-Entropy.
+The Distributed File System project is an eventually consistent distributed file system, which makes use of different techniques such as Gossiping, Consistent Hashing, Hinted Handoff, Vector Clocks and Anti-Entropy.
 
 <!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
 
@@ -18,7 +18,7 @@ The Distributed File System project is an eventually consistent distributed file
 
 ## Introduction
 
-The file system is implemented as a key-value map of type (string, file) with the following operations:
+The file system is implemented in a hierarchical manner as a key-value map of type (string, file) with the following operations:
 
 - **get**(key) to retrieve a file from the system;
 - **put**(key) to store a file in the system;
