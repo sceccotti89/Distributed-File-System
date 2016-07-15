@@ -34,9 +34,9 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.net.NodeStatistics;
+import distributed_fs.net.manager.NetworkMonitorThread;
+import distributed_fs.net.manager.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.ThreadMonitor;
@@ -223,7 +223,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		}
 		else {
 		    // Linux command.
-		    // TODO does it work also on OS X systems??
+		    // TODO does it work also on MacOS??
 			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
 			Process proc = pb.start();
 			

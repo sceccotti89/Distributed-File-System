@@ -63,8 +63,6 @@ public class ClientSynchronizer extends Thread
         int count = tick;
         
         while(!service.isClosed()) {
-            LOGGER.debug( "Synchonizing..." );
-            
             try {
                 // First update the database.
                 updateDB();
@@ -103,6 +101,35 @@ public class ClientSynchronizer extends Thread
         for(String fileName : toUpdate)
             service.put( fileName );
         toUpdate.clear();
+        
+        /*String dbRoot = database.getFileSystemRoot();
+        for(DistributedFile file : database.getAllFiles()) {
+            lock.lock();
+            
+            File f = new File( dbRoot + file.getName() );
+            if(file.isDeleted() || !f.exists())
+                lock.unlock();
+            else {
+                long timestamp = file.lastModified();
+                //System.out.println( "FILE: " + file.getName() +
+                                    //", MY: " + timestamp + ", FILE: " + f.lastModified() );
+                if(timestamp == 0) {
+                    // Update its timestamp
+                    database.updateLastModified( file.getName(), f.lastModified() );
+                    //file.setLastModified( f.lastModified() );
+                    lock.unlock();
+                }
+                else {
+                    if(timestamp < f.lastModified()) {
+                        // Update the file and send it using a put request.
+                        database.updateLastModified( file.getName(), f.lastModified() );
+                        //file.setLastModified( f.lastModified() );
+                        lock.unlock();
+                        service.put( file.getName() );
+                    }
+                }
+            }
+        }*/
     }
     
     /**

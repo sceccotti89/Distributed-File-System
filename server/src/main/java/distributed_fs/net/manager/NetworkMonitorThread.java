@@ -2,7 +2,7 @@
  * @author Stefano Ceccotti
 */
 
-package distributed_fs.net;
+package distributed_fs.net.manager;
 
 import java.io.IOException;
 import java.net.InetAddress;

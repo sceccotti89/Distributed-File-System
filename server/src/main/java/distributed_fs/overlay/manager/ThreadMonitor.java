@@ -11,11 +11,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.NetworkMonitorReceiverThread;
-import distributed_fs.net.NetworkMonitorSenderThread;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
+import distributed_fs.net.manager.NetworkMonitorReceiverThread;
+import distributed_fs.net.manager.NetworkMonitorSenderThread;
+import distributed_fs.net.manager.NetworkMonitorThread;
 import distributed_fs.overlay.DFSNode;
 import distributed_fs.overlay.LoadBalancer;
 import distributed_fs.overlay.StorageNode;

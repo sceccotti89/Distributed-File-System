@@ -14,11 +14,11 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.NetworkMonitorReceiverThread;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.net.NodeStatistics;
+import distributed_fs.net.manager.NetworkMonitorReceiverThread;
+import distributed_fs.net.manager.NetworkMonitorThread;
+import distributed_fs.net.manager.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
@@ -229,7 +229,7 @@ public class LoadBalancer extends DFSNode
 			LOGGER.info( "[LB] New request from: " + clientAddress );
 			
 			String fileName = (opType == Message.GET_ALL) ? DFSUtils.createRandomFile() :
-                                                            data.getFileName();
+			                                                data.getFileName();
 			
 			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
 			
@@ -331,9 +331,13 @@ public class LoadBalancer extends DFSNode
 		final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
 		List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
 		if(nodes == null) {
+		    // TODO se modifico i test rimuovendo e aggiungendo dopo il nodo in questione
+		    // TODO potrei aggiungere in testa questo, che sarebbe anche piu' sensato.
 		    nodes = new ArrayList<>( PREFERENCE_LIST + 1 );
 		    nodes.add( sourceNode );
 		    nodes.addAll( getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST ) );
+		    //nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
+		    //nodes.add( sourceNode );
 		    state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
 		}
 		return nodes;
@@ -370,11 +374,11 @@ public class LoadBalancer extends DFSNode
 	 * Forward the message to the target node.
 	 * 
 	 * @param session          the TCP session opened with the client
-     * @param opType           the operation type
-     * @param destId           the destination identifier
-     * @param hintedHandoff    the hinted handoff address
-     * @param fileName         the requested file
-     * @param fileContent      content of the file
+	 * @param opType           the operation type
+	 * @param destId           the destination identifier
+	 * @param hintedHandoff    the hinted handoff address
+	 * @param fileName         the requested file
+	 * @param fileContent      content of the file
 	*/
 	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
 	                             final String hintedHandoff, final String fileName, final byte[] fileContent )

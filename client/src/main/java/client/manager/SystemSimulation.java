@@ -39,6 +39,7 @@ public class SystemSimulation implements Closeable
                              final int virtualNodes,
                              final List<GossipMember> members ) throws IOException, DFSException, InterruptedException
     {
+        //DFSUtils.testing = true;
         String address = (ipAddress == null) ? IpAddress : ipAddress;
         
         if(members != null)

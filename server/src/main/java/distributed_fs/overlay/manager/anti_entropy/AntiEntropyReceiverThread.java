@@ -147,7 +147,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				//System.out.println( "FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", MISSING FILES: " + filesToSend );
 				
 				if(bitSet.cardinality() > 0) {
-					// Receive the vector clocks associated to the shared files.
+					// Receive the vector clocks associated to the common files.
 					byte[] versions = session.receive();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
 					checkVersions( sourcePort, files, vClocks, srcAddress, sourceId );
@@ -189,11 +189,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			
 			sourcePort = DFSUtils.byteArrayToInt( DFSUtils.getNextBytes( data ) );
 			
-			//LOGGER.debug( "Received connection from: " + sourceNode + ", Id: " + sourceId );
-			
 			// Send out a positive response.
             session.sendMessage( Networking.TRUE, false );
-			
 			return data;
 		}
 		
@@ -208,7 +205,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			LOGGER.debug( "My tree: " + m_tree + ", other: " + inputTree );
 			bitSet.clear();
 			
-			if(inputTree == (byte) 0x1) { // Tree not empty.
+			if(inputTree == (byte) 0x1) {
+			    // Tree not empty.
 			    Deque<Node> nodes = new ArrayDeque<>( (m_tree == null) ? 0 : m_tree.getNumNodes() );
 				int treeHeight = 0;
 				
@@ -277,7 +275,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				if(found) {
-				    // Set 1 all the leaves reachable from the node.
+				    // Set 1 all the range reachable from the node.
 				    Deque<Node> leaves = m_tree.getLeavesFrom( node );
                     LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
                     bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
@@ -351,7 +349,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				VectorClock vClock = inClocks.get( j );
 				
 				// If the input version is older than mine, the associated file is added.
-				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE))
+				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE)) 
 					filesToSend.add( files.get( i ) );
 			}
 		}

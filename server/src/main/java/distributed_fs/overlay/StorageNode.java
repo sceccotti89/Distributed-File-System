@@ -16,11 +16,11 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.NetworkMonitorSenderThread;
-import distributed_fs.net.NetworkMonitorThread;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.net.NodeStatistics;
+import distributed_fs.net.manager.NetworkMonitorSenderThread;
+import distributed_fs.net.manager.NetworkMonitorThread;
+import distributed_fs.net.manager.NodeStatistics;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
@@ -635,6 +635,7 @@ public class StorageNode extends DFSNode
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
     		clock = file.getVersion().incremented( _address );
+    		//System.out.println( "IN: " + clock + ", MY: " + fMgr.getDatabase().getFile( file.getName() ).getVersion() );
     		clock = fMgr.getDatabase().deleteFile( file.getName(), clock, file.isDirectory(), hintedHandoff );
     		state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
             actionsList.addLast( DONE );

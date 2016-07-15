@@ -420,6 +420,19 @@ public class DFSService extends DFSManager implements IDFSService
             return false;
         }
 		
+		/*if(file.isDirectory()) {
+		    // Delete recursively all the files present in the directory and sub-directories.
+		    File inputFile = new File( dbRoot + normFileName );
+		    File[] files = inputFile.listFiles();
+		    if(files != null) {
+    			for(File f: files) {
+    				LOGGER.debug( "Name: " + f.getPath() + ", Directory: " + f.isDirectory() );
+    				if(!delete( f.getPath() ))
+    					break;
+    			}
+		    }
+		}*/
+		
 		LOGGER.info( "Starting DELETE operation for: " + fileName );
 		
 		DistributedFile file = database.getFile( fileName );

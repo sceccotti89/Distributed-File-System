@@ -87,6 +87,11 @@ public class AntiEntropySenderThread extends AntiEntropyThread
                         } catch( IOException e ) {
                             // Ignored.
                             //e.printStackTrace();
+                            //System.err.println( "Node: " + me + ", Contacting: " + node );
+                            /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
+                                                ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
+                                                ", To: " + cHasher.getBucket( randomPeer ) +
+                                                ", Contacting: " + node );*/
                         }
                     }
                     
@@ -157,10 +162,11 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 	    session = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
 	    
+	    // Send the source id, the own port and the status of the tree.
 		byte[] data = net.createMessage( null, sourceId.getBytes( StandardCharsets.UTF_8 ), true );
 		data = net.createMessage( data, DFSUtils.intToByteArray( me.getPort() ), true );
 		data = net.createMessage( data, new byte[]{ (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
-		if(m_tree != null)
+		if(m_tree != null) // If the tree exists also its height is sent.
 			data = net.createMessage( data, DFSUtils.intToByteArray( m_tree.getHeight() ), true );
 		session.sendMessage( data, true );
 		
