@@ -49,13 +49,7 @@ The structure of the **NodeSettings.json** file is the following:
 All the elements specified above are optional. Any missing parameter will be setted automatically by the application.
 
 The files for logs and gossiping cannot be changed, and their path is, respectively, **Settings/log4j.properties** and **Settings/GossipSettings.json**.
-All the setting files must be placed in the same folder as the JAR file. If you want to insert or delete a file in the JAR just type, respectively:
-
-```bash
-jar uf jar-file input-file(s)
-
-zip -d file.jar unwanted_file(s)
-```
+All the setting files must be placed in the same folder as the JAR file.
 
 **Requirements**:
 
