@@ -1,3 +1,6 @@
+/**
+ * @author Stefano Ceccotti
+*/
 
 package distributed_fs.overlay.manager;
 
@@ -72,30 +75,17 @@ public class MembershipManagerThread extends Thread
         DFSNode.LOGGER.info( "MembershipManager thread launched." );
         
         while(!closed.get()) {
+            TCPSession session = null;
             try {
-                TCPSession session = net.waitForConnection( address, port );
+                session = net.waitForConnection( address, port );
                 if(session == null)
                     continue;
                 
-                // Get the list of members and send it to the user.
-                List<GossipNode> members;
-                if(manager == null)
-                    members = this.members;
-                else {
-                    List<GossipNode> localMembers = manager.getMemberList();
-                    members = new ArrayList<>( localMembers.size() + 1 );
-                    members.addAll( localMembers );
-                    members.add( new GossipNode( me ) );
-                }
-                
-                MessageResponse message = new MessageResponse();
-                for(GossipNode member : members)
-                    message.addObject( DFSUtils.serializeObject( member ) );
-                session.sendMessage( message, true );
-                
-                session.close();
+                sendMembershipList( session );
             }
             catch( IOException e ) {
+                if(session != null && !session.isClosed())
+                    session.close();
                 e.printStackTrace();
                 break;
             }
@@ -104,6 +94,32 @@ public class MembershipManagerThread extends Thread
         DFSNode.LOGGER.info( "MembershipManager thread closed." );
         
         net.close();
+    }
+    
+    /**
+     * Send the own memershio list to the input client.
+     * 
+     * @param session   the incoming connection
+    */
+    private void sendMembershipList( final TCPSession session ) throws IOException
+    {
+        // Get the list of members and send it to the user.
+        List<GossipNode> members;
+        if(manager == null)
+            members = this.members;
+        else {
+            List<GossipNode> localMembers = manager.getMemberList();
+            members = new ArrayList<>( localMembers.size() + 1 );
+            members.addAll( localMembers );
+            members.add( new GossipNode( me ) );
+        }
+        
+        MessageResponse message = new MessageResponse();
+        for(GossipNode member : members)
+            message.addObject( DFSUtils.serializeObject( member ) );
+        session.sendMessage( message, true );
+        
+        session.close();
     }
     
     public void close()
