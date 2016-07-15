@@ -659,7 +659,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * Checks if the file has the correct format.<br>
      * The normalization consists in removing all the
      * parts of the name that don't permit it to be independent
-     * of the database location.<br>
+     * with respect to the database location.<br>
      * The returned string is a generic version of it.
      * 
      * @param fileName  the input file

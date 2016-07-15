@@ -208,17 +208,6 @@ public class SystemTest
 		assertEquals( service.getFile( file ), null );
 	}
 	
-	/*private void testDeleteFolder() throws IOException, DFSException
-	{
-	    DFSService service = clients.get( 0 );
-        
-        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
-        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
-        service.reloadDB();
-        
-        assertTrue( service.delete( "./Clients/ResourcesClient1/ToDelete" ) );
-    }*/
-	
 	private void stressTest() throws InterruptedException
     {
     	List<Thread> clientThreads = new ArrayList<>( clients.size() );
@@ -289,7 +278,6 @@ public class SystemTest
 		
 		modifyTextFile( "./Clients/ResourcesClient1/" + file );
 		assertTrue( clients.get( 0 ).put( file ) );
-		//assertTrue( clients.get( 0 ).put( "test4.txt" ) );
 		
 		System.out.println( "Waiting..." );
 		// Wait the necessary time before to check if the last node have received the file.
@@ -301,15 +289,6 @@ public class SystemTest
 		
 		for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
             ((LoadBalancer) servers.get( i )).addNode( member );
-		
-		/*assertTrue( clients.get( 0 ).delete( file ) );
-		//assertTrue( clients.get( 0 ).delete( "test4.txt" ) );
-		System.out.println( "Waiting..." );
-        // Wait the necessary time before to check if the last node have received the updated file.
-        Thread.sleep( AntiEntropySenderThread.EXCH_TIMER * 2 + 1000 );
-        System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
-                            ", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
-        assertNull( servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );*/
 	}
 	
 	private void modifyTextFile( final String file ) throws IOException
@@ -337,7 +316,6 @@ public class SystemTest
     	System.out.println( "\n\n" );
     	Thread.sleep( 2000 );
     	
-    	//assertEquals( service.get( file ), service.getFile( file ) );
     	System.out.println( "HH: " + servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
     	assertEquals( servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
