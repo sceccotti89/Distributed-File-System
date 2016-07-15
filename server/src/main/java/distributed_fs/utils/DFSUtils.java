@@ -20,8 +20,6 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -31,7 +29,6 @@ import org.json.JSONObject;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
-import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.resources.ResourceLoader;
 
 public class DFSUtils
@@ -77,75 +74,6 @@ public class DFSUtils
 	{
 		byte[] bucketNameInBytes = serializeObject( object );
 		return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
-	}
-	
-	/**
-	 * Returns the number of virtual nodes that you can manage,
-	 * based on the capabilities of this machine.
-	*/
-	public static short computeVirtualNodes() throws IOException
-	{
-		short virtualNodes = 2;
-		
-		Runtime runtime = Runtime.getRuntime();
-		
-		// Total number of processors or cores available to the JVM.
-		int cores = runtime.availableProcessors();
-		DFSNode.LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
-		virtualNodes = (short) (virtualNodes + (cores * 4));
-		
-		// Size of the RAM.
-		long RAMsize;
-		String OS = System.getProperty( "os.name" ).toLowerCase();
-		if(OS.startsWith( "windows" )) {
-		    // Windows command.
-			ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
-			Process proc = pb.start();
-            //Process proc = runtime.exec( "wmic computersystem get TotalPhysicalMemory" );
-			short count = 0;
-			
-			InputStream stream = proc.getInputStream();
-			InputStreamReader isr = new InputStreamReader( stream );
-			BufferedReader br = new BufferedReader( isr );
-			
-			String line = null;
-			while((line = br.readLine()) != null && ++count < 3);
-			
-			br.close();
-			
-			//System.out.println( line );
-			RAMsize = Long.parseLong( line.trim() );
-		}
-		else {
-		    // Linux command.
-		    // TODO does it work also on OS X systems??
-			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
-			Process proc = pb.start();
-			
-			InputStream stream = proc.getInputStream();
-			InputStreamReader isr = new InputStreamReader( stream );
-			BufferedReader br = new BufferedReader( isr );
-			
-			String line = null;
-			while((line = br.readLine()) != null) {
-				if(line.startsWith( "MemTotal" ))
-					break;
-			}
-			
-			br.close();
-			
-			Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
-			matcher.find();
-			// Multiply it by 1024 because the result is in kB.
-			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
-		}
-		
-		DFSNode.LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
-		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // Divide it by 250MB.
-		
-		DFSNode.LOGGER.debug( "Total nodes: " + virtualNodes );
-		
-		return virtualNodes;
 	}
 	
 	/** 
@@ -200,6 +128,20 @@ public class DFSUtils
 	}
 	
 	/**
+     * Generates a random file as string.
+    */
+    public static String createRandomFile()
+    {
+    	int size = (int) (Math.random() * 5) + 1; // Max 5 bytes
+    	StringBuilder builder = new StringBuilder( size );
+    	for(int i = 0; i < size; i++) {
+    		builder.append( (char) ((Math.random() * 57) + 65) );
+    	}
+    	
+    	return builder.toString();
+    }
+
+    /**
 	 * Creates a new directory, if it doesn't exist.
 	 * 
 	 * @param dirPath	path to the directory
@@ -220,7 +162,7 @@ public class DFSUtils
 	 * @return {@code true} if the direcotry has been created,
 	 * 		   {@code false} otherwise.
 	*/
-	public static boolean createDirectory( final File dirFile )
+	public synchronized static boolean createDirectory( final File dirFile )
 	{
 		if(dirFile.exists())
 			return true;
@@ -248,7 +190,7 @@ public class DFSUtils
      * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
      *                              {@code false} otherwise
     */
-    public static boolean existFile( final File file, final boolean createIfNotExists )
+    public synchronized static boolean existFile( final File file, final boolean createIfNotExists )
             throws IOException
     {
         boolean exists = file.exists();
@@ -266,24 +208,10 @@ public class DFSUtils
 	 * 
 	 * @param filePath		path to the file
 	*/
-	public static boolean isDirectory( final String filePath )
+	public synchronized static boolean isDirectory( final String filePath )
 	{
 		File file = new File( filePath );
 		return file.exists() && file.isDirectory();
-	}
-	
-	/**
-	 * Generates a random file as string.
-	*/
-	public static String createRandomFile()
-	{
-		int size = (int) (Math.random() * 5) + 1; // Max 5 bytes
-		StringBuilder builder = new StringBuilder( size );
-		for(int i = 0; i < size; i++) {
-			builder.append( (char) ((Math.random() * 57) + 65) );
-		}
-		
-		return builder.toString();
 	}
 	
 	/** 
@@ -293,7 +221,7 @@ public class DFSUtils
 	 * 
 	 * @return the byte serialization of the object
 	*/
-	public static byte[] readFileFromDisk( final String filePath ) throws IOException
+	public synchronized static byte[] readFileFromDisk( final String filePath ) throws IOException
 	{
 		File file = new File( filePath );
 		
@@ -316,13 +244,14 @@ public class DFSUtils
 	 * @param filePath	path where the file have to be write
 	 * @param content	bytes of the serialized object
 	*/
-	public static void saveFileOnDisk( final String filePath, final byte content[] ) throws IOException
+	public synchronized static void saveFileOnDisk( final String filePath, final byte content[] )
+	        throws IOException
 	{
-		if(content == null) 
+		if(content == null)
 			DFSUtils.createDirectory( filePath );
 		else {
 			// Test whether the path to that file doesn't exist.
-			// In that case create all the necessary directories
+			// In that case create all the necessary directories.
 			File file = new File( filePath ).getParentFile();
 			if(!file.exists())
 				file.mkdirs();
@@ -345,7 +274,7 @@ public class DFSUtils
 	 * 
 	 * @param dir  the current directory
 	*/
-	public static void deleteDirectory( final File dir )
+	public synchronized static void deleteDirectory( final File dir )
 	{
 	    if(dir.exists()) {
     	    for(File f : dir.listFiles()) {
@@ -363,7 +292,7 @@ public class DFSUtils
 	 * 
 	 * @param file	the name of the file
 	*/
-	public static void deleteFileOnDisk( final String file )
+	public synchronized static void deleteFileOnDisk( final String file )
 	{
 		File f = new File( file );
 		if(f.exists())
