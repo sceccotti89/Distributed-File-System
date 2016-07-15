@@ -134,11 +134,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				              ", to: " + cHasher.getBucket( sourceId ).getAddress() +
 				              ", FILES: " + files );
 				
-				if(files == null) {
-				    session.close();
-				    return;
-				}
-				
 				m_tree = createMerkleTree( files );
 				
 				//System.out.println( "[RCV] FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", Files: " + files );
