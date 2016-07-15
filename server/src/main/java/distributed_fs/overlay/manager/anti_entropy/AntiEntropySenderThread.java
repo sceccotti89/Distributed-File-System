@@ -136,8 +136,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
     		
     		if(m_tree != null && bitSet.cardinality() > 0) {
     			LOGGER.debug( "Id: " + vNodeId + ", BitSet: " + bitSet );
-    			// Create and send the list of versions.
-    			session.sendMessage( getVersions( files ), true );
+    			sendVersions( files );
     		}
 		}
 		
@@ -264,28 +263,26 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	}
 	
 	/**
-	 * Gets the list of versions associated to each equal files (the bit is set to 1).
-	 * 
-	 * @param files		list of files
-	 * 
-	 * @return the version represented as a byte array
-	*/
-	private byte[] getVersions( final List<DistributedFile> files )
-	{
-		int fileSize = files.size();
-		byte[] msg = null;
-		
-		for(int i = bitSet.nextSetBit( 0 ); i >= 0 && i < fileSize; i = bitSet.nextSetBit( i+1 )) {
-			if(i == Integer.MAX_VALUE)
-				break; // or (i+1) would overflow
-			
-			DistributedFile file = files.get( i );
-			byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
-			msg = net.createMessage( msg, vClock, true );
-		}
-		
-		return msg;
-	}
+     * Sends the list of versions associated to each common file (the bit is set to 1).
+     * 
+     * @param files     list of files
+    */
+    private void sendVersions( final List<DistributedFile> files ) throws IOException
+    {
+        int fileSize = files.size();
+        byte[] msg = null;
+        
+        for(int i = bitSet.nextSetBit( 0 ); i >= 0 && i < fileSize; i = bitSet.nextSetBit( i+1 )) {
+            if(i == Integer.MAX_VALUE)
+                break; // or (i+1) would overflow
+            
+            DistributedFile file = files.get( i );
+            byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
+            msg = net.createMessage( msg, vClock, true );
+        }
+        
+        session.sendMessage( msg, true );
+    }
 	
 	/**
      * Returns the successor nodes respect to the input id.

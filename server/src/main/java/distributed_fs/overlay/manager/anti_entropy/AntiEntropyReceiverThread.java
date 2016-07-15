@@ -275,7 +275,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				if(found) {
-				    // Set 1 all the range reachable from the node.
+				    // Set 1 all the leaves reachable from the node.
 				    Deque<Node> leaves = m_tree.getLeavesFrom( node );
                     LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
                     bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
