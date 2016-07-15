@@ -37,7 +37,7 @@ public abstract class AntiEntropyThread extends Thread
 	protected static final int PORT_OFFSET = 3;
 	
 	/** Type of messages exchanged during the synchronization procedure */
-	protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
+	//protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
 	
 	/** Updating timer. */
     public static final int EXCH_TIMER = 5000;
@@ -100,20 +100,20 @@ public abstract class AntiEntropyThread extends Thread
 	}
 	
 	/**
-     * [The selectToSend() function.] Find a random peer from the local
-     * membership list. In the case where this client is the only member in the
-     * list, this method will return null.
-     *
-     * @return Index of the random member if list is greater than 1, -1 otherwise
-    */
-    protected int selectPartner( final List<String> memberList ) 
-    {
-        int randomNeighborIndex = -1;
-        if (memberList.size() > 0)
+	 * [The selectToSend() function.] Find a random peer from the local
+	 * membership list. In the case where this client is the only member in the
+	 * list, this method will return null.
+	 *
+	 * @return Index of the random member if list is greater than 1, -1 otherwise
+	*/
+	protected int selectPartner( final List<String> memberList ) 
+	{
+		int randomNeighborIndex = -1;
+		if (memberList.size() > 0)
             randomNeighborIndex = random.nextInt( memberList.size() );
-        
-        return randomNeighborIndex;
-    }
+		
+		return randomNeighborIndex;
+	}
 	
 	public void close()
 	{

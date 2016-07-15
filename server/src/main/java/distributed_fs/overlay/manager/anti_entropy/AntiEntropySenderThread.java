@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Set;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
+import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.FileTransferThread;
-import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
@@ -70,7 +70,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		    // random successor and predecessor node.
 			List<String> vNodes = cHasher.getVirtualBucketsFor( me );
 			for(String vNodeId : vNodes) {
-			    List<String> nodes = getSuccessorNodes( vNodeId, QuorumSession.getMaxNodes() );
+			    // Upper-bound on the number of nodes: it takes all of them.
+			    List<String> nodes = getSuccessorNodes( vNodeId, Integer.MAX_VALUE );
                 while(nodes.size() > 0) {
                     if(shutDown.get())
                         break;
@@ -81,43 +82,11 @@ public class AntiEntropySenderThread extends AntiEntropyThread
                     GossipMember succNode = cHasher.getBucket( randomPeer );
                     if(succNode != null) {
                         try {
-                            startAntiEntropy( succNode, vNodeId, vNodeId, MERKLE_FROM_MAIN );
-                            break;
-                        } catch( IOException | InterruptedException e ) {
+                            if(startAntiEntropy( succNode, vNodeId, vNodeId ))
+                                break;
+                        } catch( IOException e ) {
                             // Ignored.
                             //e.printStackTrace();
-                            //System.err.println( "Node: " + me + ", Contacting: " + node );
-                            /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
-                                                ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
-                                                ", To: " + cHasher.getBucket( randomPeer ) +
-                                                ", Contacting: " + node );*/
-                        }
-                    }
-                    
-                    nodes.remove( randomNodeIndex );
-                }
-                
-                nodes = getPredecessorNodes( vNodeId, QuorumSession.getMaxNodes() );
-                while(nodes.size() > 0) {
-                    if(shutDown.get())
-                        break;
-                    
-                    // A random predecessor node.
-                    int randomNodeIndex = selectPartner( nodes );
-                    String randomPeer = nodes.get( randomNodeIndex );
-                    GossipMember prevNode = cHasher.getBucket( randomPeer );
-                    if(prevNode != null) {
-                        try {
-                            startAntiEntropy( prevNode, vNodeId, randomPeer, MERKLE_FROM_REPLICA );
-                            break;
-                        } catch( IOException | InterruptedException e ) {
-                            // Ignored.
-                            //e.printStackTrace();
-                            //System.err.println( "Node: " + me + ", Contacting: " + node );
-                            /*System.err.println( "vNodeId: " + cHasher.getBucket( vNodeId ) +
-                                                ", From: " + cHasher.getBucket( cHasher.getPreviousBucket( randomPeer ) ) +
-                                                ", To: " + cHasher.getBucket( randomPeer ) +
-                                                ", Contacting: " + node );*/
                         }
                     }
                     
@@ -138,32 +107,38 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	 * @param node          the node that will receive the Merkle Tree
 	 * @param vNodeId		the actual virtual node identifier
 	 * @param destId		node identifier from which calculate the range of the files
-	 * @param msg_type		the type of the exchanged messages
+	 * 
+	 * @return {@code true} if the mechanism has been completed successfully,
+	 *         {@code false} otherwise
 	*/
-	private void startAntiEntropy( final GossipMember node, final String vNodeId, final String destId, final byte msg_type )
-	        throws IOException, InterruptedException
+	private boolean startAntiEntropy( final GossipMember node,
+	                                  final String vNodeId,
+	                                  final String destId ) throws IOException
 	{
 	    String fromId = cHasher.getPreviousBucket( destId );
 		List<DistributedFile> files = database.getKeysInRange( fromId, destId );
 		m_tree = createMerkleTree( files );
 		
 		LOGGER.debug( "vNodeId: " + vNodeId );
-		LOGGER.debug( "Type: " + msg_type + ", fromNode: " + me.getPort() + ", toNode: " + node.getPort() +
+		LOGGER.debug( "FromNode: " + me.getPort() + ", toNode: " + node.getPort() +
 		              ", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() +
 		              ", FILES: " + files );
 		
-		handShake( node, msg_type, vNodeId, destId );
-		
-		// Check the differences among the trees.
-		checkTreeDifferences();
-		
-		if(m_tree != null && bitSet.cardinality() > 0) {
-			LOGGER.debug( "Id: " + vNodeId + ", BitSet: " + bitSet );
-			// Create and send the list of versions.
-			session.sendMessage( getVersions( files ), true );
+		boolean complete = handShake( node, vNodeId, destId );
+		if(complete) {
+    		// Check the differences among the trees.
+    		checkTreeDifferences();
+    		
+    		if(m_tree != null && bitSet.cardinality() > 0) {
+    			LOGGER.debug( "Id: " + vNodeId + ", BitSet: " + bitSet );
+    			// Create and send the list of versions.
+    			session.sendMessage( getVersions( files ), true );
+    		}
 		}
 		
 		session.close();
+		
+		return complete;
 	}
 	
 	/**
@@ -172,21 +147,26 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * are exchanged.
 	 * 
 	 * @param node         the node that will receive the Merkle Tree
-	 * @param msg_type     one of {@code MERKLE_FROM_MAIN} and {@code MERKLE_FROM_REPLICA}
 	 * @param sourceId     source node identifier
 	 * @param destId       destination node identifier
+	 * 
+	 * @return {@code true} if the connection has been completed successfully,
+	 *         {@code false} otherwise
 	*/
-	private void handShake( final GossipMember node, final byte msg_type, final String sourceId, final String destId ) throws IOException
+	private boolean handShake( final GossipMember node, final String sourceId, final String destId ) throws IOException
 	{
 	    session = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
 	    
 		byte[] data = net.createMessage( null, sourceId.getBytes( StandardCharsets.UTF_8 ), true );
-		data = net.createMessage( data, new byte[]{ msg_type, (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
+		data = net.createMessage( data, DFSUtils.intToByteArray( me.getPort() ), true );
+		data = net.createMessage( data, new byte[]{ (m_tree == null) ? (byte) 0x0 : (byte) 0x1 }, false );
 		if(m_tree != null)
 			data = net.createMessage( data, DFSUtils.intToByteArray( m_tree.getHeight() ), true );
-		if(msg_type == MERKLE_FROM_REPLICA)
-			data = net.createMessage( data, destId.getBytes( StandardCharsets.UTF_8 ), true );
 		session.sendMessage( data, true );
+		
+		// Wait the answer.
+		byte[] response = session.receive();
+		return (response[0] != Networking.FALSE[0]);
 	}
 	
 	/**
@@ -217,10 +197,10 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				// Receive the response set.
 				LOGGER.debug( "Waiting the response..." );
 				BitSet set = BitSet.valueOf( session.receive() );
-				LOGGER.debug( "Received the response" );
+				LOGGER.debug( "Received the response." );
 				
 				if(set.cardinality() == nNodes) {
-					LOGGER.debug( "End procedure: cardinality == nodes" );
+					LOGGER.debug( "End procedure: cardinality == nodes." );
 					bitSet.set( 0, m_tree.getNumLeaves() );
 					break;
 				}
@@ -302,43 +282,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	}
 	
 	/**
-	 * Returns the predecessor nodes respect to the input id.
-	 * 
-	 * @param id			source node identifier
-	 * @param numNodes		maximum number of nodes required
-	 * 
-	 * @return the list of predecessor nodes. It could contains less than num_nodes elements.
-	*/
-	private List<String> getPredecessorNodes( final String id, final int numNodes )
-	{
-		List<String> predecessors = new ArrayList<>( numNodes );
-		int size = 0;
-		
-		addresses.clear();
-		addresses.add( me.getAddress() );
-		
-		// Choose the nodes whose address is different than this node.
-		String currId = id, prev;
-		while(size < numNodes) {
-			prev = cHasher.getPreviousBucket( currId );
-			if(prev == null || prev.equals( id ))
-				break;
-			
-			GossipMember node = cHasher.getBucket( prev );
-			if(node != null) {
-				currId = prev;
-				if(!addresses.contains( node.getAddress() )) {
-					predecessors.add( currId = prev );
-					addresses.add( node.getAddress() );
-					size++;
-				}
-			}
-		}
-		
-		return predecessors;
-	}
-	
-	/**
      * Returns the successor nodes respect to the input id.
      * 
      * @param id            source node identifier
@@ -348,7 +291,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
     */
     private List<String> getSuccessorNodes( final String id, final int numNodes )
     {
-        List<String> successors = new ArrayList<>( numNodes );
+        List<String> successors = new ArrayList<>( 16 );
         int size = 0;
         
         addresses.clear();

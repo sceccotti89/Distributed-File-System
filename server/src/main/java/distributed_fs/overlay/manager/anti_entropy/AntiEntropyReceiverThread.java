@@ -11,14 +11,15 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
+import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
@@ -43,7 +44,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
     private ExecutorService threadPool;
 	
 	/** Map used to manage nodes in the synchronization phase */
-	private final Map<String, Integer> syncNodes = new HashMap<>();
+	private final Set<String> syncNodes = new ConcurrentSkipListSet<>();
 	
 	
 	
@@ -98,7 +99,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	{
 		private MerkleTree m_tree = null;
 		private TCPSession session;
-		private GossipMember sourceNode;
+		private final List<DistributedFile> filesToSend;
+		private int sourcePort;
 		private String sourceId = null;
 		private BitSet bitSet = new BitSet();
 		
@@ -107,13 +109,12 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		    setName( "AntiEntropyNode" );
 		    
 			this.session = session;
+			filesToSend = new ArrayList<>();
 		}
 		
 		@Override
 		public void run()
 		{
-		    boolean filesSent = false;
-		    
 			try {
 				String srcAddress = session.getEndPointAddress();
 				
@@ -121,39 +122,23 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				if(data == null)
 					return;
 				
-				byte msg_type = data.get();
-				
 				// Get the input tree status and height.
 				byte inputTree = data.get();
 				int inputHeight = (inputTree == (byte) 0x0) ?
 								  0 : DFSUtils.byteArrayToInt( DFSUtils.getNextBytes( data ) );
 				
-				List<DistributedFile> files;
-				if(msg_type == MERKLE_FROM_MAIN) {
-				    // Here the sourceId is the destId.
-				    String fromId = cHasher.getPreviousBucket( sourceId );
-					files = database.getKeysInRange( fromId, sourceId );
-					LOGGER.debug( "MAIN - Node: " + me.getPort() +
-					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
-					              ", to: " + cHasher.getBucket( sourceId ).getAddress() +
-					              ", FILES: " + files );
-				}
-				else {
-					// Get the virtual destination node identifier.
-				    String destId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-				    String fromId = cHasher.getPreviousBucket( destId );
-				    files = database.getKeysInRange( fromId, destId );
-					LOGGER.debug( "REPLICA - Node: " + me.getPort() +
-					              ", From: " + cHasher.getBucket( fromId ).getAddress() +
-					              ", to: " + cHasher.getBucket( destId ).getAddress() );
-				}
+			    String fromId = cHasher.getPreviousBucket( sourceId );
+			    List<DistributedFile> files = database.getKeysInRange( fromId, sourceId );
+				LOGGER.debug( "MAIN - Node: " + me.getPort() +
+				              ", From: " + cHasher.getBucket( fromId ).getAddress() +
+				              ", to: " + cHasher.getBucket( sourceId ).getAddress() +
+				              ", FILES: " + files );
 				
 				if(files == null) {
 				    session.close();
 				    return;
 				}
 				
-				List<DistributedFile> filesToSend = new ArrayList<>();
 				m_tree = createMerkleTree( files );
 				
 				//System.out.println( "[RCV] FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", Files: " + files );
@@ -163,29 +148,26 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				LOGGER.debug( "FROM_ID: " + sourceId + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
 				
 				if(m_tree != null)
-					filesToSend = getMissingFiles( files );
+					getMissingFiles( files );
 				//System.out.println( "FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", MISSING FILES: " + filesToSend );
-				
-				addToSynch( sourceId );
 				
 				if(bitSet.cardinality() > 0) {
 					// Receive the vector clocks associated to the shared files.
 					byte[] versions = session.receive();
 					List<VectorClock> vClocks = getVersions( ByteBuffer.wrap( versions ) );
-					filesToSend.addAll( checkVersions( sourceNode.getPort(), files, vClocks, srcAddress, sourceId ) );
+					checkVersions( sourcePort, files, vClocks, srcAddress, sourceId );
 				}
 				
-				if(filesToSend.size() > 0)
-					fMgr.sendFiles( srcAddress, sourceNode.getPort(), filesToSend, false, sourceId, null );
-				else // No differences.
-					removeFromSynch( sourceId );
-				filesSent = true;
+				if(filesToSend.size() > 0) {
+				    addToSynch( sourceId );
+					fMgr.sendFiles( srcAddress, sourcePort, filesToSend, false, sourceId, null );
+				}
 			}
-			catch( IOException | IllegalAccessError e ) {
+			catch( IOException e ) {
 			    // Ignored.
 				//e.printStackTrace();
 				
-				if(sourceId != null && filesSent)
+				if(sourceId != null)
 					removeFromSynch( sourceId );
 			}
 			
@@ -202,19 +184,20 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			ByteBuffer data = ByteBuffer.wrap( session.receive() );
 			// Get the source node identifier.
 			sourceId = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-			sourceNode = cHasher.getBucket( sourceId );
-			if(sourceNode == null) {
-				session.close();
-				return null;
-			}
+			if(isSynch( sourceId )) {
+                LOGGER.info( "Node " + sourceId + " is synchronizing..." );
+                // Send out a negative response.
+                session.sendMessage( Networking.FALSE, false );
+                session.close();
+                return null;
+            }
+			
+			sourcePort = DFSUtils.byteArrayToInt( DFSUtils.getNextBytes( data ) );
 			
 			//LOGGER.debug( "Received connection from: " + sourceNode + ", Id: " + sourceId );
 			
-			if(isSynch( sourceId )) {
-				LOGGER.info( "Node " + sourceId + " is synchronizing..." );
-				session.close();
-				return null;
-			}
+			// Send out a positive response.
+            session.sendMessage( Networking.TRUE, false );
 			
 			return data;
 		}
@@ -299,7 +282,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 				
 				if(found) {
-				    // Set 1 all the range reachable from the node.
+				    // Set 1 all the leaves reachable from the node.
 				    Deque<Node> leaves = m_tree.getLeavesFrom( node );
                     LOGGER.debug( "From: " + leaves.getFirst().position + ", to: " + leaves.getLast().position );
                     bitSet.set( leaves.getFirst().position, leaves.getLast().position + 1 );
@@ -322,10 +305,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * 
 		 * @param files		list of files in the range
 		*/
-		private List<DistributedFile> getMissingFiles( final List<DistributedFile> files )
+		private void getMissingFiles( final List<DistributedFile> files )
 		{
-			List<DistributedFile> filesToSend = new ArrayList<>();
-			
 			// Flip the values.
 			bitSet.flip( 0, m_tree.getNumLeaves() );
 			
@@ -337,8 +318,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			
 			// Flip back the values.
 			bitSet.flip( 0, m_tree.getNumLeaves() );
-			
-			return filesToSend;
 		}
 		
 		private List<VectorClock> getVersions( final ByteBuffer versions )
@@ -361,18 +340,13 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * @param inClocks		source vector clocks
 		 * @param address		source node address
 		 * @param sourceNodeId	identifier of the source node
-		 * 
-		 * @return list of files which own an older version
 		*/
-		private List<DistributedFile> checkVersions( final int port,
-		                                             final List<DistributedFile> files,
-		                                             final List<VectorClock> inClocks,
-		                                             final String address,
-		                                             final String sourceNodeId )
+		private void checkVersions( final int port,
+                                    final List<DistributedFile> files,
+                                    final List<VectorClock> inClocks,
+		                            final String address,
+		                            final String sourceNodeId )
 		{
-			List<DistributedFile> filesToSend = new ArrayList<>();
-			List<DistributedFile> filesToRemove = new ArrayList<>();
-			
 			// Get the files that are shared by the two nodes, but with different versions.
 			for(int i = bitSet.nextSetBit( 0 ), j = 0; i >= 0; i = bitSet.nextSetBit( i+1 ), j++) {
 				if(i == Integer.MAX_VALUE)
@@ -382,36 +356,20 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				VectorClock vClock = inClocks.get( j );
 				
 				// If the input version is older than mine, the associated file is added.
-				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE)) {
-					if(file.isDeleted())
-						filesToRemove.add( files.get( i ) );
-					else
-						filesToSend.add( files.get( i ) );
-				}
+				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE))
+					filesToSend.add( files.get( i ) );
 			}
-			
-			// Send the files to delete.
-			if(filesToRemove.size() > 0) {
-				addToSynch( sourceNodeId );
-				fMgr.sendFiles( address, port, filesToRemove, false, sourceNodeId, null );
-			}
-			
-			return filesToSend;
 		}
 	}
 	
-	private synchronized boolean isSynch( final String nodeId )
+	private boolean isSynch( final String nodeId )
 	{
-	    return syncNodes.containsKey( nodeId );
+	    return syncNodes.contains( nodeId );
 	}
 	
-	private synchronized void addToSynch( final String nodeId )
+	private void addToSynch( final String nodeId )
 	{
-		Integer value = syncNodes.get( nodeId );
-		if(value == null)
-			syncNodes.put( nodeId, 1 );
-		else
-			syncNodes.put( nodeId, value + 1 );
+	    syncNodes.add( nodeId );
 	}
 	
 	/**
@@ -419,13 +377,9 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	 * 
 	 * @param nodeId	identifier of the node to remove
 	*/
-	public synchronized void removeFromSynch( final String nodeId )
+	public void removeFromSynch( final String nodeId )
 	{
-		int value = syncNodes.get( nodeId );
-		if(value == 1)
-			syncNodes.remove( nodeId );
-		else
-			syncNodes.put( nodeId, value - 1 );
+		syncNodes.remove( nodeId );
 	}
 	
 	@Override
