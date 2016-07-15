@@ -316,7 +316,7 @@ public class LoadBalancer extends DFSNode
 	}
 	
 	/**
-	 * Gets the first N nodes from the node's preference list,
+	 * Gets the first N nodes from the given node's preference list,
 	 * represented by its identifier.<br>
 	 * For simplicity, its preference list is made by nodes
 	 * encountered while walking the DHT.
