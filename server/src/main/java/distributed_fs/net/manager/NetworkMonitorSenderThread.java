@@ -35,17 +35,7 @@ public class NetworkMonitorSenderThread extends NetworkMonitorThread
 			catch ( InterruptedException e ) { break; }
 			
 			try {
-				double loadAverage = system.getSystemLoadAverage();
-				NodeStatistics stats = node.getStatistics();
-				//stats.increaseValue( NodeStatistics.NUM_CONNECTIONS );
-				stats.setValue( NodeStatistics.WORKLOAD, loadAverage );
-				
-				//System.err.println( "WorkLoad: " + stats.getAverageLoad() );
-				
-				byte[] data = encryptMessage( DFSUtils.serializeObject( stats ) );
-				//System.out.println( "DATA: " + Utils.deserializeObject( decryptMessage( data ) ) );
-				//sendMessage( encryptMessage( data ) );
-				net.sendMulticastMessage( data );
+				sendStatistics();
 			}
 			catch ( Exception e ) {
 				//e.printStackTrace();
@@ -53,6 +43,21 @@ public class NetworkMonitorSenderThread extends NetworkMonitorThread
 		}
 		
 		LOGGER.info( "Network Sender closed." );
+	}
+	
+	/**
+	 * Sends in UDP broadcast the current statistics.
+	*/
+	private void sendStatistics() throws Exception
+	{
+	    double loadAverage = system.getSystemLoadAverage();
+        NodeStatistics stats = node.getStatistics();
+        stats.setValue( NodeStatistics.WORKLOAD, loadAverage );
+        
+        //System.err.println( "WorkLoad: " + stats.getAverageLoad() );
+        
+        byte[] data = encryptMessage( DFSUtils.serializeObject( stats ) );
+        net.sendMulticastMessage( data );
 	}
 
 	@Override
