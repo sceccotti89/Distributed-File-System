@@ -262,12 +262,12 @@ public class LoadBalancer extends DFSNode
 				for(int i = index - 1; i >= 0; i--) {
 				    // Send the request to the "best" node, based on load informations.
 					GossipMember targetNode = getBalancedNode( nodes );
-					int port = targetNode.getPort() + PORT_OFFSET;
+					int port = targetNode.getPort();
 					
 					// Contact the target node.
 					LOGGER.debug( "[LB] Contacting: " + targetNode );
 					if(!replacedThread || actionsList.isEmpty()) {
-    					try{ newSession = _net.tryConnect( targetNode.getHost(), port, 2000 ); }
+    					try{ newSession = _net.tryConnect( targetNode.getHost(), port + PORT_OFFSET, 2000 ); }
     					catch( IOException e ){ /* Ignored. e.printStackTrace();*/ }
     					state.setValue( ThreadState.BALANCED_NODE_CONN, newSession );
     					actionsList.addLast( DONE );

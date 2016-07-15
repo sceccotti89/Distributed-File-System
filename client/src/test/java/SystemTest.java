@@ -327,7 +327,7 @@ public class SystemTest
     	DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
     	
     	int index = 3 + NUMBER_OF_BALANCERS;
-    	String hh = servers.get( index ).getAddress() + ":" + servers.get( index ).getPort();
+    	String hh = members.get( index ).getAddress();
     	servers.get( index ).close();
     	System.out.println( "Node: " + members.get( index ) + " closed." );
     	
