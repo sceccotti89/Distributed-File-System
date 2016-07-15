@@ -26,7 +26,7 @@ public class SystemSimulation implements Closeable
     
     public SystemSimulation( final String ipAddress ) throws IOException, DFSException, InterruptedException
     {
-        this( ipAddress, DFSUtils.computeVirtualNodes() );
+        this( ipAddress, 0 );
     }
     
     public SystemSimulation( final String ipAddress,
@@ -39,7 +39,6 @@ public class SystemSimulation implements Closeable
                              final int virtualNodes,
                              final List<GossipMember> members ) throws IOException, DFSException, InterruptedException
     {
-        //DFSUtils.testing = true;
         String address = (ipAddress == null) ? IpAddress : ipAddress;
         
         if(members != null)
