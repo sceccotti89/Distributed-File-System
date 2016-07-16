@@ -110,7 +110,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public boolean containsBucket( final B bucket )
 	{
-	    return bucketsMap.containsKey( bucket );
+	    return bucketsMap.containsKey( bucket.getId() );
 	}
 
 	@Override
@@ -171,7 +171,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
     public boolean containsMember( final M member )
     {
-        return membersMap.containsKey( member );
+        return membersMap.containsKey( DFSUtils.getId( member ) );
     }
 
 	@Override
