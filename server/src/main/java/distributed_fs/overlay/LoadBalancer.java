@@ -62,7 +62,7 @@ public class LoadBalancer extends DFSNode
 		setName( "StorageNode" );
 		
 		// Set the id to the remote nodes.
-        List<GossipNode> nodes = runner.getGossipService().getGossipManager().getMemberList();
+        List<GossipNode> nodes = gManager.getMemberList();
         for(GossipNode node : nodes) {
             GossipMember member = node.getMember();
             member.setId( DFSUtils.getNodeId( 1, member.getAddress() ) );
@@ -105,7 +105,7 @@ public class LoadBalancer extends DFSNode
     public void removeNode( final GossipMember member ) throws InterruptedException
     {
         cHasher.removeBucket( member );
-        runner.getGossipService().getGossipManager().removeMember( member );
+        gManager.removeMember( member );
     }
     
     /**
@@ -116,7 +116,7 @@ public class LoadBalancer extends DFSNode
     public void addNode( final GossipMember member )
     {
         cHasher.addBucket( member, member.getVirtualNodes() );
-        runner.getGossipService().getGossipManager().addMember( member );
+        gManager.addMember( member );
     }
 	
 	/**
@@ -151,7 +151,7 @@ public class LoadBalancer extends DFSNode
 	    netMonitor.start();
 	    monitor_t.start();
 	    if(startGossiping)
-	        runner.start();
+	        gManager.start();
 	    
 	    LOGGER.info( "[LB] Waiting on: " + _address + ":" + port );
 	    

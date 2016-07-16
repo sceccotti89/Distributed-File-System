@@ -14,8 +14,6 @@ public class GossipRunner
 {
 	/** The startup gossiping service. */
 	private GossipService gossipService;
-	/** Checks whether the gossiping is started. */
-	private boolean started = false;
 	
 	public GossipRunner( final String configFile, final GossipListener listener, final String _address, final int port, final int virtualNodes, final int nodeType ) 
 	{
@@ -64,17 +62,6 @@ public class GossipRunner
             System.err.println( "Error while starting the gossip service: " + e.getMessage() );
         }
     }
-	
-	public boolean isStarted()
-	{
-	    return started;
-	}
-	
-	public void start()
-	{
-	    gossipService.start();
-	    started = true;
-	}
 	
 	public GossipService getGossipService()
 	{

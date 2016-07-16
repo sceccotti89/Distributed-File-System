@@ -55,7 +55,7 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
     }
     
     /**
-     * Class used to compare two Gossip nodes.
+     * Class used to compare two GossipNode.
     */
     public static class CompareNodes implements Comparator<GossipNode>
     {

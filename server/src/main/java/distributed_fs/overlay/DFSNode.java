@@ -4,10 +4,7 @@
 
 package distributed_fs.overlay;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -23,8 +20,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -61,8 +56,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected TCPnet _net;
 	
 	protected volatile ConsistentHasher<GossipMember, String> cHasher;
+	protected int vNodes;
 	protected Set<String> filterAddress;
-	protected GossipRunner runner;
+	protected GossipManager gManager;
 	
 	protected ExecutorService threadPool;
 	protected NetworkMonitorThread netMonitor;
@@ -106,8 +102,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 		
 		setConfigure();
 		
-		int vNodes = (virtualNodes <= 0) ? computeVirtualNodes() : virtualNodes;
-		
 		cHasher = new ConsistentHasherImpl<>();
 		stats = new NodeStatistics();
 		_net = new TCPnet();
@@ -116,10 +110,14 @@ public abstract class DFSNode extends Thread implements GossipListener
 		//threadPool = Executors.newCachedThreadPool();
 		threadPool = Executors.newFixedThreadPool( MAX_USERS );
 		
+		GossipRunner runner;
 		if(startupMembers == null || startupMembers.size() == 0)
-			runner = new GossipRunner( DFSUtils.GOSSIP_CONFIG, this, _address, this.port, vNodes, nodeType );
+			runner = new GossipRunner( DFSUtils.GOSSIP_CONFIG, this, _address, this.port, virtualNodes, nodeType );
 		else
-		    runner = new GossipRunner( this, _address, this.port, DFSUtils.getNodeId( 1, _address ), vNodes, nodeType, startupMembers );
+		    runner = new GossipRunner( this, _address, this.port, DFSUtils.getNodeId( 1, _address ), virtualNodes, nodeType, startupMembers );
+		gManager = runner.getGossipService().getGossipManager();
+		
+		vNodes = gManager.getVirtualNodes();
 		
 		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
 		{
@@ -184,75 +182,6 @@ public abstract class DFSNode extends Thread implements GossipListener
         return members;
     }
 	
-	/**
-	 * Returns the number of virtual nodes that can be managed,
-	 * based on the capabilities of this machine.
-	*/
-	protected short computeVirtualNodes() throws IOException
-	{
-		short virtualNodes = 2;
-		
-		Runtime runtime = Runtime.getRuntime();
-		
-		// Total number of processors or cores available to the JVM.
-		int cores = runtime.availableProcessors();
-		LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
-		virtualNodes = (short) (virtualNodes + (cores * 4));
-		
-		// Size of the RAM.
-		long RAMsize;
-		String OS = System.getProperty( "os.name" ).toLowerCase();
-		if(OS.startsWith( "windows" )) {
-		    // Windows command.
-			ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
-			Process proc = pb.start();
-            //Process proc = runtime.exec( "wmic computersystem get TotalPhysicalMemory" );
-			short count = 0;
-			
-			InputStream stream = proc.getInputStream();
-			InputStreamReader isr = new InputStreamReader( stream );
-			BufferedReader br = new BufferedReader( isr );
-			
-			String line = null;
-			while((line = br.readLine()) != null && ++count < 3);
-			
-			br.close();
-			
-			//System.out.println( line );
-			RAMsize = Long.parseLong( line.trim() );
-		}
-		else {
-		    // Linux command.
-		    // TODO does it work also on MacOS??
-			ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
-			Process proc = pb.start();
-			
-			InputStream stream = proc.getInputStream();
-			InputStreamReader isr = new InputStreamReader( stream );
-			BufferedReader br = new BufferedReader( isr );
-			
-			String line = null;
-			while((line = br.readLine()) != null) {
-				if(line.startsWith( "MemTotal" ))
-					break;
-			}
-			
-			br.close();
-			
-			Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
-			matcher.find();
-			// Multiply it by 1024 because the result is expressed in kBytes.
-			RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
-		}
-		
-		LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
-		virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // Divide it by 250MBytes.
-		
-		LOGGER.debug( "Total nodes: " + virtualNodes );
-		
-		return virtualNodes;
-	}
-	
 	public String getAddress() {
 		return _address;
 	}
@@ -274,17 +203,21 @@ public abstract class DFSNode extends Thread implements GossipListener
 	{
 	    GossipMember member = node.getMember();
 		if(state == GossipState.DOWN) {
-			LOGGER.info( "Removed node: " + member.toJSONObject().toString() );
+			LOGGER.info( "Removed node: " + member );
 			try{ cHasher.removeBucket( member ); }
 			catch( InterruptedException e ){}
 		}
 		else {
-			LOGGER.info( "Added node: " + member.toJSONObject().toString() );
+			LOGGER.info( "Added node: " + member );
 			cHasher.addBucket( member, member.getVirtualNodes() );
 			if(fMgr != null) {
 				fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
 			}
 		}
+		
+		int vNodes = gManager.getVirtualNodes();
+		if(vNodes != this.vNodes)
+		    cHasher.addBucket( gManager.getMyself(), this.vNodes = vNodes );
 	}
 
 	/** 
@@ -463,8 +396,8 @@ public abstract class DFSNode extends Thread implements GossipListener
         catch( InterruptedException e ) {}
 		
 		_net.close();
-		if(runner.isStarted())
-			runner.getGossipService().shutdown();
+		if(gManager.isStarted())
+		    gManager.shutdown();
 		
 		synchronized( threadPool ) {
 		    threadPool.shutdown();

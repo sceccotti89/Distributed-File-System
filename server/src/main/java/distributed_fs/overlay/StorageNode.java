@@ -70,7 +70,8 @@ public class StorageNode extends DFSNode
 	 * 
 	 * @param address				the ip address. If {@code null} it will be taken using the configuration file parameters.
 	 * @param port                  the port number. If <= 0 the default one is assigned.
-	 * @param virtualNodes          number of virtual nodes. If <= 0 it's computed using the capabilities of the machine.
+	 * @param virtualNodes          number of virtual nodes. If > 0 this value will be considered as static and never change,
+	 *                              otherwise it's keep has the logarithm of the number of nodes present in the system.
 	 * @param startupMembers		list of nodes
 	 * @param resourcesLocation		the root where the resources are taken from.
 	 * 								If {@code null} the default one will be selected ({@link distributed_fs.storage.DFSDatabase#RESOURCES_LOCATION});
@@ -87,12 +88,12 @@ public class StorageNode extends DFSNode
 		super( address, port, virtualNodes, GossipMember.STORAGE, startupMembers );
 		setName( "StorageNode" );
 		
-		me = runner.getGossipService().getGossipManager().getMyself();
+		me = gManager.getMyself();
 		me.setId( DFSUtils.getNodeId( 1, me.getAddress() ) );
-		lMgr_t = new MembershipManagerThread( _address, this.port, me, runner.getGossipService().getGossipManager() );
+		lMgr_t = new MembershipManagerThread( _address, this.port, me, gManager );
 		
 		// Set the id to the remote nodes.
-		List<GossipNode> nodes = runner.getGossipService().getGossipManager().getMemberList();
+		List<GossipNode> nodes = gManager.getMemberList();
 		for(GossipNode node : nodes) {
 		    GossipMember member = node.getMember();
 		    member.setId( DFSUtils.getNodeId( 1, member.getAddress() ) );
@@ -187,7 +188,7 @@ public class StorageNode extends DFSNode
 		lMgr_t.start();
 		
 		if(startGossiping)
-		    runner.start();
+		    gManager.start();
 		
 		LOGGER.info( "[SN] Waiting on: " + _address + ":" + port );
 		
@@ -665,7 +666,28 @@ public class StorageNode extends DFSNode
 		sendClientResponse( clock );
 	}
 	
-	/** 
+	/**
+     * Opens a direct connection with client.
+     * 
+     * @param clientAddress    the address where the connection is oriented
+    */
+    private void openClientConnection( final String clientAddress ) throws IOException
+    {
+        if(clientAddress != null) {
+            // If the address is not null means that it's a LoadBalancer address.
+            if(!replacedThread || actionsList.isEmpty()) {
+    	        session.close();
+        		
+        		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
+        		String[] host = clientAddress.split( ":" );
+        		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
+        		
+        		actionsList.addLast( DONE );
+            }
+        }
+    }
+
+    /** 
 	 * Sends the update state to the client.
 	 * 
 	 * @param clock    the updated clock to send
@@ -678,8 +700,9 @@ public class StorageNode extends DFSNode
             if(clock == null)
                 message = new MessageResponse( (byte) 0x0 );
             else {
+                // TODO proviamo a non mettercelo e a farlo aggiornare dal client
                 message = new MessageResponse( (byte) 0x1 );
-                message.addObject( DFSUtils.serializeObject( clock ) );
+                //message.addObject( DFSUtils.serializeObject( clock ) );
             }
             session.sendMessage( message, true );
             LOGGER.debug( "[SN] Clock sent." );
@@ -687,27 +710,6 @@ public class StorageNode extends DFSNode
         }
         else
             actionsList.removeFirst();
-	}
-	
-	/**
-	 * Opens a direct connection with client.
-	 * 
-	 * @param clientAddress    the address where the connection is oriented
-	*/
-	private void openClientConnection( final String clientAddress ) throws IOException
-	{
-	    if(clientAddress != null) {
-	        // If the address is not null means that it's a LoadBalancer address.
-	        if(!replacedThread || actionsList.isEmpty()) {
-    	        session.close();
-        		
-        		LOGGER.info( "Open a direct connection with the client: " + clientAddress );
-        		String[] host = clientAddress.split( ":" );
-        		session = _net.tryConnect( host[0], Integer.parseInt( host[1] ), 5000 );
-        		
-        		actionsList.addLast( DONE );
-	        }
-	    }
 	}
 	
 	/**

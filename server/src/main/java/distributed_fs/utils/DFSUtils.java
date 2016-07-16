@@ -20,6 +20,8 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -29,6 +31,7 @@ import org.json.JSONObject;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
+import distributed_fs.overlay.DFSNode;
 import distributed_fs.utils.resources.ResourceLoader;
 
 public class DFSUtils
@@ -75,6 +78,107 @@ public class DFSUtils
 		byte[] bucketNameInBytes = serializeObject( object );
 		return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
 	}
+	
+	/**
+     * Returns the number of virtual nodes that can be managed,
+     * based on the capabilities of this machine.
+    */
+    public static short computeVirtualNodes() throws IOException
+    {
+        short virtualNodes = 2;
+        
+        Runtime runtime = Runtime.getRuntime();
+        
+        // Total number of processors or cores available to the JVM.
+        int cores = runtime.availableProcessors();
+        DFSNode.LOGGER.debug( "Available processors: " + cores + ", CPU nodes: " + (cores * 4) );
+        virtualNodes = (short) (virtualNodes + (cores * 4));
+        
+        // Size of the RAM.
+        long RAMsize = 0L;
+        String OS = System.getProperty( "os.name" ).toLowerCase();
+        if(OS.indexOf( "win" ) >= 0) {
+            // Windows command.
+            ProcessBuilder pb = new ProcessBuilder( "wmic", "computersystem", "get", "TotalPhysicalMemory" );
+            Process proc = pb.start();
+            short count = 0;
+            
+            InputStream stream = proc.getInputStream();
+            InputStreamReader isr = new InputStreamReader( stream );
+            BufferedReader br = new BufferedReader( isr );
+            
+            String line = null;
+            while((line = br.readLine()) != null && ++count < 3);
+            
+            br.close();
+            
+            if(count != 3)
+                return virtualNodes;
+            
+            //System.out.println( line );
+            RAMsize = Long.parseLong( line.trim() );
+        }
+        else if(OS.indexOf( "nix" ) >= 0 || OS.indexOf( "nux" ) >= 0 || OS.indexOf( "aix" ) > 0) {
+            // Linux command.
+            ProcessBuilder pb = new ProcessBuilder( "less", "/proc/meminfo" );
+            Process proc = pb.start();
+            
+            InputStream stream = proc.getInputStream();
+            InputStreamReader isr = new InputStreamReader( stream );
+            BufferedReader br = new BufferedReader( isr );
+            
+            boolean found = false;
+            String line = null;
+            while((line = br.readLine()) != null) {
+                if(line.startsWith( "MemTotal" )) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            br.close();
+            
+            if(!found)
+                return virtualNodes;
+            
+            Matcher matcher = Pattern.compile( "[0-9]+(.*?)[0-9]" ).matcher( line );
+            matcher.find();
+            // Multiply it by 1024 because the result is expressed in kBytes.
+            RAMsize = Long.parseLong( line.substring( matcher.start(), matcher.end() ) ) * 1024;
+        }
+        else if(OS.indexOf( "mac" ) >= 0) {
+            // MAC command.
+            ProcessBuilder pb = new ProcessBuilder( "system_profiler", "|", "grep \"  Memory:\"" );
+            Process proc = pb.start();
+            
+            InputStream stream = proc.getInputStream();
+            InputStreamReader isr = new InputStreamReader( stream );
+            BufferedReader br = new BufferedReader( isr );
+            
+            String line = br.readLine();
+            
+            br.close();
+            
+            if(line != null) {
+                int length = line.length();
+                String size = line.substring( length - 2 );
+                String dim  = line.trim().substring( 0, length - 2 );
+                if(size.equalsIgnoreCase( "GB" ))
+                    RAMsize = Long.parseLong( dim ) * 1073741824;
+                else // KB??
+                    RAMsize = Long.parseLong( dim ) * 1048576;
+            }
+            else
+                return virtualNodes;
+        }
+        
+        DFSNode.LOGGER.debug( "RAM size: " + RAMsize + ", RAM nodes: " + (RAMsize / 262144000) );
+        virtualNodes = (short) (virtualNodes + (RAMsize / 262144000)); // Divide it by 250MBytes.
+        
+        DFSNode.LOGGER.debug( "Total nodes: " + virtualNodes );
+        
+        return virtualNodes;
+    }
 	
 	/** 
 	 * Serializes an object.
@@ -132,7 +236,7 @@ public class DFSUtils
     */
     public static String createRandomFile()
     {
-    	int size = (int) (Math.random() * 5) + 1; // Max 5 bytes
+    	int size = (int) (Math.random() * 5) + 1; // Max 5 characters.
     	StringBuilder builder = new StringBuilder( size );
     	for(int i = 0; i < size; i++) {
     		builder.append( (char) ((Math.random() * 57) + 65) );
@@ -373,8 +477,6 @@ public class DFSUtils
 	*/
 	public static String bytesToHex( final byte[] b )
 	{
-		//return DatatypeConverter.printHexBinary( b );
-		
 		final char hexDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 		StringBuffer buf = new StringBuffer( 64 );
 		for(int j = 0; j < b.length; j++) {
@@ -402,8 +504,6 @@ public class DFSUtils
 	*/
 	public static byte[] hexToBytes( final String s )
 	{
-		//return DatatypeConverter.parseHexBinary( s );
-		
 		assert( s.length() >= 2 );
 		
 		int len = s.length();
@@ -486,7 +586,6 @@ public class DFSUtils
 	{
 	    InputStream in = ResourceLoader.getResourceAsStream( path );
         BufferedReader file = new BufferedReader( new InputStreamReader( in ) );
-		//BufferedReader file = new BufferedReader( new FileReader( path ) );
 		StringBuilder content = new StringBuilder( 512 );
 		String line;
 		while((line = file.readLine()) != null)

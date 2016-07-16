@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -33,8 +32,8 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	
 	private final ConcurrentSkipListMap<GossipNode, GossipState> members;
 	private final LocalGossipMember _me;
+	private int vNodes;
 	private final GossipSettings _settings;
-	private final AtomicBoolean _gossipServiceRunning;
 	private final Class<? extends PassiveGossipThread> _passiveGossipThreadClass;
 	private final Class<? extends ActiveGossipThread> _activeGossipThreadClass;
 	private final GossipListener listener;
@@ -42,7 +41,8 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	private PassiveGossipThread passiveGossipThread;
 	private ExecutorService _gossipThreadExecutor;
 	
-	//public static boolean doShutdown = false;
+    private boolean started = false;
+    private boolean updateVNodes = false;
 	
 	public GossipManager( final Class<? extends PassiveGossipThread> passiveGossipThreadClass,
 						  final Class<? extends ActiveGossipThread>  activeGossipThreadClass, 
@@ -61,25 +61,20 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		this.listener = listener;
 		_me = new LocalGossipMember( address, port, id, virtualNodes, nodeType, 0, true, this, settings.getCleanupInterval() );
 		members = new ConcurrentSkipListMap<>( new CompareNodes() );
-		for (GossipMember startupMember : gossipMembers) {
-			if (!startupMember.equals( _me )) {
+		for(GossipMember startupMember : gossipMembers) {
+			if(!startupMember.equals( _me )) {
 				LocalGossipMember member = new LocalGossipMember( startupMember.getHost(), startupMember.getPort(), startupMember.getId(),
 																  0, startupMember.getNodeType(), 0, false, this, settings.getCleanupInterval() );
 				members.put( new GossipNode( member ), GossipState.UP );
 				GossipService.LOGGER.debug( member );
 			}
 		}
-
-		_gossipServiceRunning = new AtomicBoolean( true );
-		/*Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
-		{
-			@Override
-			public void run() 
-			{
-				doShutdown = true;
-				GossipService.LOGGER.info( "Service has been shutdown..." );
-			}
-		}));*/
+		
+		vNodes = virtualNodes;
+		if(vNodes <= 0) {
+		    updateVNodes = true;
+		    updateVirtualNodes();
+		}
 	}
 
 	/**
@@ -95,8 +90,10 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		GossipNode node = new GossipNode( deadMember );
 		members.put( node, GossipState.DOWN );
 		
-		// Avoid the notification of LoadBalancer nodes
-		if(deadMember.getNodeType() != GossipMember.LOAD_BALANCER && deadMember.getVirtualNodes() > 0 && listener != null) {
+		// Avoid the notification of LoadBalancer nodes.
+		if(deadMember.getNodeType() != GossipMember.LOAD_BALANCER &&
+		   deadMember.getVirtualNodes() > 0 && listener != null) {
+		    updateVirtualNodes();
 			listener.gossipEvent( node, GossipState.DOWN );
 		}
 	}
@@ -106,10 +103,30 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	    GossipNode node = new GossipNode( member );
 	    members.put( node, GossipState.UP );
 		
-		// Avoid the notification of LoadBalancer nodes
-		if(member.getNodeType() != GossipMember.LOAD_BALANCER && member.getVirtualNodes() > 0 && listener != null) {
+		// Avoid the notification of LoadBalancer nodes.
+		if(member.getNodeType() != GossipMember.LOAD_BALANCER &&
+		   member.getVirtualNodes() > 0 && listener != null) {
+		    updateVirtualNodes();
 			listener.gossipEvent( node, GossipState.UP );
 		}
+	}
+	
+	/**
+	 * Recomputes the number of virtual nodes
+	 * associated to this member.
+	*/
+	private void updateVirtualNodes()
+	{
+	    if(updateVNodes) {
+    	    int size = getMemberList().size() + 1;
+            vNodes = (int) (Math.log( size ) / Math.log( 2 ));
+            _me.setVirtualNodes( vNodes );
+	    }
+	}
+	
+	public int getVirtualNodes()
+	{
+	    return vNodes;
 	}
 	
 	public void updateMember( final LocalGossipMember member, final GossipState state )
@@ -159,6 +176,23 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		
 		return Collections.unmodifiableList( down );
 	}
+	
+	public void addShoutDownHook()
+	{
+	    Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
+        {
+            @Override
+            public void run() 
+            {
+                GossipService.LOGGER.info( "Service has been shutdown..." );
+            }
+        }));
+	}
+	
+	public boolean isStarted()
+    {
+        return started;
+    }
 
 	/**
 	 * Starts the client. Specifically, start the various cycles for this
@@ -167,9 +201,11 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	@Override
 	public void run() 
 	{
-		for (GossipNode node : members.keySet()) {
+	    started = true;
+	    
+		for(GossipNode node : members.keySet()) {
 			LocalGossipMember member = (LocalGossipMember) node.getMember();
-		    if (member != _me)
+		    if(member != _me)
 				member.startTimeoutTimer();
 		}
 
@@ -183,31 +219,34 @@ public abstract class GossipManager extends Thread implements NotificationListen
 			throw new RuntimeException( e1 );
 		}
 		GossipService.LOGGER.info( "The GossipService is started." );
-		while (_gossipServiceRunning.get()) {
+		
+		/*while (_gossipServiceRunning.get()) {
 			try {
-				TimeUnit.MILLISECONDS.sleep( 1 );
+				TimeUnit.SECONDS.sleep( 1 );
 			} catch ( InterruptedException e ) {
 				GossipService.LOGGER.info( "The GossipClient was interrupted." );
 			}
-		}
+		}*/
 	}
 
 	/**
 	 * Shutdown the gossip service.
 	 */
-	public void shutdown() 
+	public void shutdown()
 	{
 		_gossipThreadExecutor.shutdown();
 		passiveGossipThread.shutdown();
 		activeGossipThread.shutdown();
 		try {
-			boolean result = _gossipThreadExecutor.awaitTermination( 1000, TimeUnit.MILLISECONDS );
+			boolean result = _gossipThreadExecutor.awaitTermination( 1, TimeUnit.SECONDS );
 			if (!result) {
 				LOGGER.error( "executor shutdown timed out" );
 			}
 		} catch (InterruptedException e) {
 			LOGGER.error( e );
 		}
-		_gossipServiceRunning.set( false );
+		
+		//_gossipServiceRunning.set( false );
+		//interrupt();
 	}
 }
