@@ -295,7 +295,7 @@ public class StorageNode extends DFSNode
 				destId = data.getDestId();
 				
 				LOGGER.info( "[SN] Start the quorum..." );
-				agreedNodes = quorum_t.checkQuorum( state, session, opType, fileName, destId, _address + ":" + port );
+				agreedNodes = quorum_t.checkQuorum( state, session, opType, fileName, destId );
 				int replicaNodes = agreedNodes.size();
 				
 				// Check if the quorum has been completed successfully.

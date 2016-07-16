@@ -14,6 +14,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking;
@@ -37,8 +38,13 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 {
 	private TCPSession session;
 	private MerkleTree m_tree = null;
-	private BitSet bitSet = new BitSet(); // Used to keep track of the common files.
+	
+	// Used to keep track of the common files.
+	private BitSet bitSet = new BitSet();
 	private final Set<String> addresses = new HashSet<>();
+	
+	// List of virtual nodes.
+	private List<String> vNodes = null;
 	
 	
 	
@@ -65,10 +71,14 @@ public class AntiEntropySenderThread extends AntiEntropyThread
             return;
         }
 		
+		vNodes = cHasher.getVirtualBucketsFor( me );
 		while(!shutDown.get()) {
+		    // TODO un'alternativa sarebbe che ad ogni connessione creo un albero
+		    // TODO di TUTTE le chiavi che i virtual node gestiscono.
+		    // TODO forse ci guadagno qualcosa in termini prestazionali..
+		    // TODO dopo semmai lo approfondisco.
 		    // Each virtual node sends the Merkle tree to a
 		    // random successor and predecessor node.
-			List<String> vNodes = cHasher.getVirtualBucketsFor( me );
 			for(String vNodeId : vNodes) {
 			    // Upper-bound on the number of nodes: it takes all of them.
 			    List<String> nodes = getSuccessorNodes( vNodeId, Integer.MAX_VALUE );
@@ -99,7 +109,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
                 }
 			}
 			
-			try{ Thread.sleep( EXCH_TIMER ); }
+			try{ TimeUnit.SECONDS.sleep( WAIT_TIMER ); }
             catch( InterruptedException e ){ break; }
 		}
 		
@@ -263,26 +273,63 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	}
 	
 	/**
-     * Sends the list of versions associated to each common file (the bit is set to 1).
-     * 
-     * @param files     list of files
-    */
-    private void sendVersions( final List<DistributedFile> files ) throws IOException
-    {
-        int fileSize = files.size();
-        byte[] msg = null;
-        
-        for(int i = bitSet.nextSetBit( 0 ); i >= 0 && i < fileSize; i = bitSet.nextSetBit( i+1 )) {
-            if(i == Integer.MAX_VALUE)
-                break; // or (i+1) would overflow
-            
-            DistributedFile file = files.get( i );
-            byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
-            msg = net.createMessage( msg, vClock, true );
-        }
-        
-        session.sendMessage( msg, true );
-    }
+	 * Sends the list of versions associated to each common file (the bit is set to 1).
+	 * 
+	 * @param files		list of files
+	*/
+	private void sendVersions( final List<DistributedFile> files ) throws IOException
+	{
+		int fileSize = files.size();
+		byte[] msg = null;
+		
+		for(int i = bitSet.nextSetBit( 0 ); i >= 0 && i < fileSize; i = bitSet.nextSetBit( i+1 )) {
+			if(i == Integer.MAX_VALUE)
+				break; // or (i+1) would overflow
+			
+			DistributedFile file = files.get( i );
+			byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
+			msg = net.createMessage( msg, vClock, true );
+		}
+		
+		session.sendMessage( msg, true );
+	}
+	
+	/**
+	 * Returns the predecessor nodes respect to the input id.
+	 * 
+	 * @param id			source node identifier
+	 * @param numNodes		maximum number of nodes required
+	 * 
+	 * @return the list of predecessor nodes. It could contains less than num_nodes elements.
+	*/
+	/*private List<String> getPredecessorNodes( final String id, final int numNodes )
+	{
+		List<String> predecessors = new ArrayList<>( numNodes );
+		int size = 0;
+		
+		addresses.clear();
+		addresses.add( me.getAddress() );
+		
+		// Choose the nodes whose address is different than this node.
+		String currId = id, prev;
+		while(size < numNodes) {
+			prev = cHasher.getPreviousBucket( currId );
+			if(prev == null || prev.equals( id ))
+				break;
+			
+			GossipMember node = cHasher.getBucket( prev );
+			if(node != null) {
+				currId = prev;
+				if(!addresses.contains( node.getAddress() )) {
+					predecessors.add( currId = prev );
+					addresses.add( node.getAddress() );
+					size++;
+				}
+			}
+		}
+		
+		return predecessors;
+	}*/
 	
 	/**
      * Returns the successor nodes respect to the input id.

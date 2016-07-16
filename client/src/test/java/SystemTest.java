@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
@@ -265,31 +266,31 @@ public class SystemTest
 		Thread.sleep( 1000 );
 	}
 	
-    public void testAntiEntropy() throws IOException, DFSException, InterruptedException
-	{
-		System.out.println( "\n\nTEST ANTI ENTROPY" );
-		
-		GossipMember member = members.get( 1 + NUMBER_OF_BALANCERS );
-		for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
-		    ((LoadBalancer) servers.get( i )).removeNode( member );
-		
-		String file = "test3.txt";
-		DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
-		
-		modifyTextFile( "./Clients/ResourcesClient1/" + file );
-		assertTrue( clients.get( 0 ).put( file ) );
-		
-		System.out.println( "Waiting..." );
-		// Wait the necessary time before to check if the last node have received the file.
-		Thread.sleep( AntiEntropyThread.EXCH_TIMER * 2 + 1000 );
-		System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
-							", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
-		
-		assertNotNull( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
-		
-		for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
+	private void testAntiEntropy() throws IOException, DFSException, InterruptedException
+    {
+        System.out.println( "\n\nTEST ANTI ENTROPY" );
+        
+        GossipMember member = members.get( 1 + NUMBER_OF_BALANCERS );
+        for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
+            ((LoadBalancer) servers.get( i )).removeNode( member );
+        
+        String file = "test3.txt";
+        DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
+        
+        modifyTextFile( "./Clients/ResourcesClient1/" + file );
+        assertTrue( clients.get( 0 ).put( file ) );
+        
+        System.out.println( "Waiting..." );
+        // Wait the necessary time before to check if the last node have received the file.
+        TimeUnit.SECONDS.sleep( AntiEntropyThread.WAIT_TIMER * 2 + 1 );
+        System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
+                            ", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+        
+        assertNotNull( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
+        
+        for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
             ((LoadBalancer) servers.get( i )).addNode( member );
-	}
+    }
 	
 	private void modifyTextFile( final String file ) throws IOException
 	{

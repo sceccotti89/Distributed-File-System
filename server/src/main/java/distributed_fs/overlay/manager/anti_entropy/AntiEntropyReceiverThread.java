@@ -137,7 +137,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				m_tree = createMerkleTree( files );
 				
 				//System.out.println( "[RCV] FROM: " + cHasher.getBucket( sourceId ).getPort() + ", ME: " + me.getPort() + ", Files: " + files );
-				// Check the differences through the trees.
 				checkTreeDifferences( inputTree, inputHeight );
 				
 				LOGGER.debug( "FROM_ID: " + sourceId + ", TREE: " + m_tree + ", BIT_SET: " + bitSet );
@@ -205,8 +204,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			LOGGER.debug( "My tree: " + m_tree + ", other: " + inputTree );
 			bitSet.clear();
 			
-			if(inputTree == (byte) 0x1) {
-			    // Tree not empty.
+			if(inputTree == (byte) 0x1) { // Tree not empty.
 			    Deque<Node> nodes = new ArrayDeque<>( (m_tree == null) ? 0 : m_tree.getNumNodes() );
 				int treeHeight = 0;
 				
@@ -257,14 +255,16 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				boolean found = false;
 				
 				if(equalLevel) {
-				    // Compare the current node with the correspondent input signature: if equals put 1 in the set.
+				    // Compare the current node with the correspondent input signature:
+				    // if equals put 1 in the set.
 				    if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( i ).sig )) {
                         _bitSet.set( i );
                         found = true;
                     }
 				}
 				else {
-				    // Compare the current node with each input signature: if equals put 1 in the set.
+				    // Compare the current node with each input signature:
+				    // if equals put 1 in the set.
     				for(int j = index + 1; j < pTreeSize; j++) {
     					if(MerkleDeserializer.signaturesEqual( node.sig, pTree.get( j ).sig )) {
     						_bitSet.set( index = j );
@@ -349,7 +349,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				VectorClock vClock = inClocks.get( j );
 				
 				// If the input version is older than mine, the associated file is added.
-				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE)) 
+				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE))
 					filesToSend.add( files.get( i ) );
 			}
 		}
@@ -385,7 +385,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
         }
         
         try {
-            threadPool.awaitTermination( EXCH_TIMER, TimeUnit.MILLISECONDS );
+            threadPool.awaitTermination( WAIT_TIMER, TimeUnit.SECONDS );
         } catch( InterruptedException e1 ) {
             e1.printStackTrace();
         }

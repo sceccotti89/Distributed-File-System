@@ -36,11 +36,8 @@ public abstract class AntiEntropyThread extends Thread
 	
 	protected static final int PORT_OFFSET = 3;
 	
-	/** Type of messages exchanged during the synchronization procedure */
-	//protected static final byte MERKLE_FROM_MAIN = 0x0, MERKLE_FROM_REPLICA = 0x1;
-	
 	/** Updating timer. */
-    public static final int EXCH_TIMER = 5000;
+    public static final int WAIT_TIMER = 5; // 5 seconds.
 	
 	/** Logger used to print the application state. */
 	protected static final Logger LOGGER = Logger.getLogger( AntiEntropyThread.class.getName() );

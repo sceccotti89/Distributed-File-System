@@ -173,22 +173,23 @@ public class QuorumThread extends Thread
                                          final TCPSession session,
                                          final byte opType,
                                          final String fileName,
-                                         final String destId,
-                                         final String myAddress ) throws IOException
+                                         final String destId ) throws IOException
     {
         // Get the list of successor nodes.
         List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
         if(nodes == null) {
+            String myAddress = address + ":" + (port - PORT_OFFSET);
             nodes = node.getSuccessorNodes( destId, myAddress, QuorumSession.getMaxNodes() );
             state.setValue( ThreadState.SUCCESSOR_NODES, nodes );
         }
         
-        DFSNode.LOGGER.debug( "[SN] Neighbours: " + nodes.size() );
-        if(nodes.size() < QuorumSession.getMinQuorum( opType )) {
+        int size = nodes.size();
+        DFSNode.LOGGER.debug( "[SN] Neighbours: " + size );
+        if(size < QuorumSession.getMinQuorum( opType )) {
             // If there is a number of nodes less than the quorum,
             // we neither start the protocol.
             DFSNode.LOGGER.info( "[SN] Quorum failed, due to insufficient replica nodes: " +
-                                 nodes.size() + "/" + QuorumSession.getMinQuorum( opType ) );
+                                 size + "/" + QuorumSession.getMinQuorum( opType ) );
             sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
             return new ArrayList<>();
         }
@@ -201,11 +202,11 @@ public class QuorumThread extends Thread
     /**
      * Contacts the nodes to complete the quorum phase.
      * 
-     * @param state            state of the caller thread
-     * @param session          the actual TCP connection
-     * @param opType           the operation type
-     * @param fileName         name of the file
-     * @param nodes            list of contacted nodes
+     * @param state          state of the caller thread
+     * @param session        the actual TCP connection
+     * @param opType         the operation type
+     * @param fileName       name of the file
+     * @param nodes          list of contacted nodes
      * 
      * @return list of nodes that agreed to the quorum
     */
@@ -295,6 +296,7 @@ public class QuorumThread extends Thread
                 if(mySession != null)
                     mySession.close();
                 
+                // Unreachable node: check for the completion of the quorum.
                 DFSNode.LOGGER.info( "[SN] Node " + node + " is not reachable." );
                 if(QuorumSession.unmakeQuorum( ++errors, opType )) {
                     cancelQuorum( state, session, agreedNodes );
@@ -567,27 +569,27 @@ public class QuorumThread extends Thread
 	     * for the quorum protocol.
 	    */
 	    public static short getMaxNodes() {
-	        return N;
+	        return N - 1;
 	    }
 
 	    public static short getWriters() {
-	        return W;
+	        return W - 1;
 	    }
 	    
 	    public static short getReaders() {
-	        return R;
+	        return R - 1;
 	    }
 	    
 	    public static boolean isReadQuorum( final int readers ) {
-	        return readers >= R;
+	        return readers >= getReaders();
 	    }
 	    
 	    public static boolean isWriteQuorum( final int writers ) {
-	        return writers >= W;
+	        return writers >= getWriters();
 	    }
 	    
 	    public static boolean isDeleteQuorum( final int deleters ) {
-	        return deleters >= W;
+	        return deleters >= getWriters();
 	    }
 	    
 	    public static boolean isQuorum( final byte opType, final int replicaNodes )
@@ -601,17 +603,17 @@ public class QuorumThread extends Thread
 	    public static boolean unmakeQuorum( final int errors, final byte opType )
 	    {
 	        if(opType == Message.PUT || opType == Message.DELETE)
-	            return (N - errors) < W;
+	            return (getMaxNodes() - errors) < getWriters();
 	        else
-	            return (N - errors) < R;
+	            return (getMaxNodes() - errors) < getReaders();
 	    }
 	    
 	    public static int getMinQuorum( final byte opType )
 	    {
 	        if(opType == Message.GET)
-	            return R;
+	            return getReaders();
 	        else
-	            return W;
+	            return getWriters();
 	    }
 	}
 }

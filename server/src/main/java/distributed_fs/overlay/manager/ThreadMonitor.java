@@ -1,3 +1,7 @@
+/**
+ * @author Stefano Ceccotti
+*/
+
 package distributed_fs.overlay.manager;
 
 import java.io.IOException;

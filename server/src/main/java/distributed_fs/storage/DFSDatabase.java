@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -769,7 +770,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		private final Map<String, List<DistributedFile>> hhDatabase;
 		
 		private final ReentrantLock MUTEX_LOCK = new ReentrantLock( true );
-		private static final int CHECK_TIMER = 5000;
+		private static final int CHECK_TIMER = 10; // 10 minutes.
 		
 		public CheckHintedHandoffDatabase()
 		{
@@ -792,6 +793,9 @@ public class DFSDatabase extends DBManager implements Closeable
 				MUTEX_LOCK.unlock();
 				
 				for(String address : nodes) {
+				    if(shutDown.get())
+				        break;
+				    
 					List<DistributedFile> files = getFiles( address );
 					ListIterator<DistributedFile> it = files.listIterator();
 					for(int i = files.size() - 1; i >= 0; i--) {
@@ -817,7 +821,7 @@ public class DFSDatabase extends DBManager implements Closeable
 					}
 				}
 				
-				try{ Thread.sleep( CHECK_TIMER ); }
+				try{ TimeUnit.MINUTES.sleep( CHECK_TIMER ); }
                 catch( InterruptedException e ){}
 			}
 			
@@ -825,7 +829,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		}
 		
 		/**
-		 * Returns all the files associated with the address.
+		 * Returns all the files associated to the address.
 		 * 
 		 * @param address     the input address
 		*/
@@ -896,20 +900,25 @@ public class DFSDatabase extends DBManager implements Closeable
 		*/
 		public void checkMember( final String nodeAddress, final GossipState state )
 		{
+		    boolean wakeUp = false;
+		    
 		    MUTEX_LOCK.lock();
 		    
 		    if(state == GossipState.DOWN)
 		        upNodes.remove( nodeAddress );
 		    else {
-    			if(hhDatabase.containsKey( nodeAddress ))
+    			if(hhDatabase.containsKey( nodeAddress )) {
     				upNodes.add( nodeAddress );
+    				wakeUp = true;
+    			}
 		    }
 		    
 		    MUTEX_LOCK.unlock();
 		    
 		    // Interrupt the node (if not awake),
 		    // forcing it to send immediately the files.
-            interrupt();
+            if(wakeUp)
+                interrupt();
 		}
 		
 		public void shutDown()

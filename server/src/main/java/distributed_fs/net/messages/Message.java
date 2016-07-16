@@ -1,3 +1,7 @@
+/**
+ * @author Stefano Ceccotti
+*/
+
 package distributed_fs.net.messages;
 
 import java.io.Serializable;
