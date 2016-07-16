@@ -573,31 +573,6 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	/**
-	 * Updates the lastModified parameter of the given file.
-	 * 
-	 * @param fileName         name of the file to update
-	 * @param lastModified     the last modified value
-	*/
-	/*public void updateLastModified( final String fileName, final long lastModified )
-	{
-	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
-	    LOCK_WRITERS.lock();
-        if(db.isClosed()) {
-            LOCK_WRITERS.unlock();
-            return;
-        }
-        
-        DistributedFile file = database.get( fileId );
-        if(file != null) {
-            file.setLastModified( lastModified );
-            database.put( fileId, file );
-            db.commit();
-        }
-        
-        LOCK_WRITERS.unlock();
-	}*/
-	
-	/**
 	 * Checks the existence of a file in the application file system,
 	 * starting from the root.
 	 * 
