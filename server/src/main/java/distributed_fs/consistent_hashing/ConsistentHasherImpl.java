@@ -39,8 +39,6 @@ import gossiping.GossipMember;
  * @param <GossipMember>	bucket type.
  * @param <M>				member type.
  */
-// @ThreadSafe
-
 public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable> implements ConsistentHasher<B, M> 
 {
 	private final NavigableMap<String, B> bucketsMap;
@@ -108,6 +106,12 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	{
 		return bucketsMap.get( id );
 	}
+	
+	@Override
+	public boolean containsBucket( final B bucket )
+	{
+	    return bucketsMap.containsKey( bucket );
+	}
 
 	@Override
 	public void removeBucket( final B bucketName ) throws InterruptedException 
@@ -163,6 +167,12 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	    Preconditions.checkNotNull( memberName, "Member name can not be null" );
 		membersMap.remove( DFSUtils.getId( memberName ) );
 	}
+	
+	@Override
+    public boolean containsMember( final M member )
+    {
+        return membersMap.containsKey( member );
+    }
 
 	@Override
 	public List<M> getMembersFor( final B bucketName, final List<? extends M> members )

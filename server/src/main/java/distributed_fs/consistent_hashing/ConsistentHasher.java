@@ -40,6 +40,18 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	 * @param id	the input identifier
 	*/
 	B getBucket( final String id );
+	
+	/**
+     * Returns <tt>true</tt> if this map contains a mapping for the specified
+     * bucket.  More formally, returns <tt>true</tt> if and only if
+     * this map contains a mapping for a bucket <tt>k</tt> such that
+     * <tt>(key==null ? k==null : key.equals(k))</tt>.  (There can be
+     * at most one such mapping.)
+     *
+     * @param bucket key whose presence in this map is to be tested
+     * @return <tt>true</tt> if this map contains a mapping for the specified bucket
+    */
+	public boolean containsBucket( final B bucket );
 
 	/**
 	 * Removes the bucket. There can be virtual nodes for given a bucket.
@@ -84,6 +96,18 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	 * @throws NullPointerException	if the given argument is null.
 	 */
 	void removeMember( final M memberName );
+	
+	/**
+     * Returns <tt>true</tt> if this map contains a mapping for the specified
+     * member.  More formally, returns <tt>true</tt> if and only if
+     * this map contains a mapping for a member <tt>k</tt> such that
+     * <tt>(key==null ? k==null : key.equals(k))</tt>.  (There can be
+     * at most one such mapping.)
+     *
+     * @param member key whose presence in this map is to be tested
+     * @return <tt>true</tt> if this map contains a mapping for the specified member
+    */
+    public boolean containsMember( final M member );
 
 	/**
 	 * Returns all the members that belong to the given bucket. If there is no
