@@ -218,9 +218,9 @@ public abstract class DFSNode extends Thread implements GossipListener
 		int vNodes = gManager.getVirtualNodes();
         if(vNodes != this.vNodes) {
             // If the number of virtual nodes has been changed
-            // the previous one is removed and replaced with
-            // the node with the current value.
-            try{ cHasher.removeBucket( member ); }
+            // the previous ouselves member is removed and replaced with
+            // the updated value.
+            try{ cHasher.removeBucket( gManager.getMyself() ); }
             catch( InterruptedException e ){}
             cHasher.addBucket( gManager.getMyself(), this.vNodes = vNodes );
         }
