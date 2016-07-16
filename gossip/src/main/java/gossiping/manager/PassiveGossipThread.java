@@ -120,7 +120,7 @@ abstract public class PassiveGossipThread implements Runnable
 				}
 			} catch ( IOException e ) {
 				//GossipService.LOGGER.error( e );
-			    e.printStackTrace();
+			    //e.printStackTrace();
 				keepRunning.set(false);
 			}
 		}
