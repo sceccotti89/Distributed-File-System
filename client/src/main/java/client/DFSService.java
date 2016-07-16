@@ -348,13 +348,10 @@ public class DFSService extends DFSManager implements IDFSService
 		boolean completed = true;
 		
 		try {
-			//LOGGER.info( "Sending file..." );
-			
 			// Send the file.
 			RemoteFile rFile = new RemoteFile( file, dbRoot );
 			rFile.setDeleted( false, dbRoot );
 			sendPutMessage( session, rFile, hintedHandoff );
-			//LOGGER.info( "File sent" );
 			
 			// Checks whether the load balancer has found an available node,
             // or (with no balancers) if the quorum has been completed successfully.
@@ -372,12 +369,12 @@ public class DFSService extends DFSManager implements IDFSService
 			MessageResponse message = session.receiveMessage();
             if(message.getType() == (byte) 0x1) {
                 LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
-                VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
+                VectorClock newClock = file.getVersion().incremented( session.getEndPointAddress() );
                 database.saveFile( rFile, newClock, null, false );
             }
 		}
 		catch( IOException e ) {
-			//e.printStackTrace();
+			e.printStackTrace();
 			LOGGER.info( "Operation PUT '" + fileName + "' not performed. Try again later." );
 			completed = false;
 		}
@@ -420,19 +417,6 @@ public class DFSService extends DFSManager implements IDFSService
             return false;
         }
 		
-		/*if(file.isDirectory()) {
-		    // Delete recursively all the files present in the directory and sub-directories.
-		    File inputFile = new File( dbRoot + normFileName );
-		    File[] files = inputFile.listFiles();
-		    if(files != null) {
-    			for(File f: files) {
-    				LOGGER.debug( "Name: " + f.getPath() + ", Directory: " + f.isDirectory() );
-    				if(!delete( f.getPath() ))
-    					break;
-    			}
-		    }
-		}*/
-		
 		LOGGER.info( "Starting DELETE operation for: " + fileName );
 		
 		DistributedFile file = database.getFile( fileName );
@@ -467,7 +451,7 @@ public class DFSService extends DFSManager implements IDFSService
 			LOGGER.debug( "Updating file: " + (message.getType() == (byte) 0x1) );
 			if(message.getType() == (byte) 0x1) {
 			    LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
-    			VectorClock newClock = DFSUtils.deserializeObject( message.getObjects().get( 0 ) );
+			    VectorClock newClock = file.getVersion().incremented( session.getEndPointAddress() );
     			database.deleteFile( fileName, newClock, file.isDirectory(), null );
 			}
 		}
