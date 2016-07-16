@@ -264,7 +264,7 @@ public class DFSDatabase extends DBManager implements Closeable
             doSave( file, content, saveOnDisk );
 		}
 		else {
-			if(!resolveVersions( file.getVersion(), clock )) {
+			if(updateVersions( file.getVersion(), clock )) {
 				// The input version is newer than mine, then
 				// it overrides the current one.
 				file.setVersion( updated = clock.clone() );
@@ -377,7 +377,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		DistributedFile file = database.get( fileId );
 		
 		// Check whether the input version is newer than mine.
-		if(file == null || !resolveVersions( file.getVersion(), clock )) {
+		if(file == null || updateVersions( file.getVersion(), clock )) {
 		    updated = clock.clone();
             if(file == null)
                 file = new DistributedFile( fileName, isDirectory, clock, hintedHandoff );
@@ -444,15 +444,15 @@ public class DFSDatabase extends DBManager implements Closeable
 	 * @param myClock	the current vector clock
 	 * @param vClock	the input vector clock
 	 * 
-	 * @return {@code true} if the own file has the most updated version,
+	 * @return {@code true} if the received file has the most updated version,
 	 * 		   {@code false} otherwise.
 	*/
-	private boolean resolveVersions( final VectorClock myClock, final VectorClock vClock )
+	private boolean updateVersions( final VectorClock myClock, final VectorClock vClock )
 	{
 	    if(disableReconciliation)
 	        return false;
 	    
-	    return myClock.compare( vClock ) != Occurred.BEFORE;
+	    return vClock.compare( myClock ) == Occurred.AFTER;
 	}
 	
 	/**
@@ -571,6 +571,31 @@ public class DFSDatabase extends DBManager implements Closeable
 	    
 	    return files;
 	}
+	
+	/**
+	 * Updates the lastModified parameter of the given file.
+	 * 
+	 * @param fileName         name of the file to update
+	 * @param lastModified     the last modified value
+	*/
+	/*public void updateLastModified( final String fileName, final long lastModified )
+	{
+	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
+	    LOCK_WRITERS.lock();
+        if(db.isClosed()) {
+            LOCK_WRITERS.unlock();
+            return;
+        }
+        
+        DistributedFile file = database.get( fileId );
+        if(file != null) {
+            file.setLastModified( lastModified );
+            database.put( fileId, file );
+            db.commit();
+        }
+        
+        LOCK_WRITERS.unlock();
+	}*/
 	
 	/**
 	 * Checks the existence of a file in the application file system,

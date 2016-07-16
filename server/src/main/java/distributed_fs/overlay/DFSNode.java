@@ -117,6 +117,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		gManager = runner.getGossipService().getGossipManager();
 		
 		vNodes = gManager.getVirtualNodes();
+		LOGGER.debug( "Virtual nodes: " + vNodes );
 		
 		Runtime.getRuntime().addShutdownHook( new Thread( new Runnable() 
 		{
@@ -208,7 +209,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 		else {
 		    if(!cHasher.containsBucket( member )) {
 		        LOGGER.info( "Added node: " + member );
-	            cHasher.addBucket( member, vNodes );
+	            cHasher.addBucket( member, member.getVirtualNodes() );
 	            if(fMgr != null)
 	                fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
 		    }
@@ -218,8 +219,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 		int vNodes = gManager.getVirtualNodes();
         if(vNodes != this.vNodes) {
             // If the number of virtual nodes has been changed
-            // the previous ouselves member is removed and replaced with
-            // the updated value.
+            // the previous member is removed and replaced with
+            // the updated member.
             try{ cHasher.removeBucket( gManager.getMyself() ); }
             catch( InterruptedException e ){}
             cHasher.addBucket( gManager.getMyself(), this.vNodes = vNodes );

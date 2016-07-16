@@ -129,10 +129,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 			    String fromId = cHasher.getPreviousBucket( sourceId );
 			    List<DistributedFile> files = database.getKeysInRange( fromId, sourceId );
-				LOGGER.debug( "MAIN - Node: " + me.getPort() +
+				/*LOGGER.debug( "MAIN - Node: " + me.getPort() +
 				              ", From: " + cHasher.getBucket( fromId ).getAddress() +
 				              ", to: " + cHasher.getBucket( sourceId ).getAddress() +
-				              ", FILES: " + files );
+				              ", FILES: " + files );*/
 				
 				m_tree = createMerkleTree( files );
 				
@@ -346,10 +346,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 					break; // or (i+1) would overflow
 				
 				DistributedFile file = files.get( i );
-				VectorClock vClock = inClocks.get( j );
-				
-				// If the input version is older than mine, the associated file is added.
-				if(!(file.getVersion().compare( vClock ) == Occurred.BEFORE))
+				// If the own version is older than the received version, the associated file is added.
+				if(inClocks.get( j ).compare( file.getVersion() ) == Occurred.BEFORE)
 					filesToSend.add( files.get( i ) );
 			}
 		}

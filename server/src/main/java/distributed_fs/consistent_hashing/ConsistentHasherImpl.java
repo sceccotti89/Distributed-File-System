@@ -143,10 +143,12 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 				result = true;
 			}
 			
-			if(result)
+			if(result) {
 				for(String virtNode : bucketInfo.virtBuckets)
 					bucketsMap.remove( virtNode );
-		} finally {
+			}
+		}
+		finally {
 			if(result)
 				rwLock.writeLock().unlock();
 		}

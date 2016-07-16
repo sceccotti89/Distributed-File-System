@@ -117,8 +117,14 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	private void updateVirtualNodes()
 	{
 	    if(updateVNodes) {
-    	    int size = getMemberList().size() + 1;
-            vNodes = (int) (Math.log( size ) / Math.log( 2 ));
+	        // Get the number of only storage nodes.
+    	    int size = 1;
+    	    for(GossipNode node : getMemberList()) {
+    	        if(node.getMember().getNodeType() == GossipMember.STORAGE)
+    	            size++;
+    	    }
+    	    
+            vNodes = (int) Math.ceil( (Math.log( size ) / Math.log( 2 )) );
             _me.setVirtualNodes( vNodes );
 	    }
 	}
