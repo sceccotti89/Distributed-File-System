@@ -1,9 +1,9 @@
 
 package gossiping.event;
 
-import gossiping.GossipNode;
+import gossiping.GossipMember;
 
 public interface GossipListener
 {
-	void gossipEvent( final GossipNode member, final GossipState state );
+	void gossipEvent( final GossipMember member, final GossipState state );
 }

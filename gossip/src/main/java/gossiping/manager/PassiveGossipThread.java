@@ -169,6 +169,7 @@ abstract public class PassiveGossipThread implements Runnable
 	 * @param remoteList
 	 *          The list of members known at the remote side.
 	*/
-	abstract protected void mergeLists( final GossipManager gossipManager, final RemoteGossipMember senderMember,
+	abstract protected void mergeLists( final GossipManager gossipManager,
+	                                    final RemoteGossipMember senderMember,
 										final List<GossipMember> remoteList );
 }

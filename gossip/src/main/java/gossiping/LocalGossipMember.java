@@ -11,8 +11,6 @@ public class LocalGossipMember extends GossipMember
 {
 	/** The timeout timer for this gossip member. */
 	private final transient GossipTimeoutTimer timeoutTimer;
-	/** Check whether the node has been setted from external. */
-	private transient boolean fromExternal;
 	
 	/** Generated serial id. */
 	private static final long serialVersionUID = -1816709369882977145L;
@@ -31,26 +29,13 @@ public class LocalGossipMember extends GossipMember
 	 */
 	public LocalGossipMember( final String hostname, final int port, final String id,
 							  final int virtualNodes, final int nodeType, final int heartbeat,
-							  final boolean fromExternal, final NotificationListener notificationListener,
+							  final NotificationListener notificationListener,
 							  final int cleanupTimeout ) 
 	{
 		super( hostname, port, id, virtualNodes, nodeType, heartbeat );
-		this.fromExternal = fromExternal;
 		timeoutTimer = new GossipTimeoutTimer( cleanupTimeout, notificationListener, this );
 	}
 	
-	/***/
-	public boolean isUpdated()
-	{
-		return fromExternal;
-	}
-	
-	/***/
-	public void setUpdated( final boolean value )
-	{
-		fromExternal = value;
-	}
-
 	/**
 	 * Start the timeout timer.
 	 */
@@ -58,7 +43,7 @@ public class LocalGossipMember extends GossipMember
 	{
 		timeoutTimer.start();
 	}
-
+	
 	/**
 	 * Reset the timeout timer.
 	 */

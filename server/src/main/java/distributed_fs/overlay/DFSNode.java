@@ -40,7 +40,6 @@ import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.resources.ResourceLoader;
 import gossiping.GossipMember;
-import gossiping.GossipNode;
 import gossiping.GossipRunner;
 import gossiping.RemoteGossipMember;
 import gossiping.event.GossipListener;
@@ -55,8 +54,8 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected static NodeStatistics stats;
 	protected TCPnet _net;
 	
-	protected volatile ConsistentHasher<GossipMember, String> cHasher;
-	protected int vNodes;
+	private int vNodes;
+    protected volatile ConsistentHasher<GossipMember, String> cHasher;
 	protected Set<String> filterAddress;
 	protected GossipManager gManager;
 	
@@ -199,25 +198,32 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	@Override
-	public void gossipEvent( final GossipNode node, final GossipState state )
+	public void gossipEvent( final GossipMember member, final GossipState state )
 	{
-	    GossipMember member = node.getMember();
 		if(state == GossipState.DOWN) {
 			LOGGER.info( "Removed node: " + member );
 			try{ cHasher.removeBucket( member ); }
 			catch( InterruptedException e ){}
 		}
 		else {
-			LOGGER.info( "Added node: " + member );
-			cHasher.addBucket( member, member.getVirtualNodes() );
-			if(fMgr != null) {
-				fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
-			}
+		    if(!cHasher.containsBucket( member )) {
+		        LOGGER.info( "Added node: " + member );
+	            cHasher.addBucket( member, vNodes );
+	            if(fMgr != null)
+	                fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
+		    }
 		}
 		
+		// Check whether the number of virtual nodes has been changed.
 		int vNodes = gManager.getVirtualNodes();
-		if(vNodes != this.vNodes)
-		    cHasher.addBucket( gManager.getMyself(), this.vNodes = vNodes );
+        if(vNodes != this.vNodes) {
+            // If the number of virtual nodes has been changed
+            // the previous one is removed and replaced with
+            // the node with the current value.
+            try{ cHasher.removeBucket( member ); }
+            catch( InterruptedException e ){}
+            cHasher.addBucket( gManager.getMyself(), this.vNodes = vNodes );
+        }
 	}
 
 	/** 

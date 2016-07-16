@@ -59,12 +59,12 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		_activeGossipThreadClass = activeGossipThreadClass;
 		_settings = settings;
 		this.listener = listener;
-		_me = new LocalGossipMember( address, port, id, virtualNodes, nodeType, 0, true, this, settings.getCleanupInterval() );
+		_me = new LocalGossipMember( address, port, id, virtualNodes, nodeType, 0, this, settings.getCleanupInterval() );
 		members = new ConcurrentSkipListMap<>( new CompareNodes() );
 		for(GossipMember startupMember : gossipMembers) {
 			if(!startupMember.equals( _me )) {
 				LocalGossipMember member = new LocalGossipMember( startupMember.getHost(), startupMember.getPort(), startupMember.getId(),
-																  0, startupMember.getNodeType(), 0, false, this, settings.getCleanupInterval() );
+																  0, startupMember.getNodeType(), 0, this, settings.getCleanupInterval() );
 				members.put( new GossipNode( member ), GossipState.UP );
 				GossipService.LOGGER.debug( member );
 			}
@@ -94,7 +94,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		if(deadMember.getNodeType() != GossipMember.LOAD_BALANCER &&
 		   deadMember.getVirtualNodes() > 0 && listener != null) {
 		    updateVirtualNodes();
-			listener.gossipEvent( node, GossipState.DOWN );
+			listener.gossipEvent( deadMember, GossipState.DOWN );
 		}
 	}
 
@@ -104,10 +104,9 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	    members.put( node, GossipState.UP );
 		
 		// Avoid the notification of LoadBalancer nodes.
-		if(member.getNodeType() != GossipMember.LOAD_BALANCER &&
-		   member.getVirtualNodes() > 0 && listener != null) {
+		if(member.getNodeType() != GossipMember.LOAD_BALANCER && listener != null) {
 		    updateVirtualNodes();
-			listener.gossipEvent( node, GossipState.UP );
+			listener.gossipEvent( member, GossipState.UP );
 		}
 	}
 	
@@ -127,12 +126,6 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	public int getVirtualNodes()
 	{
 	    return vNodes;
-	}
-	
-	public void updateMember( final LocalGossipMember member, final GossipState state )
-	{
-	    GossipNode node = new GossipNode( member );
-        members.put( node, state );
 	}
 	
 	public void removeMember( final GossipMember member )
@@ -219,14 +212,6 @@ public abstract class GossipManager extends Thread implements NotificationListen
 			throw new RuntimeException( e1 );
 		}
 		GossipService.LOGGER.info( "The GossipService is started." );
-		
-		/*while (_gossipServiceRunning.get()) {
-			try {
-				TimeUnit.SECONDS.sleep( 1 );
-			} catch ( InterruptedException e ) {
-				GossipService.LOGGER.info( "The GossipClient was interrupted." );
-			}
-		}*/
 	}
 
 	/**
@@ -245,8 +230,5 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		} catch (InterruptedException e) {
 			LOGGER.error( e );
 		}
-		
-		//_gossipServiceRunning.set( false );
-		//interrupt();
 	}
 }
