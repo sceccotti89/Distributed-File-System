@@ -51,7 +51,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	protected static String _address;
 	protected int port;
 	
-	protected static NodeStatistics stats;
+	protected static volatile NodeStatistics stats;
 	protected TCPnet _net;
 	
 	private int vNodes;
