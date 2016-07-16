@@ -34,12 +34,12 @@ The setting files, when not specified, are: for client **Settings/ClientSettings
 
 The structure of the **ClientSettings.json** file is the following:
 
-- `network_interface` it can contains `type:`, `IPversion:` and `address:``
+- `network_interface` it can contains `type:`, `IPversion:` and `address:`
 - `members` list of nodes in the form `host:, port:, nodeType:`
 
 The structure of the **NodeSettings.json** file is the following:
 
-- `network_interface` it can contains `type:`, `IPversion:` and `address:``
+- `network_interface` it can contains `type:`, `IPversion:` and `address:`
 - `Port` Port used to start the gossiping protocol; it can be 0
 - `vNodes` number of virtual nodes; it can be 0
 - `ResourcesLocation` resources location
@@ -116,12 +116,12 @@ The disableLB mode is maintained until the client owns at least one storage node
 ### Local Environment
 
 If you want to test the system in a multi-threaded environment using your machine, you can do that launching the Client node with the `-locale` option.
-If the list of input nodes is empty a fixed number of distributed nodes is used, namely 5 LoadBalancers and 2 StorageNodes.
+If the list of input nodes is empty a fixed number of distributed nodes is used, namely 2 LoadBalancers and 5 StorageNodes.
 
 ### Pseudo-Distributed Environment
 
 Using the **Vagrantfile** file provided in the distribution you can run the system in a pseudo-distributed environment. Inside it are defined 6 virtual machines that can be used both for a remote node (LoadBalancer or StorageNode) that for a Client.
-My suggestion is to assign the VMs in this way: 1 for the Client, 1 for the LoadBalancer and 4 for the StorageNodes, just to be sure that the quorum can be reached.
+My suggestion is to assign the VMs in this way: at least 1 for Client and LoadBalancer and at least 3 for the StorageNodes just to be sure that the quorum can be reached.
 
 ## References
 ### Java libraries
