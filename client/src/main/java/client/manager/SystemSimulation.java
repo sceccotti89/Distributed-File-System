@@ -90,7 +90,7 @@ public class SystemSimulation implements Closeable
             GossipMember member = members.get( i + NUMBER_OF_BALANCERS );
             StorageNode node = new StorageNode( IpAddress, member.getPort(), vNodes, members,
                                                 resources + (i+2) + "/", database + (i+2) + "/" );
-            node.setAntiEntropy( false );
+            //node.setAntiEntropy( false );
             node.setGossipingMechanism( false );
             nodes.add( node );
             node.launch( true );

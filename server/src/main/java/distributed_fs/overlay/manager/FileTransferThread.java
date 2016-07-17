@@ -95,7 +95,7 @@ public class FileTransferThread extends Thread
 				if(session == null)
 				    continue;
 				
-				LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
+				LOGGER.debug( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
 				synchronized( threadPoolReceive ) {
 				    if(threadPoolReceive.isShutdown())
 				        break;
