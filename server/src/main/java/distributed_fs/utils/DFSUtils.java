@@ -4,14 +4,9 @@
 
 package distributed_fs.utils;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -234,7 +229,7 @@ public class DFSUtils
 	/**
      * Generates a random file as string.
     */
-    public static String createRandomFile()
+    public static String generateRandomFile()
     {
     	int size = (int) (Math.random() * 5) + 1; // Max 5 characters.
     	StringBuilder builder = new StringBuilder( size );
@@ -244,164 +239,6 @@ public class DFSUtils
     	
     	return builder.toString();
     }
-
-    /**
-	 * Creates a new directory, if it doesn't exist.
-	 * 
-	 * @param dirPath	path to the directory
-	 * 
-	 * @return {@code true} if the direcotry has been created,
-	 * 		   {@code false} otherwise.
-	*/
-	public static boolean createDirectory( final String dirPath )
-	{
-		return createDirectory( new File( dirPath ) );
-	}
-	
-	/**
-	 * Creates a new directory, if it doesn't exist.
-	 * 
-	 * @param dirFile	the directory file
-	 * 
-	 * @return {@code true} if the direcotry has been created,
-	 * 		   {@code false} otherwise.
-	*/
-	public synchronized static boolean createDirectory( final File dirFile )
-	{
-		if(dirFile.exists())
-			return true;
-		
-		return dirFile.mkdirs();
-	}
-	
-	/**
-	 * Checks whether a file exists.
-	 * 
-	 * @param filePath				absolute or relative path to the file to check
-	 * @param createIfNotExists		setting it to {@code true} the file will be created if it shouldn't exists,
-	 * 								{@code false} otherwise
-	*/
-	public static boolean existFile( final String filePath, final boolean createIfNotExists )
-	        throws IOException
-	{
-		return existFile( new File( filePath ), createIfNotExists );
-	}
-	
-	/**
-     * Checks whether a file exists.
-     * 
-     * @param file                  the file to check
-     * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
-     *                              {@code false} otherwise
-    */
-    public synchronized static boolean existFile( final File file, final boolean createIfNotExists )
-            throws IOException
-    {
-        boolean exists = file.exists();
-        if(!exists && createIfNotExists) {
-            if(file.getParent() != null)
-                file.getParentFile().mkdirs();
-            file.createNewFile();
-        }
-        
-        return exists;
-    }
-	
-	/**
-	 * Checks whether a file is a directory.
-	 * 
-	 * @param filePath		path to the file
-	*/
-	public synchronized static boolean isDirectory( final String filePath )
-	{
-		File file = new File( filePath );
-		return file.exists() && file.isDirectory();
-	}
-	
-	/** 
-	 * Reads and serializes a file from disk.
-	 * 
-	 * @param filePath		path to the file to read
-	 * 
-	 * @return the byte serialization of the object
-	*/
-	public synchronized static byte[] readFileFromDisk( final String filePath ) throws IOException
-	{
-		File file = new File( filePath );
-		
-		int length = (int) file.length();
-		byte bytes[] = new byte[length];
-		
-		FileInputStream fis = new FileInputStream( file );
-		BufferedInputStream bis = new BufferedInputStream( fis );
-		bis.read( bytes, 0, bytes.length );
-		
-		bis.close();
-		fis.close();
-		
-		return bytes;
-	}
-	
-	/** 
-	 * Saves a file on disk.
-	 * 
-	 * @param filePath	path where the file have to be write
-	 * @param content	bytes of the serialized object
-	*/
-	public synchronized static void saveFileOnDisk( final String filePath, final byte content[] )
-	        throws IOException
-	{
-		if(content == null)
-			DFSUtils.createDirectory( filePath );
-		else {
-			// Test whether the path to that file doesn't exist.
-			// In that case create all the necessary directories.
-			File file = new File( filePath ).getParentFile();
-			if(!file.exists())
-				file.mkdirs();
-			
-			FileOutputStream fos = new FileOutputStream( filePath );
-			BufferedOutputStream bos = new BufferedOutputStream( fos );
-			
-			bos.write( content, 0, content.length );
-			bos.flush();
-			
-			fos.close();
-			bos.close();
-		}
-	}
-	
-	/**
-	 * Deletes all the content of a directory.<br>
-	 * If it contains other folders inside, them will be deleted too
-	 * in a recursive manner.
-	 * 
-	 * @param dir  the current directory
-	*/
-	public synchronized static void deleteDirectory( final File dir )
-	{
-	    if(dir.exists()) {
-    	    for(File f : dir.listFiles()) {
-    	        if(f.isDirectory())
-    	            deleteDirectory( f );
-    	        f.delete();
-    	    }
-    	    
-    	    dir.delete();
-	    }
-	}
-	
-	/** 
-	 * Deletes a file on disk.
-	 * 
-	 * @param file	the name of the file
-	*/
-	public synchronized static void deleteFileOnDisk( final String file )
-	{
-		File f = new File( file );
-		if(f.exists())
-			f.delete();
-	}
 	
 	/**
 	 * Compresses data using a GZIP compressor.

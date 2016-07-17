@@ -47,8 +47,8 @@ public class SystemTest
     @Before
     public void setup() throws IOException, DFSException, InterruptedException
     {
-        DFSUtils.deleteDirectory( new File( "Servers" ) );
-        DFSUtils.deleteDirectory( new File( "Clients" ) );
+        deleteDirectory( new File( "Servers" ) );
+        deleteDirectory( new File( "Clients" ) );
         
         runServers();
         runClients( IpAddress, CLIENTS );
@@ -131,8 +131,8 @@ public class SystemTest
     {
         DFSService service = clients.get( 0 );
         
-        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
-        DFSUtils.existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
+        existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt", true );
+        existFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt", true );
         service.reloadDB();
         
         assertTrue( service.put( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt" ) );
@@ -151,10 +151,10 @@ public class SystemTest
 	    service.start();
 	    
 	    Thread.sleep( 2000 );
-	    DFSUtils.existFile( "./Clients/ResourcesClient/test.txt", true );
+	    existFile( "./Clients/ResourcesClient/test.txt", true );
 	    assertTrue( service.put( "test.txt" ) );
 	    assertNotNull( service.get( "test.txt" ) );
-	    DFSUtils.existFile( "./Clients/ResourcesClient/chord_sigcomm2.pdf", true );
+	    existFile( "./Clients/ResourcesClient/chord_sigcomm2.pdf", true );
 	    assertTrue( service.put( "chord_sigcomm2.pdf" ) );
 	    assertTrue( service.delete( "test.txt" ) );
 	    assertTrue( service.delete( "chord_sigcomm2.pdf" ) );
@@ -166,7 +166,7 @@ public class SystemTest
 	{
 		DFSService service = clients.get( 0 );
 		
-		DFSUtils.existFile( "./Clients/ResourcesClient1/Images/photoshop.pdf", true );
+		existFile( "./Clients/ResourcesClient1/Images/photoshop.pdf", true );
 		
 		String file = "not_present.txt";
 		assertEquals( service.get( file ), service.getFile( file ) );
@@ -232,7 +232,7 @@ public class SystemTest
 	{
 		DFSService service = clients.get( index );
 		
-		DFSUtils.existFile( "./Clients/ResourcesClient" + (index + 1) + "/Images/photoshop.pdf", true );
+		existFile( "./Clients/ResourcesClient" + (index + 1) + "/Images/photoshop.pdf", true );
 		
 		service.get( "not_present.txt" );
 		System.out.println( "\n\n" );
@@ -259,7 +259,7 @@ public class SystemTest
 		
 		Thread.sleep( 1000 );
 		
-		DFSUtils.existFile( "./Clients/ResourcesClient" + (index + 1) + "/test2.txt", true );
+		existFile( "./Clients/ResourcesClient" + (index + 1) + "/test2.txt", true );
 		service.put( "test2.txt" );
 		System.out.println( "\n\n" );
 		
@@ -275,7 +275,7 @@ public class SystemTest
             ((LoadBalancer) servers.get( i )).removeNode( member );
         
         String file = "test3.txt";
-        DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
+        existFile( "./Clients/ResourcesClient1/" + file, true );
         
         modifyTextFile( "./Clients/ResourcesClient1/" + file );
         assertTrue( clients.get( 0 ).put( file ) );
@@ -283,8 +283,8 @@ public class SystemTest
         System.out.println( "Waiting..." );
         // Wait the necessary time before to check if the last node have received the file.
         TimeUnit.SECONDS.sleep( AntiEntropyThread.WAIT_TIMER * 2 + 1 );
-        System.out.println( "NODE: " + members.get( 0 + NUMBER_OF_BALANCERS ) +
-                            ", FILE: " + servers.get( 0 + NUMBER_OF_BALANCERS ).getFile( file ) );
+        System.out.println( "NODE: " + members.get( 1 + NUMBER_OF_BALANCERS ) +
+                            ", FILE: " + servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
         
         assertNotNull( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
         
@@ -304,7 +304,7 @@ public class SystemTest
     {
 		System.out.println( "Starting Hinted Handoff test..." );
     	String file = "chord_sigcomm.pdf";
-    	DFSUtils.existFile( "./Clients/ResourcesClient1/" + file, true );
+    	existFile( "./Clients/ResourcesClient1/" + file, true );
     	
     	int index = 3 + NUMBER_OF_BALANCERS;
     	String hh = members.get( index ).getAddress();
@@ -319,6 +319,36 @@ public class SystemTest
     	
     	System.out.println( "HH: " + servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
     	assertEquals( servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+    }
+    
+    private static boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException
+    {
+        return existFile( new File( filePath ), createIfNotExists );
+    }
+    
+    private static boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
+    {
+        boolean exists = file.exists();
+        if(!exists && createIfNotExists) {
+            if(file.getParent() != null)
+                file.getParentFile().mkdirs();
+            file.createNewFile();
+        }
+        
+        return exists;
+    }
+    
+    private static void deleteDirectory( final File dir )
+    {
+        if(dir.exists()) {
+            for(File f : dir.listFiles()) {
+                if(f.isDirectory())
+                    deleteDirectory( f );
+                f.delete();
+            }
+            
+            dir.delete();
+        }
     }
     
     @After

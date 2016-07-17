@@ -46,7 +46,6 @@ public class DFSDatabase extends DBManager implements Closeable
 	private final AsyncDiskWriter asyncWriter;
 	private final List<String> toUpdate;
 	
-	private String root;
 	private DB db;
 	private BTreeMap<String, DistributedFile> database;
 	
@@ -82,12 +81,12 @@ public class DFSDatabase extends DBManager implements Closeable
 	{
 	    _fileMgr = fileMgr;
 		if(_fileMgr != null) {
-			hhThread = new CheckHintedHandoffDatabase();
+			hhThread = new CheckHintedHandoffDatabase( this );
 			hhThread.start();
 		}
 		
 		root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
-		if(!DFSUtils.createDirectory( root )) {
+		if(!createDirectory( root )) {
 			throw new DFSException( "Invalid resources path " + root + ".\n" +
 									"Make sure that the path is correct and that " +
 			                        "you have the permissions to create and execute it." );
@@ -95,7 +94,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		LOGGER.info( "Resources created on: " + root );
 		
 		String dbRoot = createResourcePath( databaseLocation, DATABASE_LOCATION );
-        if(!DFSUtils.createDirectory( dbRoot )) {
+        if(!createDirectory( dbRoot )) {
             throw new DFSException( "Invalid database path " + dbRoot + ".\n" +
                                     "Make sure that the path is correct and that " +
                                     "you have the permissions to create and execute it." );
@@ -190,7 +189,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	    
 	    for(DistributedFile file : files) {
             // If the file is no more on disk it's definitely removed.
-            if(!DFSUtils.existFile( root + file.getName(), false ) && !file.isDeleted()) {
+            if(!existFile( root + file.getName(), false ) && !file.isDeleted()) {
                 LOCK_WRITERS.lock();
                 database.remove( file.getId() );
                 LOCK_WRITERS.unlock();
@@ -220,7 +219,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise
 	*/
-	public VectorClock saveFile( final RemoteFile file, final VectorClock clock,
+	public VectorClock saveFile( final DistributedFile file, final VectorClock clock,
 								 final String hintedHandoff, final boolean saveOnDisk )
 								         throws IOException
 	{
@@ -290,7 +289,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	{
 		if(saveOnDisk) {
     		if(disableAsyncWrites)
-    		    DFSUtils.saveFileOnDisk( root + file.getName(), content );
+    		    saveFileOnDisk( root + file.getName(), content );
     		else
     		    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
 		}
@@ -319,7 +318,7 @@ public class DFSDatabase extends DBManager implements Closeable
             database.put( file.getId(), file );
             if(saveOnDisk) {
                 if(disableAsyncWrites)
-                    DFSUtils.saveFileOnDisk( root + fileName, null );
+                    saveFileOnDisk( root + fileName, null );
                 else
                     asyncWriter.enqueue( null, root + fileName, Message.PUT );
             }
@@ -389,7 +388,7 @@ public class DFSDatabase extends DBManager implements Closeable
                 database.put( fileId, file );
                 
                 if(disableAsyncWrites)
-                    DFSUtils.deleteFileOnDisk( root + fileName );
+                    deleteFileOnDisk( root + fileName );
                 else
                     asyncWriter.enqueue( null, root + fileName, Message.DELETE );
                 
@@ -429,7 +428,7 @@ public class DFSDatabase extends DBManager implements Closeable
                     file.setDeleted( true );
                     database.put( file.getId(), file );
                     if(disableAsyncWrites)
-                        DFSUtils.deleteFileOnDisk( root + fileName );
+                        deleteFileOnDisk( root + fileName );
                     else
                         asyncWriter.enqueue( null, root + fileName, Message.DELETE );
                     notifyListeners( fileName, Message.DELETE );
@@ -638,14 +637,6 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	/**
-	 * Returns the file system root location.
-	*/
-	public String getFileSystemRoot()
-	{
-		return root;
-	}
-	
-	/**
 	 * Checks if a member is a hinted handoff replica node.
 	 * 
 	 * @param nodeAddress	address of the node
@@ -655,37 +646,6 @@ public class DFSDatabase extends DBManager implements Closeable
 	{
 		hhThread.checkMember( nodeAddress, state );
 	}
-	
-	/**
-     * Checks if the file has the correct format.<br>
-     * The normalization consists in removing all the
-     * parts of the name that don't permit it to be independent
-     * with respect to the database location.<br>
-     * The returned string is a generic version of it.
-     * 
-     * @param fileName  the input file
-     * 
-     * @return the normalized file name
-    */
-    public String normalizeFileName( String fileName )
-    {
-        fileName = fileName.replace( "\\", "/" ); // "Normalization" phase.
-        String backup = fileName;
-        if(fileName.startsWith( "./" ))
-            fileName = fileName.substring( 2 );
-        
-        File f = new File( fileName );
-        fileName = f.getAbsolutePath().replace( "\\", "/" ); // "Normalization" phase.
-        if(f.isDirectory() && !fileName.endsWith( "/" ))
-            fileName += "/";
-        
-        if(fileName.startsWith( root ))
-            fileName = fileName.substring( root.length() );
-        else
-            fileName = backup;
-        
-        return fileName;
-    }
 
     @Override
 	public void close()
@@ -768,16 +728,19 @@ public class DFSDatabase extends DBManager implements Closeable
 		private final List<String> upNodes;
 		/** Database containing the hinted handoff files; it manages objects of (dest. IPaddress:port, [list of files]) */
 		private final Map<String, List<DistributedFile>> hhDatabase;
+		private final DBManager db;
 		
 		private final ReentrantLock MUTEX_LOCK = new ReentrantLock( true );
 		private static final int CHECK_TIMER = 10; // 10 minutes.
 		
-		public CheckHintedHandoffDatabase()
+		public CheckHintedHandoffDatabase( final DBManager db )
 		{
 		    setName( "HintedHandoff" );
 		    
 			upNodes = new LinkedList<String>();
 			hhDatabase = new HashMap<String, List<DistributedFile>>();
+			
+			this.db = db;
 		}
 		
 		@Override
@@ -803,6 +766,13 @@ public class DFSDatabase extends DBManager implements Closeable
 						if(file.checkDelete()) {
 						    removeFile( file );
 							it.remove();
+						}
+						else {
+						    try { file.loadContent( db ); }
+						    catch( IOException e ) {
+                                e.printStackTrace();
+                                it.remove();
+                            }
 						}
 					}
 					
@@ -956,12 +926,10 @@ public class DFSDatabase extends DBManager implements Closeable
 	            try {
 	                QueueNode node = dequeue();
 	                // Write or delete a file on disk.
-	                if(node.opType == Message.PUT) {
-	                    DFSUtils.saveFileOnDisk( node.path, node.file );
-	                    //updateLastModified( node.path, new File( node.path ).lastModified() );
-	                }
+	                if(node.opType == Message.PUT)
+	                    saveFileOnDisk( node.path, node.file );
 	                else
-	                    DFSUtils.deleteFileOnDisk( node.path );
+	                    deleteFileOnDisk( node.path );
                 } catch ( InterruptedException e ) {
                     break;
                 }

@@ -12,7 +12,6 @@ import org.junit.Test;
 import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.VectorClock;
 
 public class DatabaseTest
@@ -22,8 +21,8 @@ public class DatabaseTest
     {
         BasicConfigurator.configure();
         
-        DFSUtils.deleteDirectory( new File( "Resources" ) );
-        DFSUtils.deleteDirectory( new File( "Database" ) );
+        deleteDirectory( new File( "Resources" ) );
+        deleteDirectory( new File( "Database" ) );
 		
 		DFSDatabase database = new DFSDatabase( null, null, null );
 		DistributedFile file;
@@ -52,5 +51,18 @@ public class DatabaseTest
 		assertTrue( database.getFile( file.getName() ).isDeleted() );
 		
 		database.close();
+    }
+    
+    private static void deleteDirectory( final File dir )
+    {
+        if(dir.exists()) {
+            for(File f : dir.listFiles()) {
+                if(f.isDirectory())
+                    deleteDirectory( f );
+                f.delete();
+            }
+            
+            dir.delete();
+        }
     }
 }

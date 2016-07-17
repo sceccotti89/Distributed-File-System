@@ -26,7 +26,6 @@ import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.storage.DBManager.DBListener;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
@@ -140,7 +139,7 @@ public class DFSService extends DFSManager implements IDFSService
 	}
 	
 	@Override
-	public List<RemoteFile> getAllFiles() throws DFSException
+	public List<DistributedFile> getAllFiles() throws DFSException
 	{
 	    if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
@@ -152,7 +151,7 @@ public class DFSService extends DFSManager implements IDFSService
                                     "Use the \"start\" method to initialize the system." );
         }
 		
-		List<RemoteFile> files = null;
+		List<DistributedFile> files = null;
 		boolean completed = true;
 		
 		// Here the name of the file is not important.
@@ -232,7 +231,7 @@ public class DFSService extends DFSManager implements IDFSService
 			}
 			
 			// Receive one or more files.
-			List<RemoteFile> files = readGetResponse( session );
+			List<DistributedFile> files = readGetResponse( session );
 			
 			int size = files.size();
 			if(size == 0) {
@@ -245,10 +244,10 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			int id = 0;
 			VectorClock clock = new VectorClock();
-			List<DistributedFile> versions = new ArrayList<>( size );
+			//List<DistributedFile> versions = new ArrayList<>( size );
 			// Generate only one clock, merging all the received versions.
-			for(RemoteFile file : files) {
-				versions.add( new DistributedFile( file, null ) );
+			for(DistributedFile file : files) {
+				//versions.add( new DistributedFile( file, null ) );
 				clock = clock.merge( file.getVersion() );
 			}
 			
@@ -260,18 +259,18 @@ public class DFSService extends DFSManager implements IDFSService
             if(backToClient == null) {
                 // Choose the version among the only received files.
                 reconciled = false;
-                id = syncClient.makeReconciliation( versions );
+                id = syncClient.makeReconciliation( files );
             }
             else {
                 if(backToClient.getVersion().compare( clock ) == Occurred.CONCURRENTLY) {
-                    versions.add( backToClient );
-                    id = syncClient.makeReconciliation( versions );
+                    files.add( backToClient );
+                    id = syncClient.makeReconciliation( files );
                     reconciled = true;
                 }
             }
 			
 			// Update the database.
-			RemoteFile file = files.get( id );
+            DistributedFile file = files.get( id );
 			if(file.isDeleted())
 			    database.deleteFile( fileName, clock, file.isDirectory(), null );
 			else
@@ -326,7 +325,7 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		String dbRoot = database.getFileSystemRoot();
 		String normFileName = database.normalizeFileName( fileName );
-		if(!DFSUtils.existFile( dbRoot + normFileName, false )) {
+		if(!database.existFile( dbRoot + normFileName, false )) {
 		    lock.unlock();
 		    LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
             LOGGER.error( "The file must be present in one of the sub-directories starting from: " + dbRoot );
@@ -348,10 +347,13 @@ public class DFSService extends DFSManager implements IDFSService
 		boolean completed = true;
 		
 		try {
+			//LOGGER.info( "Sending file..." );
+			
 			// Send the file.
-			RemoteFile rFile = new RemoteFile( file, dbRoot );
-			rFile.setDeleted( false, dbRoot );
-			sendPutMessage( session, rFile, hintedHandoff );
+		    file.setDeleted( false );
+		    file.loadContent( database );
+			sendPutMessage( session, file, hintedHandoff );
+			//LOGGER.info( "File sent" );
 			
 			// Checks whether the load balancer has found an available node,
             // or (with no balancers) if the quorum has been completed successfully.
@@ -370,11 +372,11 @@ public class DFSService extends DFSManager implements IDFSService
             if(message.getType() == (byte) 0x1) {
                 LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
                 VectorClock newClock = file.getVersion().incremented( session.getEndPointAddress() );
-                database.saveFile( rFile, newClock, null, false );
+                database.saveFile( file, newClock, null, false );
             }
 		}
 		catch( IOException e ) {
-			e.printStackTrace();
+			//e.printStackTrace();
 			LOGGER.info( "Operation PUT '" + fileName + "' not performed. Try again later." );
 			completed = false;
 		}
@@ -410,12 +412,25 @@ public class DFSService extends DFSManager implements IDFSService
 		
 		String dbRoot = database.getFileSystemRoot();
         String normFileName = database.normalizeFileName( fileName );
-        if(!DFSUtils.existFile( dbRoot + normFileName, false )) {
+        if(!database.existFile( dbRoot + normFileName, false )) {
             lock.unlock();
             LOGGER.error( "Operation DELETE for " + fileName + " not performed. File not found." );
             LOGGER.error( "The file must be present in one of the sub-directories starting from: " + dbRoot );
             return false;
         }
+		
+		/*if(file.isDirectory()) {
+		    // Delete recursively all the files present in the directory and sub-directories.
+		    File inputFile = new File( dbRoot + normFileName );
+		    File[] files = inputFile.listFiles();
+		    if(files != null) {
+    			for(File f: files) {
+    				LOGGER.debug( "Name: " + f.getPath() + ", Directory: " + f.isDirectory() );
+    				if(!delete( f.getPath() ))
+    					break;
+    			}
+		    }
+		}*/
 		
 		LOGGER.info( "Starting DELETE operation for: " + fileName );
 		

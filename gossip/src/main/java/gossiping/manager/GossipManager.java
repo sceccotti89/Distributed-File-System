@@ -137,7 +137,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	public void removeMember( final GossipMember member )
 	{
 	    GossipNode node = new GossipNode( member );
-        members.remove( node );
+        members.put( node, GossipState.DOWN );
 	}
 	
 	public void addMember( final GossipMember member )

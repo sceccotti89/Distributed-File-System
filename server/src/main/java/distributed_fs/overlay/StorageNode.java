@@ -33,7 +33,6 @@ import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.ThreadMonitor;
 import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.VectorClock;
@@ -316,7 +315,7 @@ public class StorageNode extends DFSNode
 			
 			switch( opType ) {
 				case( Message.PUT ):
-					RemoteFile file = new RemoteFile( data.getPayload() );
+				    DistributedFile file = new DistributedFile( data.getPayload() );
 					// Get (if present) the hinted handoff address.
 					String hintedHandoff = meta.getHintedHandoff();
 					LOGGER.debug( "[SN] PUT -> (FILE, HH) = ('" + file.getName() + ":" + hintedHandoff + "')" );
@@ -333,7 +332,7 @@ public class StorageNode extends DFSNode
                     break;
 				
 				case( Message.DELETE ):
-				    DistributedFile dFile = DFSUtils.deserializeObject( data.getPayload() );
+				    DistributedFile dFile = new DistributedFile( data.getPayload() );
 				    // Get (if present) the hinted handoff address.
                     hintedHandoff = meta.getHintedHandoff();
                     LOGGER.debug( "[SN] DELETE: " + dFile.getName() + ":" + hintedHandoff );
@@ -349,7 +348,7 @@ public class StorageNode extends DFSNode
 		closeWorker();
 	}
 	
-	private void handlePUT( final boolean isCoordinator, final RemoteFile file, final String hintedHandoff ) throws IOException
+	private void handlePUT( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
@@ -362,7 +361,7 @@ public class StorageNode extends DFSNode
 		    clock = state.getValue( ThreadState.UPDATE_CLOCK_DB );
 		    actionsList.removeFirst();
 		}
-		LOGGER.debug( "[SN] UPDATED: " + (clock != null) );
+		LOGGER.debug( "[SN] UPDATED: " + (clock != null) + ", FILE: " + fMgr.getDatabase().getFile( file.getName() ) );
 		
 		if(clock == null) // Not updated.
 			quorum_t.closeQuorum( state, agreedNodes );
@@ -370,7 +369,7 @@ public class StorageNode extends DFSNode
 		    file.setVersion( clock );
 		    
 			// Send, in parallel, the file to the replica nodes.
-			List<DistributedFile> files = Collections.singletonList( new DistributedFile( file, hintedHandoff ) );
+			List<DistributedFile> files = Collections.singletonList( file );
 			for(int i = agreedNodes.size() - 1; i >= 0; i--) {
 				QuorumNode qNode = agreedNodes.get( i );
 				GossipMember node = qNode.getNode();
@@ -394,7 +393,7 @@ public class StorageNode extends DFSNode
 			
 			// The replica files can be less than the quorum.
 			LOGGER.info( "Receive the files from the replica nodes..." );
-			List<RemoteFile> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
+			List<DistributedFile> filesToSend = state.getValue( ThreadState.FILES_TO_SEND );
 			if(filesToSend == null) {
 			    filesToSend = new ArrayList<>( QuorumSession.getMaxNodes() + 1 ); // +1 for the own copy.
 			    state.setValue( ThreadState.FILES_TO_SEND, filesToSend );
@@ -410,13 +409,13 @@ public class StorageNode extends DFSNode
     			// Put in the list the file present in the database of this node.
     			DistributedFile dFile = fMgr.getDatabase().getFile( fileName );
     			if(dFile != null) {
-    				RemoteFile rFile = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
-    				filesToSend.add( rFile );
+    			    dFile.loadContent( fMgr.getDatabase() );
+    				filesToSend.add( dFile );
     			}
     			
     			// Try a first reconciliation.
     			LOGGER.debug( "Files: " + filesToSend.size() );
-    			List<RemoteFile> reconciledFiles = makeReconciliation( filesToSend );
+    			List<DistributedFile> reconciledFiles = makeReconciliation( filesToSend );
     			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
     			
     			// Send the files directly to the client.
@@ -443,8 +442,8 @@ public class StorageNode extends DFSNode
 		    if(file == null)
 				message = new byte[]{ (byte) 0x0 };
 			else {
-			    byte[] bFile = new RemoteFile( file, fMgr.getDatabase().getFileSystemRoot() ).read();
-			    message = _net.createMessage( new byte[]{ (byte) 0x1 }, bFile, true );
+			    file.loadContent( fMgr.getDatabase() );
+			    message = _net.createMessage( new byte[]{ (byte) 0x1 }, file.read(), true );
 			}
 			
 		    // Remove the lock to the file.
@@ -526,7 +525,7 @@ public class StorageNode extends DFSNode
 	 * @param filesToSend      
 	 * @param openSessions     
 	*/
-	private void getReplicaVersions( final List<RemoteFile> filesToSend,
+	private void getReplicaVersions( final List<DistributedFile> filesToSend,
 	                                 final List<TCPSession> openSessions ) throws IOException
 	{
 	    // Get the value of the indexes.
@@ -557,7 +556,7 @@ public class StorageNode extends DFSNode
                         if(data.get() == (byte) 0x1) {
                             // Replica node owns the requested file.
                             byte[] file = DFSUtils.getNextBytes( data );
-                            filesToSend.add( new RemoteFile( file ) );
+                            filesToSend.add( new DistributedFile( file ) );
                             
                             // Update the list of agreedNodes.
                             agreedNodes.remove( index - offset );
@@ -592,18 +591,18 @@ public class StorageNode extends DFSNode
 	 * 
 	 * @return The list of uncorrelated versions.
 	*/
-	private List<RemoteFile> makeReconciliation( final List<RemoteFile> files )
+	private List<DistributedFile> makeReconciliation( final List<DistributedFile> files )
 	{
-		List<Versioned<RemoteFile>> versions = new ArrayList<>();
-		for(RemoteFile file : files)
-			versions.add( new Versioned<RemoteFile>( file, file.getVersion() ) );
+		List<Versioned<DistributedFile>> versions = new ArrayList<>();
+		for(DistributedFile file : files)
+			versions.add( new Versioned<DistributedFile>( file, file.getVersion() ) );
 		
 		// Resolve the versions..
-		List<Versioned<RemoteFile>> inconsistency = VersioningUtils.resolveVersions( versions );
+		List<Versioned<DistributedFile>> inconsistency = VersioningUtils.resolveVersions( versions );
 		
 		// Get the uncorrelated files.
-		List<RemoteFile> uncorrelatedVersions = new ArrayList<>();
-		for(Versioned<RemoteFile> version : inconsistency)
+		List<DistributedFile> uncorrelatedVersions = new ArrayList<>();
+		for(Versioned<DistributedFile> version : inconsistency)
 			uncorrelatedVersions.add( version.getValue() );
 		
 		return uncorrelatedVersions;
@@ -619,12 +618,12 @@ public class StorageNode extends DFSNode
             session.sendMessage( DFSUtils.intToByteArray( size ), false );
             
             for(int i = 0; i < size; i++) {
-                DistributedFile dFile = files.get( i );
-                RemoteFile file = new RemoteFile( dFile, fMgr.getDatabase().getFileSystemRoot() );
+                DistributedFile file = files.get( i );
+                file.loadContent( fMgr.getDatabase() );
                 
-                LOGGER.debug( "Sending file \"" + dFile + "\"" );
+                LOGGER.debug( "Sending file \"" + file + "\"" );
                 session.sendMessage( file.read(), true );
-                LOGGER.debug( "File \"" + dFile.getName() + "\" transmitted." );
+                LOGGER.debug( "File \"" + file.getName() + "\" transmitted." );
             }
             
             actionsList.addLast( DONE );
@@ -700,7 +699,6 @@ public class StorageNode extends DFSNode
             if(clock == null)
                 message = new MessageResponse( (byte) 0x0 );
             else {
-                // TODO proviamo a non mettercelo e a farlo aggiornare dal client
                 message = new MessageResponse( (byte) 0x1 );
                 //message.addObject( DFSUtils.serializeObject( clock ) );
             }

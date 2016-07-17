@@ -20,13 +20,11 @@ import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.net.messages.Message;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.overlay.manager.anti_entropy.AntiEntropyReceiverThread;
 import distributed_fs.overlay.manager.anti_entropy.AntiEntropySenderThread;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
@@ -51,9 +49,6 @@ public class FileTransferThread extends Thread
 	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
 	private static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
 	private static final int PORT_OFFSET = 2;
-	
-	// Messages used to exchange files with the destination node.
-	private static final byte[] MSG_PUT = { Message.PUT }, MSG_DELETE = { Message.DELETE };
 	
 	
 	
@@ -151,7 +146,7 @@ public class FileTransferThread extends Thread
 	 * @param session
 	 * @param data
 	*/
-	private void readFiles( final TCPSession session, ByteBuffer data ) throws IOException, InterruptedException
+	private void receiveFiles( final TCPSession session, ByteBuffer data ) throws IOException, InterruptedException
 	{
 		// Read the synch attribute.
 		boolean synch = (data.get() == (byte) 0x1);
@@ -167,18 +162,12 @@ public class FileTransferThread extends Thread
 		
 		for(int i = 0; i < num_files; i++) {
 			data = ByteBuffer.wrap( session.receive() );
-			if(data.get() == Message.PUT) {
-				RemoteFile file = new RemoteFile( DFSUtils.getNextBytes( data ) );
-				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.saveFile( file, file.getVersion(), null, true );
-			}
-			else {
-			    // DELETE operation.
-				DistributedFile file = DFSUtils.deserializeObject( DFSUtils.getNextBytes( data ) );
-				LOGGER.debug( "File \"" + file + "\" downloaded." );
-				database.deleteFile( file );
-				//System.out.println( "ID: " + file.getId() );
-			}
+			DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
+			LOGGER.debug( "File \"" + file + "\" downloaded." );
+			if(file.isDeleted())
+			    database.deleteFile( file );
+			else
+			    database.saveFile( file, file.getVersion(), null, true );
 		}
 		
 		LOGGER.debug( "Files successfully downloaded." );
@@ -262,12 +251,7 @@ public class FileTransferThread extends Thread
 			
 			for(int i = 0; i < size; i++) {
 				DistributedFile dFile = files.get( i );
-				if(dFile.isDeleted())
-					msg = net.createMessage( MSG_DELETE, DFSUtils.serializeObject( dFile ), true );
-				else {
-					RemoteFile file = new RemoteFile( dFile, database.getFileSystemRoot() );
-					msg = net.createMessage( MSG_PUT, file.read(), true );
-				}
+				msg = net.createMessage( null, dFile.read(), true );
 				
 				LOGGER.debug( "Sending file \"" + dFile + "\"" );
 				session.sendMessage( msg, true );
@@ -367,7 +351,7 @@ public class FileTransferThread extends Thread
 		{
 			try {
 				ByteBuffer data = ByteBuffer.wrap( session.receive() );
-				readFiles( session, data );
+				receiveFiles( session, data );
 			}
 			catch( IOException | InterruptedException e ) {
 				e.printStackTrace();

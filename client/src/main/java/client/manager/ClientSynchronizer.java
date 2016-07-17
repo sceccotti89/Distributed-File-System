@@ -16,7 +16,6 @@ import client.DFSService;
 import distributed_fs.exception.DFSException;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.RemoteFile;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 
@@ -78,7 +77,7 @@ public class ClientSynchronizer extends Thread
                 else {
                     // Then looks for updated versions in remote nodes.
                     count = 0;
-                    List<RemoteFile> files = service.getAllFiles();
+                    List<DistributedFile> files = service.getAllFiles();
                     if(files != null)
                         checkFiles( files );
                 }
@@ -140,9 +139,9 @@ public class ClientSynchronizer extends Thread
      * 
      * @param files   the list of files
     */
-    public void checkFiles( final List<RemoteFile> files ) throws DFSException
+    public void checkFiles( final List<DistributedFile> files ) throws DFSException
     {
-        for(RemoteFile file : files) {
+        for(DistributedFile file : files) {
             String fileName = file.getName();
             
             lock.lock();
@@ -187,7 +186,7 @@ public class ClientSynchronizer extends Thread
      *         {@code false} otherwise
     */
     private boolean reconcileVersions( final DistributedFile myFile,
-                                       final RemoteFile otherFile )
+                                       final DistributedFile otherFile )
     {
         VectorClock myClock = myFile.getVersion();
         VectorClock otherClock = otherFile.getVersion();
@@ -195,7 +194,7 @@ public class ClientSynchronizer extends Thread
         Occurred occ = myClock.compare( otherClock );
         if(occ == Occurred.AFTER) return true;
         if(occ == Occurred.BEFORE) return false;
-        return makeReconciliation( Arrays.asList( myFile, new DistributedFile( otherFile ) ) ) == 0;
+        return makeReconciliation( Arrays.asList( myFile, otherFile ) ) == 0;
     }
 
     /**

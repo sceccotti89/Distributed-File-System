@@ -298,15 +298,17 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * 
 		 * @param files		list of files in the range
 		*/
-		private void getMissingFiles( final List<DistributedFile> files )
+		private void getMissingFiles( final List<DistributedFile> files ) throws IOException
 		{
 			// Flip the values.
 			bitSet.flip( 0, m_tree.getNumLeaves() );
 			
 			for(int i = bitSet.nextSetBit( 0 ); i >= 0; i = bitSet.nextSetBit( i+1 )) {
-			    filesToSend.add( files.get( i ) );
+			    DistributedFile file = files.get( i );
+			    file.loadContent( database );
+			    filesToSend.add( file );
 				if(i == Integer.MAX_VALUE)
-					break; // or (i+1) would overflow
+					break; // or (i+1) would overflow.
 			}
 			
 			// Flip back the values.
@@ -338,17 +340,19 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
                                     final List<DistributedFile> files,
                                     final List<VectorClock> inClocks,
 		                            final String address,
-		                            final String sourceNodeId )
+		                            final String sourceNodeId ) throws IOException
 		{
 			// Get the files that are shared by the two nodes, but with different versions.
 			for(int i = bitSet.nextSetBit( 0 ), j = 0; i >= 0; i = bitSet.nextSetBit( i+1 ), j++) {
 				if(i == Integer.MAX_VALUE)
-					break; // or (i+1) would overflow
+					break; // or (i+1) would overflow.
 				
 				DistributedFile file = files.get( i );
-				// If the own version is older than the received version, the associated file is added.
-				if(inClocks.get( j ).compare( file.getVersion() ) == Occurred.BEFORE)
-					filesToSend.add( files.get( i ) );
+				// If the own version is younger than the input version, the associated file is added.
+				if(inClocks.get( j ).compare( file.getVersion() ) == Occurred.BEFORE) {
+					file.loadContent( database );
+				    filesToSend.add( file );
+				}
 			}
 		}
 	}

@@ -228,7 +228,7 @@ public class LoadBalancer extends DFSNode
 			clientAddress = data.getMetadata().getClientAddress();
 			LOGGER.info( "[LB] New request from: " + clientAddress );
 			
-			String fileName = (opType == Message.GET_ALL) ? DFSUtils.createRandomFile() :
+			String fileName = (opType == Message.GET_ALL) ? DFSUtils.generateRandomFile() :
 			                                                data.getFileName();
 			
 			LOGGER.debug( "[LB] Received: " + getCodeString( opType ) + ":" + fileName );
@@ -397,7 +397,7 @@ public class LoadBalancer extends DFSNode
         		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
     		}
     		
-    		session.sendMessage( DFSUtils.serializeObject( message ), true );
+    		session.sendMessage( message, true );
     		actionsList.addLast( DONE );
         }
         else

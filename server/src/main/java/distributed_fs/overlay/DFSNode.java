@@ -215,7 +215,6 @@ public abstract class DFSNode extends Thread implements GossipListener
 		    }
 		}
 		
-		// Check whether the number of virtual nodes has been changed.
 		int vNodes = gManager.getVirtualNodes();
         if(vNodes != this.vNodes) {
             // If the number of virtual nodes has been changed

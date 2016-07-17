@@ -32,7 +32,6 @@ import distributed_fs.net.messages.MessageRequest;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.net.messages.Metadata;
 import distributed_fs.storage.DistributedFile;
-import distributed_fs.storage.RemoteFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.resources.ResourceLoader;
 import gossiping.GossipMember;
@@ -218,7 +217,7 @@ public abstract class DFSManager
         }
     }
 	
-	protected void sendPutMessage( final TCPSession session, final RemoteFile file, final String hintedHandoff ) throws IOException
+	protected void sendPutMessage( final TCPSession session, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 	    LOGGER.info( "Sending data..." );
 		
@@ -254,7 +253,7 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected List<RemoteFile> readGetResponse( final TCPSession session ) throws IOException
+	protected List<DistributedFile> readGetResponse( final TCPSession session ) throws IOException
     {
 	    return readGetAllResponse( session );
     }
@@ -277,16 +276,16 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
 	
-	protected List<RemoteFile> readGetAllResponse( final TCPSession session ) throws IOException
+	protected List<DistributedFile> readGetAllResponse( final TCPSession session ) throws IOException
 	{
 	    LOGGER.info( "Waiting for the incoming files..." );
 	    
         ByteBuffer msg = ByteBuffer.wrap( session.receive() );
 	    int numFiles = msg.getInt();
-	    List<RemoteFile> files = new ArrayList<>( numFiles );
+	    List<DistributedFile> files = new ArrayList<>( numFiles );
 	    if(numFiles > 0) {
 	        for(int i = 0; i < numFiles; i++) {
-	            RemoteFile file = new RemoteFile( session.receive() );
+	            DistributedFile file = new DistributedFile( session.receive() );
                 LOGGER.debug( "File \"" + file.getName() + "\" downloaded." );
                 files.add( file );
 	        }
@@ -303,12 +302,12 @@ public abstract class DFSManager
 		
 		MessageRequest message;
         if(useLoadBalancer) {
-            message = new MessageRequest( Message.DELETE, file.getName(), DFSUtils.serializeObject( file ) );
+            message = new MessageRequest( Message.DELETE, file.getName(), file.read() );
             message.putMetadata( address + ":" + port, null );
         }
         else {
             Metadata meta = new Metadata( null, hintedHandoff );
-            message = new MessageRequest( Message.DELETE, file.getName(), DFSUtils.serializeObject( file ), true, destId, meta );
+            message = new MessageRequest( Message.DELETE, file.getName(), file.read(), true, destId, meta );
         }
 		
         session.sendMessage( message, true );
