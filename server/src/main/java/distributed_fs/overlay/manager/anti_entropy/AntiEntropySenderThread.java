@@ -72,10 +72,6 @@ public class AntiEntropySenderThread extends AntiEntropyThread
         }
 		
 		while(!shutDown.get()) {
-		    // TODO un'alternativa sarebbe che ad ogni connessione creo un albero
-		    // TODO di TUTTE le chiavi che i virtual node gestiscono.
-		    // TODO forse ci guadagno qualcosa in termini prestazionali..
-		    // TODO dopo semmai lo approfondisco.
 		    // Each virtual node sends the Merkle tree to a
 		    // random successor and predecessor node.
 		    vNodes = cHasher.getVirtualBucketsFor( me );

@@ -45,7 +45,8 @@ public class DistributedFile implements Serializable, IOSerializable
     
 	
     /**
-     * Constructor.
+     * Constructor used to create the file from its serialized form.<br>
+     * The serialization must be done using the {@link IOSerializable} interface.
     */
     public DistributedFile( final byte[] data )
     {
