@@ -225,7 +225,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				
 				LOGGER.debug( "Height: " + treeHeight );
 				
-				for(int levels = Math.min( treeHeight, inputHeight ); levels > 0 && nodes.size() > 0; levels--) {
+				for(int levels = Math.min( treeHeight, inputHeight ); levels >= 0 && nodes.size() > 0; levels--) {
 					// Receive a new level.
 					ByteBuffer data = ByteBuffer.wrap( session.receive() );
 					pTree = MerkleDeserializer.deserializeNodes( data );

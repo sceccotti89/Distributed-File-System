@@ -130,10 +130,10 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 		List<DistributedFile> files = database.getKeysInRange( fromId, destId );
 		m_tree = createMerkleTree( files );
 		
-		LOGGER.debug( "vNodeId: " + vNodeId );
+		/*LOGGER.debug( "vNodeId: " + vNodeId );
 		LOGGER.debug( "FromNode: " + me.getPort() + ", toNode: " + node.getPort() +
 		              ", from: " + cHasher.getBucket( fromId ).getPort() + ", to: " + cHasher.getBucket( destId ).getPort() +
-		              ", FILES: " + files );
+		              ", FILES: " + files );*/
 		
 		boolean complete = handShake( node, vNodeId, destId );
 		if(complete) {
@@ -202,7 +202,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				reduceTree( m_tree.getHeight() - inputHeight, nodes );
 			
 			int nNodes;
-			for(int levels = Math.min( m_tree.getHeight(), inputHeight ); levels > 0 && (nNodes = nodes.size()) > 0; levels--) {
+			for(int levels = Math.min( m_tree.getHeight(), inputHeight ); levels >= 0 && (nNodes = nodes.size()) > 0; levels--) {
 				sendCurrentLevel( nodes );
 				
 				// Receive the response set.
