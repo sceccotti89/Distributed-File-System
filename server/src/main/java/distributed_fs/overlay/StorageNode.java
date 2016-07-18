@@ -48,7 +48,7 @@ public class StorageNode extends DFSNode
 	private String databaseLocation;
 	
 	private List<Thread> threadsList;
-	private MembershipManagerThread lMgr_t;
+	private MembershipManagerThread mMgr_t;
 	
 	// ===== Used by the node instance ===== //
 	private TCPSession session;
@@ -89,7 +89,7 @@ public class StorageNode extends DFSNode
 		
 		me = gManager.getMyself();
 		me.setId( DFSUtils.getNodeId( 1, me.getAddress() ) );
-		lMgr_t = new MembershipManagerThread( _address, this.port, me, gManager );
+		mMgr_t = new MembershipManagerThread( _address, this.port, me, gManager );
 		
 		// Set the id to the remote nodes.
 		List<GossipNode> nodes = gManager.getMemberList();
@@ -184,7 +184,7 @@ public class StorageNode extends DFSNode
 		netMonitor.start();
 		quorum_t.start();
 		monitor_t.start();
-		lMgr_t.start();
+		mMgr_t.start();
 		
 		if(startGossiping)
 		    gManager.start();
@@ -764,11 +764,11 @@ public class StorageNode extends DFSNode
 	    super.close();
 	    
 	    quorum_t.close();
-	    lMgr_t.close();
+	    mMgr_t.close();
 	    
 	    try {
 	        quorum_t.join();
-	        lMgr_t.join();
+	        mMgr_t.join();
 	    }
 	    catch( InterruptedException e ) {}
 	}

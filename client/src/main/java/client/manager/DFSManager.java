@@ -185,9 +185,10 @@ public abstract class DFSManager
 				break;
 		}
 		
-		if(_address == null)
+		if(_address == null) {
 			throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
 									DISTRIBUTED_FS_CONFIG );
+		}
 		
 		LOGGER.info( "Address: " + _address );
 		

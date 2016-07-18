@@ -263,6 +263,7 @@ public class DFSService extends DFSManager implements IDFSService
             }
             else {
                 if(backToClient.getVersion().compare( clock ) == Occurred.CONCURRENTLY) {
+                    System.out.println( "MY: " + backToClient.getVersion() + ", IN: " + clock );
                     files.add( backToClient );
                     id = syncClient.makeReconciliation( files );
                     reconciled = true;

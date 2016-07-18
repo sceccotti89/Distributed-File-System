@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -43,6 +44,11 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	
     private boolean started = false;
     private boolean updateVNodes = false;
+    
+    private final ReentrantLock LOCK = new ReentrantLock();
+    
+    
+    
 	
 	public GossipManager( final Class<? extends PassiveGossipThread> passiveGossipThreadClass,
 						  final Class<? extends ActiveGossipThread>  activeGossipThreadClass, 
@@ -86,6 +92,9 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	public void handleNotification( final Notification notification, final Object handback ) 
 	{
 		LocalGossipMember deadMember = (LocalGossipMember) notification.getUserData();
+		
+		LOCK.lock();
+		
 		GossipService.LOGGER.info( "Dead member detected: " + deadMember );
 		GossipNode node = new GossipNode( deadMember );
 		members.put( node, GossipState.DOWN );
@@ -96,11 +105,16 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		    updateVirtualNodes();
 			listener.gossipEvent( deadMember, GossipState.DOWN );
 		}
+		
+		LOCK.unlock();
 	}
 
 	public void createOrRevivieMember( final LocalGossipMember member )
 	{
 	    GossipNode node = new GossipNode( member );
+	    
+	    LOCK.lock();
+	    
 	    members.put( node, GossipState.UP );
 		
 		// Avoid the notification of LoadBalancer nodes.
@@ -108,6 +122,8 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		    updateVirtualNodes();
 			listener.gossipEvent( member, GossipState.UP );
 		}
+		
+		LOCK.unlock();
 	}
 	
 	/**
@@ -117,14 +133,15 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	private void updateVirtualNodes()
 	{
 	    if(updateVNodes) {
-	        // Get the number of only storage nodes.
+	        // Get the number of storage nodes only.
     	    int size = 1;
     	    for(GossipNode node : getMemberList()) {
-    	        if(node.getMember().getNodeType() == GossipMember.STORAGE)
+    	        if(node.getMember().getNodeType() == GossipMember.STORAGE && 
+	               node.getMember().getVirtualNodes() > 0)
     	            size++;
     	    }
     	    
-            vNodes = (int) Math.ceil( (Math.log( size ) / Math.log( 2 )) );
+    	    vNodes = Math.max( 1, (int) Math.ceil( (Math.log( size ) / Math.log( 2 )) ) );
             _me.setVirtualNodes( vNodes );
 	    }
 	}
@@ -137,13 +154,17 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	public void removeMember( final GossipMember member )
 	{
 	    GossipNode node = new GossipNode( member );
+	    LOCK.lock();
         members.put( node, GossipState.DOWN );
+        LOCK.unlock();
 	}
 	
 	public void addMember( final GossipMember member )
     {
 	    GossipNode node = new GossipNode( member );
+	    LOCK.lock();
         members.put( node, GossipState.UP );
+        LOCK.unlock();
     }
 
 	public GossipSettings getSettings() 

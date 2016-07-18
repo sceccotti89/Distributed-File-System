@@ -345,7 +345,7 @@ public class QuorumThread extends Thread
             try {
                 mySession = state.getValue( ThreadState.RELEASE_QUORUM_CONN );
                 if(mySession == null || mySession.isClosed()) {
-                    mySession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET );
+                    mySession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
                     state.setValue( ThreadState.RELEASE_QUORUM_CONN, mySession );
                 }
                 

@@ -234,9 +234,14 @@ public interface ConsistentHasher<B extends GossipMember, M>
 	public boolean isEmpty();
 	
 	/**
-     * Returns the size of the map.
+     * Returns the number of buckets into the map.
     */
-    public int getSize();
+    public int getBucketSize();
+    
+    /**
+     * Returns the number of members into the map.
+    */
+    public int getMemberSize();
     
     /**
      * Removes all of the mappings from this map.<br>

@@ -27,15 +27,15 @@ abstract public class SendMembersActiveGossipThread extends ActiveGossipThread
 	@Override
 	protected void sendMembershipList( final LocalGossipMember me, final List<GossipNode> memberList ) 
 	{
-		GossipService.LOGGER.debug("Send sendMembershipList() is called.");
-		me.setHeartbeat(me.getHeartbeat() + 1);
-		synchronized (memberList) {
+		GossipService.LOGGER.debug( "Send sendMembershipList() is called." );
+		me.setHeartbeat( me.getHeartbeat() + 1 );
+		//synchronized( memberList ) {
 			try {
-				LocalGossipMember member = selectPartner(memberList);
+				LocalGossipMember member = selectPartner( memberList );
 				if (member != null) {
 					InetAddress dest = InetAddress.getByName( member.getHost() );
 					JSONArray jsonArray = new JSONArray();
-					GossipService.LOGGER.debug("Sending memberlist to " + dest + ":" + member.getPort());
+					GossipService.LOGGER.debug( "Sending memberlist to " + dest + ":" + member.getPort() );
 					jsonArray.put( me.toJSONObject() );
 					GossipService.LOGGER.debug( me );
 					for (GossipNode other : memberList) {
@@ -46,7 +46,7 @@ abstract public class SendMembersActiveGossipThread extends ActiveGossipThread
 					byte[] json_bytes = compressData( jsonArray.toString().getBytes() );
 					
 					int packet_length = json_bytes.length;
-					if (packet_length < GossipManager.MAX_PACKET_SIZE) {
+					if(packet_length < GossipManager.MAX_PACKET_SIZE) {
 						GossipService.LOGGER.debug( "Sending message (" + packet_length + " bytes): " + jsonArray.toString() );
 
 						ByteBuffer byteBuffer = ByteBuffer.allocate( Integer.BYTES + json_bytes.length );
@@ -56,7 +56,7 @@ abstract public class SendMembersActiveGossipThread extends ActiveGossipThread
 
 						DatagramSocket socket = new DatagramSocket();
 						DatagramPacket datagramPacket = new DatagramPacket( buf, buf.length, dest, member.getPort() );
-						socket.send(datagramPacket);
+						socket.send( datagramPacket );
 						socket.close();
 					} else {
 						GossipService.LOGGER.error( "The length of the sending message is too large (" + packet_length + " > " +
@@ -66,7 +66,7 @@ abstract public class SendMembersActiveGossipThread extends ActiveGossipThread
 			} catch ( IOException e1 ) {
 				e1.printStackTrace();
 			}
-		}
+		//}
 	}
 	
 	/**

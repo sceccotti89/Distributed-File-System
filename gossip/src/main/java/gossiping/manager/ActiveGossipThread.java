@@ -22,7 +22,7 @@ abstract public class ActiveGossipThread implements Runnable
 	public ActiveGossipThread( final GossipManager gossipManager ) 
 	{
 		this.gossipManager = gossipManager;
-		this.keepRunning = new AtomicBoolean(true);
+		this.keepRunning = new AtomicBoolean( true );
 	}
 
 	@Override

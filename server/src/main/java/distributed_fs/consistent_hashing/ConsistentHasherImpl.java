@@ -88,8 +88,8 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public void addBucket( final B bucketName, final int virtualNodes )
 	{
-	    Preconditions.checkNotNull( bucketName,   "Bucket name can not be null" );
-	    Preconditions.checkNotNull( virtualNodes, "Bucket name can not be null" );
+	    Preconditions.checkNotNull( bucketName,    "bucket name cannot be null" );
+	    Preconditions.checkNotNull( virtualNodes, "virtualNodes cannot be null" );
 		
 		List<String> virtBuckets = new ArrayList<>();
 		for (int virtualNodeId = 1; virtualNodeId <= virtualNodes; virtualNodeId++) {
@@ -127,7 +127,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 
 	private boolean removeBucket( final B bucketName, final long timeout, final TimeUnit unit, final boolean tryLock ) throws InterruptedException 
 	{
-	    Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
+	    Preconditions.checkNotNull( bucketName, "Bucket name cannot be null" );
 		
 		BucketInfo bucketInfo = bucketsAndLocks.remove( bucketName );
 		if(bucketInfo == null)
@@ -159,14 +159,14 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public void addMember( final M memberName )
 	{
-	    Preconditions.checkNotNull( memberName, "Member name can not be null" );
+	    Preconditions.checkNotNull( memberName, "Member name cannot be null" );
 		membersMap.put( DFSUtils.getId( memberName ), memberName );
 	}
 
 	@Override
 	public void removeMember( final M memberName )
 	{
-	    Preconditions.checkNotNull( memberName, "Member name can not be null" );
+	    Preconditions.checkNotNull( memberName, "Member name cannot be null" );
 		membersMap.remove( DFSUtils.getId( memberName ) );
 	}
 	
@@ -179,8 +179,8 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public List<M> getMembersFor( final B bucketName, final List<? extends M> members )
 	{
-	    Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
-	    Preconditions.checkNotNull( members,	    "Members can not be null." );
+	    Preconditions.checkNotNull( bucketName, "Bucket name cannot be null." );
+	    Preconditions.checkNotNull( members,	    "Members cannot be null." );
 		
 		NavigableMap<String, M> localMembersMap = new TreeMap<>();
 		members.forEach( member -> {
@@ -198,8 +198,8 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 
 	private List<M> getMembersInternal( final B bucketName, final NavigableMap<String, M> members )
 	{
-	    Preconditions.checkNotNull( bucketName, "Bucket name can not be null." );
-	    Preconditions.checkNotNull( members,	    "Members can not be null." );
+	    Preconditions.checkNotNull( bucketName, "Bucket name cannot be null." );
+	    Preconditions.checkNotNull( members,	    "Members cannot be null." );
 		
 		BucketInfo bInfo = bucketsAndLocks.get( bucketName );
 		if (bInfo == null)
@@ -247,7 +247,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	@Override
 	public List<B> getAllBuckets()
 	{
-		return new ArrayList<B>( bucketsAndLocks.keySet() );
+		return new ArrayList<B>( bucketsMap.values() );
 	}
 
 	@Override
@@ -331,9 +331,14 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
 	}
 	
 	@Override
-	public int getSize() {
+	public int getBucketSize() {
 		return bucketsMap.size();
 	}
+	
+	@Override
+    public int getMemberSize() {
+        return membersMap.size();
+    }
 
 	@Override
     public void clear()

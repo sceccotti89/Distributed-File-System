@@ -201,17 +201,20 @@ public abstract class DFSNode extends Thread implements GossipListener
 	@Override
 	public void gossipEvent( final GossipMember member, final GossipState state )
 	{
-		if(state == GossipState.DOWN) {
+	    boolean contained = cHasher.containsBucket( member );
+	    if(contained) {
+	        try{ cHasher.removeBucket( member ); }
+            catch( InterruptedException e ){}
+	    }
+	    
+		if(state == GossipState.DOWN)
 			LOGGER.info( "Removed node: " + member );
-			try{ cHasher.removeBucket( member ); }
-			catch( InterruptedException e ){}
-		}
 		else {
-		    if(!cHasher.containsBucket( member )) {
+		    cHasher.addBucket( member, member.getVirtualNodes() );
+		    if(!contained) {
 		        LOGGER.info( "Added node: " + member );
-	            cHasher.addBucket( member, member.getVirtualNodes() );
-	            if(fMgr != null)
-	                fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
+    		    if(fMgr != null)
+                    fMgr.getDatabase().checkHintedHandoffMember( member.getHost(), state );
 		    }
 		}
 		
@@ -282,9 +285,10 @@ public abstract class DFSNode extends Thread implements GossipListener
 				break;
 		}
 		
-		if(_address == null)
+		if(_address == null) {
 			throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
 									DISTRIBUTED_FS_CONFIG );
+		}
 		
 		LOGGER.info( "Address: " + _address );
 		

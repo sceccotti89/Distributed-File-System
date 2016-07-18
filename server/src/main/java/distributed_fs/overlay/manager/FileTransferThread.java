@@ -95,7 +95,7 @@ public class FileTransferThread extends Thread
 				if(session == null)
 				    continue;
 				
-				LOGGER.debug( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
+				LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
 				synchronized( threadPoolReceive ) {
 				    if(threadPoolReceive.isShutdown())
 				        break;
@@ -153,6 +153,7 @@ public class FileTransferThread extends Thread
 		// Get and verify the quorum attribute.
 		if(data.get() == (byte) 0x1) {
 			String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
+			// Release the file.
 			quorum_t.setLocked( false, fileName, data.getLong(), (byte) 0x0 ); // Here the operation type is useless.
 		}
 		
@@ -236,7 +237,7 @@ public class FileTransferThread extends Thread
 		
 		try {
 			LOGGER.debug( "Connecting to " + address + ":" + port );
-			session = net.tryConnect( address, port );
+			session = net.tryConnect( address, port, 2000 );
 			
 			int size = files.size();
 			LOGGER.debug( "Sending " + size + " files to \"" + address + ":" + port + "\"" );

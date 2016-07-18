@@ -64,7 +64,7 @@ public class VersioningUtils {
         // We do two checks: v1 <= v2 and v2 <= v1 if both are true then
         boolean v1Bigger = false;
         boolean v2Bigger = false;
-
+        
         SortedSet<String> v1Nodes = v1.getVersionMap().navigableKeySet();
         SortedSet<String> v2Nodes = v2.getVersionMap().navigableKeySet();
         // get clocks(nodeIds) that both v1 and v2 has
@@ -95,20 +95,16 @@ public class VersioningUtils {
             }
         }
 
-        /*
-         * This is the case where they are equal. Consciously return BEFORE, so
-         * that the we would throw back an ObsoleteVersionException for online
-         * writes with the same clock.
-         */
+        /* This is the case where they are equal. */
         if(!v1Bigger && !v2Bigger)
             return Occurred.AFTER;
-        /* This is the case where v1 is a successor clock to v2 */
+        /* This is the case where v1 is a successor clock to v2. */
         else if(v1Bigger && !v2Bigger)
             return Occurred.AFTER;
-        /* This is the case where v2 is a successor clock to v1 */
+        /* This is the case where v2 is a successor clock to v1. */
         else if(!v1Bigger && v2Bigger)
             return Occurred.BEFORE;
-        /* This is the case where both clocks are parallel to one another */
+        /* This is the case where both clocks are parallel to one another. */
         else
             return Occurred.CONCURRENTLY;
     }

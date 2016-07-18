@@ -79,7 +79,7 @@ abstract public class PassiveGossipThread implements Runnable
 				// This could normally only occur when the list of members is very big,
 				// or when the packet is malformed, and the first 4 bytes is not the right in anymore.
 				// For this reason we regards the message.
-				if(packet_length <= GossipManager.MAX_PACKET_SIZE){
+				if(packet_length <= GossipManager.MAX_PACKET_SIZE) {
 					byte[] json_bytes = new byte[packet_length];
 					buffer.get( json_bytes );
 					json_bytes = decompressData( json_bytes );
