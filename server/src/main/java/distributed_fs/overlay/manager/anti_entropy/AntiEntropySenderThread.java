@@ -19,10 +19,10 @@ import java.util.concurrent.TimeUnit;
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
-import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileTransfer;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
@@ -49,7 +49,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	
 	public AntiEntropySenderThread( final GossipMember _me,
 									final DFSDatabase _database,
-									final FileTransferThread fMgr,
+									final FileTransfer fMgr,
 									final ConsistentHasher<GossipMember, String> cHasher )
 	{
 		super( _me, _database, fMgr, cHasher );

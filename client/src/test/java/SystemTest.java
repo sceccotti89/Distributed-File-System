@@ -39,7 +39,7 @@ public class SystemTest
     private List<DFSNode> servers;
     
     private static final int NUMBER_OF_BALANCERS = 2;
-    private static final int NUMBER_OF_STORAGES = 5;
+    private static final int NUMBER_OF_STORAGES = 4;
     private static final int CLIENTS = 2;
     
     
@@ -268,9 +268,7 @@ public class SystemTest
 	
 	private void testAntiEntropy() throws IOException, DFSException, InterruptedException
     {
-        System.out.println( "\n\nTEST ANTI ENTROPY" );
-        
-        GossipMember member = members.get( 1 + NUMBER_OF_BALANCERS );
+	    GossipMember member = members.get( 1 + NUMBER_OF_BALANCERS );
         for(int i = 0; i < NUMBER_OF_BALANCERS; i++)
             ((LoadBalancer) servers.get( i )).removeNode( member );
         
@@ -302,23 +300,23 @@ public class SystemTest
 	
     private void testHintedHandoff() throws IOException, DFSException, InterruptedException
     {
-		System.out.println( "Starting Hinted Handoff test..." );
-    	String file = "chord_sigcomm.pdf";
-    	existFile( "./Clients/ResourcesClient1/" + file, true );
-    	
-    	int index = 3 + NUMBER_OF_BALANCERS;
-    	String hh = members.get( index ).getAddress();
-    	servers.get( index ).close();
-    	System.out.println( "Node: " + members.get( index ) + " closed." );
-    	
-    	Thread.sleep( 2000 );
-    	
-    	assertTrue( clients.get( 0 ).put( file ) );
-    	System.out.println( "\n\n" );
-    	Thread.sleep( 2000 );
-    	
-    	System.out.println( "HH: " + servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ) );
-    	assertEquals( servers.get( 4 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
+        System.out.println( "Starting Hinted Handoff test..." );
+        String file = "chord_sigcomm.pdf";
+        existFile( "./Clients/ResourcesClient1/" + file, true );
+        
+        int index = 3 + NUMBER_OF_BALANCERS;
+        String hh = members.get( index ).getAddress();
+        servers.get( index ).close();
+        System.out.println( "Node: " + members.get( index ) + " closed." );
+        
+        Thread.sleep( 2000 );
+        
+        assertTrue( clients.get( 0 ).put( file ) );
+        System.out.println( "\n\n" );
+        Thread.sleep( 2000 );
+        
+        System.out.println( "HH: " + servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
+        assertEquals( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
     
     private static boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException

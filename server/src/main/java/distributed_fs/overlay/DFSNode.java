@@ -144,7 +144,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	/**
-     * Enable/disable the gossiping mechanism.<br>
+     * Enables/disables the gossiping mechanism.<br>
      * By default this value is setted to {@code true}.
      * 
      * @param enable    {@code true} to enable the anti-entropy mechanism,
@@ -191,7 +191,7 @@ public abstract class DFSNode extends Thread implements GossipListener
 	}
 	
 	/**
-	 * Get the statistics of the node.
+	 * Gets the statistics of the node.
 	*/
 	public NodeStatistics getStatistics()
 	{

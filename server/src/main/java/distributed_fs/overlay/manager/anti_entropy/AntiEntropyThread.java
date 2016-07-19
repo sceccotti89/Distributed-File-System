@@ -14,10 +14,10 @@ import org.apache.log4j.Logger;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking.TCPnet;
-import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileTransfer;
 import gossiping.GossipMember;
 
 /**
@@ -27,7 +27,7 @@ import gossiping.GossipMember;
 public abstract class AntiEntropyThread extends Thread
 {
 	protected final ConsistentHasher<GossipMember, String> cHasher;
-	protected final FileTransferThread fMgr;
+	protected final FileTransfer fMgr;
 	protected final DFSDatabase database;
 	protected final TCPnet net;
 	protected final GossipMember me;
@@ -48,7 +48,7 @@ public abstract class AntiEntropyThread extends Thread
 	
 	public AntiEntropyThread( final GossipMember _me,
 							  final DFSDatabase database,
-							  final FileTransferThread fMgr,
+							  final FileTransfer fMgr,
 							  final ConsistentHasher<GossipMember, String> _cHasher )
 	{
 	    setName( "AntiEntropy" );

@@ -119,7 +119,7 @@ public class QuorumThread extends Thread
                     case( MAKE_QUORUM ):
                         byte opType = data.get();
                         String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-                        boolean locked = setLocked( true, fileName, 0, opType );
+                        boolean locked = lockFile( fileName, 0, opType );
                         
                         DFSNode.LOGGER.info( "[QUORUM] Received a MAKE_QUORUM request for '" + fileName +
                                              "'. Request status: " + (!locked ? "BLOCKED" : "FREE") );
@@ -137,7 +137,7 @@ public class QuorumThread extends Thread
                         DFSNode.LOGGER.info( "[QUORUM] Received a RELEASE_QUORUM request" );
                         long id = data.getLong();
                         fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-                        setLocked( false, fileName, id, (byte) 0x0 ); // Here the operation type is useless.
+                        unlockFile( fileName, id );
                         break;
                 }
             }
@@ -396,6 +396,18 @@ public class QuorumThread extends Thread
         }
     }
     
+    /***/
+    public boolean lockFile( final String fileName, final long fileId, final byte opType )
+    {
+        return setLocked( true, fileName, fileId, opType );
+    }
+    
+    /***/
+    public boolean unlockFile( final String fileName, final long fileId )
+    {
+        return setLocked( false, fileName, fileId, (byte) 0x0 );
+    }
+    
     /**
      * Sets the locked state for a given file.
      * 
@@ -406,7 +418,7 @@ public class QuorumThread extends Thread
      * 
      * @return {@code true} if the file has been locked, {@code false} otherwise.
     */
-    public boolean setLocked( final boolean toLock, final String fileName, final long fileId, final byte opType )
+    private boolean setLocked( final boolean toLock, final String fileName, final long fileId, final byte opType )
     {
         boolean isLocked = true;
         

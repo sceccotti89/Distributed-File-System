@@ -21,11 +21,11 @@ import java.util.concurrent.TimeUnit;
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
-import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileTransfer;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
@@ -51,7 +51,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	
 	public AntiEntropyReceiverThread( final GossipMember _me,
 	                                  final DFSDatabase database,
-	                                  final FileTransferThread fMgr,
+	                                  final FileTransfer fMgr,
 	                                  final ConsistentHasher<GossipMember, String> cHasher )
 	{
 	    super( _me, database, fMgr, cHasher );

@@ -21,27 +21,22 @@ import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
-import distributed_fs.overlay.manager.anti_entropy.AntiEntropyReceiverThread;
-import distributed_fs.overlay.manager.anti_entropy.AntiEntropySenderThread;
+import distributed_fs.overlay.manager.anti_entropy.AntiEntropyService;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
+import distributed_fs.storage.FileTransfer;
 import distributed_fs.utils.DFSUtils;
 import gossiping.GossipMember;
 
-public class FileTransferThread extends Thread
+public class FileTransferThread extends Thread implements FileTransfer
 {
 	private final ExecutorService threadPoolSend; // Pool used to send the files in parallel.
 	private final ExecutorService threadPoolReceive; // Pool used to receive the files in parallel.
 	private final DFSDatabase database; // The database where the files are stored.
 	
 	private QuorumThread quorum_t;
+	private AntiEntropyService aeService;
 	
-	private AntiEntropySenderThread sendAE_t;
-	private AntiEntropyReceiverThread receiveAE_t;
-	
-	private boolean disabledAntiEntropy = false;
-	private final ConsistentHasher<GossipMember, String> cHasher;
-	private final GossipMember node;
 	private AtomicBoolean shutDown = new AtomicBoolean( false );
 	
 	private final TCPnet net;
@@ -64,10 +59,7 @@ public class FileTransferThread extends Thread
 	    
 		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
 		
-		this.node = node;
-		this.cHasher = cHasher;
-		sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
-		receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
+		aeService = new AntiEntropyService( node, this, database, cHasher );
 		
 		net = new TCPnet( node.getHost(), port + PORT_OFFSET );
 		net.setSoTimeout( 500 );
@@ -82,10 +74,7 @@ public class FileTransferThread extends Thread
 	@Override
 	public void run()
 	{
-	    if(!disabledAntiEntropy) {
-    		receiveAE_t.start();
-    		sendAE_t.start();
-	    }
+	    aeService.start();
 	    
 	    LOGGER.info( "FileTransferThread launched." );
 		
@@ -122,51 +111,32 @@ public class FileTransferThread extends Thread
     */
     public void setAntiEntropy( final boolean enable )
     {
-        if(disabledAntiEntropy == !enable)
-            return;
-        disabledAntiEntropy = !enable;
-        
-        if(!disabledAntiEntropy) {
-            sendAE_t = new AntiEntropySenderThread( node, database, this, cHasher );
-            receiveAE_t = new AntiEntropyReceiverThread( node, database, this, cHasher );
-        }
-        else {
-            // Close the background Anti-Entropy Threads.
-            if(sendAE_t != null && receiveAE_t != null) {
-                sendAE_t.close();
-                receiveAE_t.close();
-            }
-        }
+        aeService.setAntiEntropy( enable );
     }
 	
-	/** 
-	 * Reads the incoming files and apply the appropriate operation,
-	 * based on file's deleted bit.
-	 * 
-	 * @param session
-	 * @param data
-	*/
-	private void receiveFiles( final TCPSession session, ByteBuffer data ) throws IOException, InterruptedException
+	@Override
+	public void receiveFiles( final TCPSession session ) throws IOException, InterruptedException
 	{
-		// Read the synch attribute.
-		boolean synch = (data.get() == (byte) 0x1);
-		// Get and verify the quorum attribute.
-		if(data.get() == (byte) 0x1) {
-			String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-			// Release the file.
-			quorum_t.setLocked( false, fileName, data.getLong(), (byte) 0x0 ); // Here the operation type is useless.
-		}
+	    ByteBuffer data = ByteBuffer.wrap( session.receive() );
+        // Read the synch attribute.
+        boolean toSynch = (data.get() == (byte) 0x1);
+        if(data.get() == (byte) 0x1) {
+            String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
+            // Release the file.
+            quorum_t.unlockFile( fileName, data.getLong() );
+        }
+        
+        // Get the number of files.
+        int numFiles = data.getInt();
+	    
+		LOGGER.debug( "Receiving " + numFiles + " files..." );
 		
-		// Get the number of files.
-		int num_files = data.getInt();
-		LOGGER.debug( "Receiving " + num_files + " files..." );
-		
-		for(int i = 0; i < num_files; i++) {
-			data = ByteBuffer.wrap( session.receive() );
+		for(int i = 0; i < numFiles; i++) {
+		    data = ByteBuffer.wrap( session.receive() );
 			DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
 			LOGGER.debug( "File \"" + file + "\" downloaded." );
 			if(file.isDeleted())
-			    database.deleteFile( file );
+			    database.deleteFile( file, file.getHintedHandoff() );
 			else
 			    database.saveFile( file, file.getVersion(), null, true );
 		}
@@ -174,22 +144,11 @@ public class FileTransferThread extends Thread
 		LOGGER.debug( "Files successfully downloaded." );
 		
 		// Send just 1 byte for the synchronization.
-		if(synch)
+		if(toSynch)
 			session.sendMessage( Networking.TRUE, false );
 	}
 	
-	/** 
-	 * Sends the list of files, for saving or deleting operation, to the destination address.
-	 * 
-	 * @param address           destination IP address
-	 * @param port				destination port
-	 * @param files				list of files
-	 * @param wait_response		{@code true} if the process have to wait the response, {@code false} otherwise
-	 * @param synchNodeId		identifier of the synchronizing node (used during the anti-entropy phase)
-	 * @param node			    
-	 * 
-	 * @return {@code true} if the files are successfully transmitted, {@code false} otherwise
-	*/
+	@Override
 	public boolean sendFiles( final String address,
 	                          final int port,
 							  final List<DistributedFile> files,
@@ -261,7 +220,7 @@ public class FileTransferThread extends Thread
 			
 			if(synchNodeId != null) {
 				session.receiveMessage();
-				receiveAE_t.removeFromSynch( synchNodeId );
+				aeService.getReceiver().removeFromSynch( synchNodeId );
 			}
 			
 			if(node != null)
@@ -271,7 +230,7 @@ public class FileTransferThread extends Thread
 			e.printStackTrace();
 			complete = false;
 			if(synchNodeId != null) {
-				receiveAE_t.removeFromSynch( synchNodeId );
+			    aeService.getReceiver().removeFromSynch( synchNodeId );
 				if(node != null)
 					updateQuorum( node );
 			}
@@ -324,13 +283,8 @@ public class FileTransferThread extends Thread
         }
 		
 		database.close();
-		sendAE_t.close();
-		receiveAE_t.close();
 		
-		try {
-		    sendAE_t.join();
-		    receiveAE_t.join();
-		} catch( InterruptedException e ){ e.printStackTrace(); }
+		aeService.shutDown();
 	}
 
 	/**
@@ -351,8 +305,7 @@ public class FileTransferThread extends Thread
 		public void run()
 		{
 			try {
-				ByteBuffer data = ByteBuffer.wrap( session.receive() );
-				receiveFiles( session, data );
+				receiveFiles( session );
 			}
 			catch( IOException | InterruptedException e ) {
 				e.printStackTrace();
@@ -368,7 +321,6 @@ public class FileTransferThread extends Thread
 	private class SendFilesThread extends Thread
 	{
 		private int port;
-		//private byte opType;
 		private List<DistributedFile> files;
 		private String address;
 		private String synchNodeId;

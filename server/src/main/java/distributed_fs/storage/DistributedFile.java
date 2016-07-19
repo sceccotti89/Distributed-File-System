@@ -69,12 +69,17 @@ public class DistributedFile implements Serializable, IOSerializable
 		fileId = DFSUtils.getId( this.name );
 	}
 	
-	public void loadContent( final DBManager db ) throws IOException
+	public void loadContent( final DBManager db )
     {
 	    if(!deleted && !isDirectory) {
-            byte[] file = db.readFileFromDisk( name );
-            // Store the content in compressed form.
-            content = DFSUtils.compressData( file );
+	        try {
+                byte[] file = db.readFileFromDisk( name );
+                // Store the content in compressed form.
+                content = DFSUtils.compressData( file );
+	        }
+	        catch( IOException e ) {
+	            setDeleted( true );
+	        }
 	    }
     }
 	
@@ -131,7 +136,7 @@ public class DistributedFile implements Serializable, IOSerializable
 	/**
 	 * Method used to check whether a file has to be definitely removed.
 	 * If the file is marked as deleted, then it can be removed
-	 * when an internal TTL value will be reached.
+	 * when an internal TTL value is reached.
 	 * 
 	 * @return {@code true} if the file has to be removed,
 	 *		   {@code false} otherwise
@@ -217,7 +222,7 @@ public class DistributedFile implements Serializable, IOSerializable
         int hhSize = (HintedHandoff == null) ? 0 : (HintedHandoff.length() + Integer.BYTES);
         
         byte[] clock = DFSUtils.serializeObject( version );
-        ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 3 + Long.BYTES * 2 + Byte.BYTES * 3 +
+        ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 3 + Long.BYTES + Byte.BYTES * 3 +
                                                  name.length() + clock.length + fileId.length() + hhSize + contentSize );
         
         buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
@@ -225,7 +230,6 @@ public class DistributedFile implements Serializable, IOSerializable
         buffer.put( (deleted) ? (byte) 0x1 : (byte) 0x0 );
         buffer.put( (isDirectory) ? (byte) 0x1 : (byte) 0x0 );
         buffer.putInt( fileId.length() ).put( fileId.getBytes( StandardCharsets.UTF_8 ) );
-        buffer.putLong( currTime );
         buffer.putLong( liveness );
         
         buffer.put( (byte) ((hhSize == 0) ? 0x0 : 0x1) );
@@ -247,7 +251,6 @@ public class DistributedFile implements Serializable, IOSerializable
         deleted = (buffer.get() == (byte) 0x1);
         isDirectory = (buffer.get() == (byte) 0x1);
         fileId = new String( DFSUtils.getNextBytes( buffer ), StandardCharsets.UTF_8 );
-        currTime = buffer.getLong();
         liveness = buffer.getLong();
         
         if(buffer.get() == (byte) 0x1)
@@ -255,6 +258,8 @@ public class DistributedFile implements Serializable, IOSerializable
         
         if(buffer.remaining() > 0)
             content = DFSUtils.getNextBytes( buffer );
+        
+        setCurrentTime();
     }
 
     @Override

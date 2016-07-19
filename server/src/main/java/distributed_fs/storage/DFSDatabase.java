@@ -32,7 +32,6 @@ import com.google.common.base.Preconditions;
 
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.messages.Message;
-import distributed_fs.overlay.manager.FileTransferThread;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
@@ -40,7 +39,7 @@ import gossiping.event.GossipState;
 
 public class DFSDatabase extends DBManager implements Closeable
 {
-	private final FileTransferThread _fileMgr;
+	private final FileTransfer _fileMgr;
 	private final ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
 	private final AsyncDiskWriter asyncWriter;
@@ -77,7 +76,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	*/
 	public DFSDatabase( final String resourcesLocation,
 						final String databaseLocation,
-						final FileTransferThread fileMgr ) throws IOException, DFSException
+						final FileTransfer fileMgr ) throws IOException, DFSException
 	{
 	    _fileMgr = fileMgr;
 		if(_fileMgr != null) {
@@ -333,14 +332,15 @@ public class DFSDatabase extends DBManager implements Closeable
      * but only marked as deleted.
      * The file is keep on database until its TimeToLive is not expired.
      * 
-     * @param file      the file to remove
+     * @param file            the file to remove
+     * @param hintedHandoff   the hinted handoff address
      * 
      * @return the new clock, if updated, {@code null} otherwise.
     */
-    public VectorClock deleteFile( final DistributedFile file )
+    public VectorClock deleteFile( final DistributedFile file, final String hintedHandoff )
     {
         return deleteFile( file.getName(), file.getVersion(),
-                           file.isDirectory(), file.getHintedHandoff() );
+                           file.isDirectory(), hintedHandoff );
     }
 	
 	/**
@@ -763,16 +763,11 @@ public class DFSDatabase extends DBManager implements Closeable
 					ListIterator<DistributedFile> it = files.listIterator();
 					for(int i = files.size() - 1; i >= 0; i--) {
 					    DistributedFile file = it.next();
-						if(file.checkDelete()) {
+						if(!file.checkDelete())
+						    file.loadContent( db );
+						else {
 						    removeFile( file );
 							it.remove();
-						}
-						else {
-						    try { file.loadContent( db ); }
-						    catch( IOException e ) {
-                                e.printStackTrace();
-                                it.remove();
-                            }
 						}
 					}
 					

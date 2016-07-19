@@ -50,6 +50,7 @@ public class StorageNode extends DFSNode
 	private List<Thread> threadsList;
 	private MembershipManagerThread mMgr_t;
 	
+	
 	// ===== Used by the node instance ===== //
 	private TCPSession session;
 	private String destId; // Virtual destination node identifier, for an input request.
@@ -352,8 +353,8 @@ public class StorageNode extends DFSNode
 	{
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
-		    clock = file.getVersion().incremented( _address );
-		    clock = fMgr.getDatabase().saveFile( file, clock, hintedHandoff, true );
+		    file.incrementVersion( _address );
+		    clock = fMgr.getDatabase().saveFile( file, file.getVersion(), hintedHandoff, true );
 		    state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
 		    actionsList.addLast( DONE );
 		}
@@ -448,7 +449,7 @@ public class StorageNode extends DFSNode
 			
 		    // Remove the lock to the file.
 		    if(!replacedThread || actionsList.isEmpty()) {
-		        quorum_t.setLocked( false, fileName, fileId, Message.GET );
+		        quorum_t.unlockFile( fileName, fileId );
 		        actionsList.addLast( DONE );
             }
             else
@@ -634,9 +635,9 @@ public class StorageNode extends DFSNode
 	{
 		VectorClock clock;
 		if(!replacedThread || actionsList.isEmpty()) {
-    		clock = file.getVersion().incremented( _address );
+    		file.incrementVersion( _address );
     		//System.out.println( "IN: " + clock + ", MY: " + fMgr.getDatabase().getFile( file.getName() ).getVersion() );
-    		clock = fMgr.getDatabase().deleteFile( file.getName(), clock, file.isDirectory(), hintedHandoff );
+    		clock = fMgr.getDatabase().deleteFile( file, hintedHandoff );
     		state.setValue( ThreadState.UPDATE_CLOCK_DB, clock );
             actionsList.addLast( DONE );
         }
