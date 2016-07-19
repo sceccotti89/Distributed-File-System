@@ -108,7 +108,7 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 	    
 	    if(!useLoadBalancer)
-            listMgr_t.start();
+	        membMgr_t.start();
 		
 		LOGGER.info( "System up." );
 		return (initialized = true);
@@ -611,8 +611,8 @@ public class DFSService extends DFSManager implements IDFSService
         
         // Start now the background thread
         // for the membership.
-        if(nodeDown && listMgr_t.isAlive())
-            listMgr_t.wakeUp();
+        if(nodeDown && membMgr_t.isAlive())
+            membMgr_t.wakeUp();
         
         if(opType != Message.GET_ALL)
             LOGGER.error( "Sorry, but the service is not available. Retry later." );

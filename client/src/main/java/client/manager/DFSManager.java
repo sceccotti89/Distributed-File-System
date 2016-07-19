@@ -49,7 +49,7 @@ public abstract class DFSManager
 	protected String destId;
 	
     protected final ConsistentHasher<GossipMember, String> cHasher;
-    protected ClientMembershipManagerThread listMgr_t;
+    protected ClientMembershipManagerThread membMgr_t;
 	
 	private static final String DISTRIBUTED_FS_CONFIG = "Settings/ClientSettings.json";
 	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
@@ -111,7 +111,7 @@ public abstract class DFSManager
         net.setSoTimeout( 5000 );
         
         if(!useLoadBalancer)
-            listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
+            membMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
 		
 		if(members != null) {
 		    // Get the remote nodes from the input list.
@@ -208,13 +208,16 @@ public abstract class DFSManager
         useLoadBalancer = useLB;
         
         if(!useLoadBalancer) {
-            listMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
-            listMgr_t.start();
+            membMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
+            membMgr_t.start();
         }
         else {
             // Close the background thread.
-            if(listMgr_t != null)
-                listMgr_t.close();
+            if(membMgr_t != null) {
+                membMgr_t.close();
+                try { membMgr_t.join(); }
+                catch( InterruptedException e ) {}
+            }
         }
     }
 	
@@ -338,9 +341,9 @@ public abstract class DFSManager
 	{
 	    closed.set( true );
 	    
-	    if(listMgr_t != null) {
-    	    listMgr_t.close();
-    	    try { listMgr_t.join(); }
+	    if(membMgr_t != null) {
+	        membMgr_t.close();
+    	    try { membMgr_t.join(); }
     	    catch( InterruptedException e ) {}
 	    }
 	}

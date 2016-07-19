@@ -10,7 +10,7 @@ import distributed_fs.storage.FileTransfer;
 import gossiping.GossipMember;
 
 /**
- * Class used to start in a secure manner the anti-entropy protocol.<br>
+ * Class used to start in a fully automatic way the anti-entropy protocol.<br>
  * It manages the start and stop of the Threads used to perform the mechanism.
 */
 public class AntiEntropyService
@@ -60,10 +60,7 @@ public class AntiEntropyService
         }
         else {
             // Close the background Anti-Entropy Threads.
-            if(sendAE_t != null && receiveAE_t != null) {
-                sendAE_t.close();
-                receiveAE_t.close();
-            }
+            shutDown();
         }
     }
     
