@@ -97,7 +97,7 @@ public class MembershipManagerThread extends Thread
     }
     
     /**
-     * Send the own memershio list to the input client.
+     * Send the own membership list to the input client.
      * 
      * @param session   the incoming connection
     */
