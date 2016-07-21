@@ -20,6 +20,7 @@ import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking;
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
+import distributed_fs.overlay.manager.QuorumThread.QuorumFile;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 import distributed_fs.overlay.manager.anti_entropy.AntiEntropyService;
 import distributed_fs.storage.DFSDatabase;
@@ -115,15 +116,20 @@ public class FileTransferThread extends Thread implements FileTransfer
     }
 	
 	@Override
-	public void receiveFiles( final TCPSession session ) throws IOException, InterruptedException
+	public void receiveFiles( final TCPSession session ) throws IOException
 	{
 	    ByteBuffer data = ByteBuffer.wrap( session.receive() );
         // Read the synch attribute.
         boolean toSynch = (data.get() == (byte) 0x1);
-        if(data.get() == (byte) 0x1) {
-            String fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
-            // Release the file.
-            quorum_t.unlockFile( fileName, data.getLong() );
+        // Read the quorum attribute.
+        boolean isQuorum = (data.get() == (byte) 0x1);
+        String fileName = null;
+        long fileId = 0L;
+        QuorumFile qFile = null;
+        if(isQuorum) {
+            fileName = new String( DFSUtils.getNextBytes( data ), StandardCharsets.UTF_8 );
+            fileId = data.getLong();
+            qFile = quorum_t.getQuorumFile( fileName );
         }
         
         // Get the number of files.
@@ -131,21 +137,29 @@ public class FileTransferThread extends Thread implements FileTransfer
 	    
 		LOGGER.debug( "Receiving " + numFiles + " files..." );
 		
-		for(int i = 0; i < numFiles; i++) {
-		    data = ByteBuffer.wrap( session.receive() );
-			DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
-			LOGGER.debug( "File \"" + file + "\" downloaded." );
-			if(file.isDeleted())
-			    database.deleteFile( file, file.getHintedHandoff() );
-			else
-			    database.saveFile( file, file.getVersion(), null, true );
+		try {
+    		for(int i = 0; i < numFiles; i++) {
+    		    data = ByteBuffer.wrap( session.receive( qFile ) );
+    			DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
+    			LOGGER.debug( "File \"" + file + "\" downloaded." );
+    			if(file.isDeleted())
+    			    database.deleteFile( file, file.getHintedHandoff() );
+    			else
+    			    database.saveFile( file, file.getVersion(), null, true );
+    		}
+    		
+    		LOGGER.debug( "Files successfully downloaded." );
+    		
+    		// Send just 1 byte for the synchronization.
+    		if(toSynch)
+    		    session.sendMessage( Networking.TRUE, false );
+		}
+		catch( IOException e ) {
+		    e.printStackTrace();
 		}
 		
-		LOGGER.debug( "Files successfully downloaded." );
-		
-		// Send just 1 byte for the synchronization.
-		if(toSynch)
-			session.sendMessage( Networking.TRUE, false );
+		if(isQuorum) // Release the file.
+            quorum_t.unlockFile( fileName, fileId );
 	}
 	
 	@Override
@@ -171,75 +185,6 @@ public class FileTransferThread extends Thread implements FileTransfer
 		catch( InterruptedException e ){ return false; }
 		
 		return t.getResult();
-	}
-	
-	/** 
-	 * Sends the list of files to the destination address.
-	 * 
-	 * @param port				destination port
-	 * @param files				list of files
-	 * @param address			destination IP address
-	 * @param synchNodeId		identifier of the synchronizing node (used during the anti-entropy phase)
-	 * @param node			    node of the quorum
-	 * 
-	 * @return {@code true} if the files are successfully transmitted,
-	 * 		   {@code false} otherwise
-	*/
-	private boolean transmitFiles( final int port,
-								   final List<DistributedFile> files,
-								   final String address,
-								   final String synchNodeId,
-								   final QuorumNode node )
-	{
-		boolean complete = true;
-		TCPSession session = null;
-		
-		try {
-			LOGGER.debug( "Connecting to " + address + ":" + port );
-			session = net.tryConnect( address, port, 2000 );
-			
-			int size = files.size();
-			LOGGER.debug( "Sending " + size + " files to \"" + address + ":" + port + "\"" );
-			
-			byte[] msg = new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (node != null) ? (byte) 0x1 : (byte) 0x0 };
-			if(node != null) {
-				msg = net.createMessage( msg, files.get( 0 ).getName().getBytes( StandardCharsets.UTF_8 ), true );
-				msg = net.createMessage( msg, DFSUtils.longToByteArray( node.getId() ), false );
-			}
-			msg = net.createMessage( msg, DFSUtils.intToByteArray( size ), false );
-			session.sendMessage( msg, true );
-			
-			for(int i = 0; i < size; i++) {
-				DistributedFile dFile = files.get( i );
-				msg = net.createMessage( null, dFile.read(), true );
-				
-				LOGGER.debug( "Sending file \"" + dFile + "\"" );
-				session.sendMessage( msg, true );
-				LOGGER.debug( "File \"" + dFile.getName() + "\" transmitted." );
-			}
-			
-			if(synchNodeId != null) {
-				session.receiveMessage();
-				aeService.getReceiver().removeFromSynch( synchNodeId );
-			}
-			
-			if(node != null)
-				updateQuorum( node );
-		}
-		catch( IOException e ) {
-			e.printStackTrace();
-			complete = false;
-			if(synchNodeId != null) {
-			    aeService.getReceiver().removeFromSynch( synchNodeId );
-				if(node != null)
-					updateQuorum( node );
-			}
-		}
-		
-		if(session != null)
-			session.close();
-		
-		return complete;
 	}
 	
 	/**
@@ -307,7 +252,7 @@ public class FileTransferThread extends Thread implements FileTransfer
 			try {
 				receiveFiles( session );
 			}
-			catch( IOException | InterruptedException e ) {
+			catch( IOException e ) {
 				e.printStackTrace();
 			}
 			
@@ -346,7 +291,56 @@ public class FileTransferThread extends Thread implements FileTransfer
 		@Override
 		public void run()
 		{
-			result = transmitFiles( port, files, address, synchNodeId, node );
+		    result = true;
+			TCPSession session = null;
+            
+            try {
+                LOGGER.debug( "Connecting to " + address + ":" + port );
+                session = net.tryConnect( address, port, 2000 );
+                
+                int size = files.size();
+                LOGGER.debug( "Sending " + size + " files to \"" + address + ":" + port + "\"" );
+                
+                byte[] msg = new byte[]{ (synchNodeId != null) ? (byte) 0x1 : (byte) 0x0, (node != null) ? (byte) 0x1 : (byte) 0x0 };
+                if(node != null) {
+                    // Add the file of the quorum to send.
+                    msg = net.createMessage( msg, files.get( 0 ).getName().getBytes( StandardCharsets.UTF_8 ), true );
+                    msg = net.createMessage( msg, DFSUtils.longToByteArray( node.getId() ), false );
+                }
+                msg = net.createMessage( msg, DFSUtils.intToByteArray( size ), false );
+                session.sendMessage( msg, true );
+                
+                for(int i = 0; i < size; i++) {
+                    DistributedFile dFile = files.get( i );
+                    msg = net.createMessage( null, dFile.read(), true );
+                    
+                    LOGGER.debug( "Sending file \"" + dFile + "\"" );
+                    session.sendMessage( msg, true );
+                    LOGGER.debug( "File \"" + dFile.getName() + "\" transmitted." );
+                }
+                
+                if(synchNodeId != null) {
+                    // The receiver has received all the files.
+                    // We can remove the node from the synchronized ones.
+                    session.receiveMessage();
+                    aeService.getReceiver().removeFromSynch( synchNodeId );
+                }
+                
+                if(node != null)
+                    updateQuorum( node );
+            }
+            catch( IOException e ) {
+                e.printStackTrace();
+                result = false;
+                if(synchNodeId != null) {
+                    aeService.getReceiver().removeFromSynch( synchNodeId );
+                    if(node != null)
+                        updateQuorum( node );
+                }
+            }
+            
+            if(session != null)
+                session.close();
 		}
 		
 		/** 

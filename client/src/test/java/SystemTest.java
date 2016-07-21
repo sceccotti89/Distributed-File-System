@@ -153,6 +153,7 @@ public class SystemTest
 	    Thread.sleep( 2000 );
 	    existFile( "./Clients/ResourcesClient/test.txt", true );
 	    assertTrue( service.put( "test.txt" ) );
+	    Thread.sleep( 1000 );
 	    assertNotNull( service.get( "test.txt" ) );
 	    existFile( "./Clients/ResourcesClient/chord_sigcomm2.pdf", true );
 	    assertTrue( service.put( "chord_sigcomm2.pdf" ) );

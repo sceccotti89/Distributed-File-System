@@ -21,6 +21,7 @@ import javax.swing.Timer;
 
 import distributed_fs.net.Networking.TCPSession;
 import distributed_fs.net.Networking.TCPnet;
+import distributed_fs.net.TransferSpeed;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
@@ -396,13 +397,44 @@ public class QuorumThread extends Thread
         }
     }
     
-    /***/
+    /**
+     * Returns the file specified by its name.
+     * 
+     * @param fileName  name of the file to retrieve
+     * 
+     * @return the quorum file, if present, {@code null} otherwise
+    */
+    public QuorumFile getQuorumFile( final String fileName )
+    {
+        QUORUM_LOCK.lock();
+        QuorumFile qFile = fileLock.get( fileName );
+        QUORUM_LOCK.unlock();
+        
+        return qFile;
+    }
+    
+    /**
+     * Tries to lock a file.
+     * 
+     * @param fileName  name of the file to lock
+     * @param fileId    unique identifier associated to the operation
+     * @param opType    type of operation ({@code GET}, {@code PUT} or {@code DELETE})
+     * 
+     * @return {@code true} if the file has been locked, {@code false} otherwise.
+    */
     public boolean lockFile( final String fileName, final long fileId, final byte opType )
     {
         return setLocked( true, fileName, fileId, opType );
     }
     
-    /***/
+    /**
+     * Tries to unlock a file.
+     * 
+     * @param fileName  name of the file to unlock
+     * @param fileId    unique identifier associated to the operation
+     * 
+     * @return {@code true} if the file has been unlocked, {@code false} otherwise.
+    */
     public boolean unlockFile( final String fileName, final long fileId )
     {
         return setLocked( false, fileName, fileId, (byte) 0x0 );
@@ -428,6 +460,7 @@ public class QuorumThread extends Thread
         
         if(toLock) {
             if(qFile != null) {
+                System.out.println( "RICHIESTO: " + fileName + ", TYPE: " + qFile.getOpType() );
                 if(opType == Message.GET && qFile.getOpType() == opType) {
                     // Read locking.
                     qFile.setReaders( +1 );
@@ -442,12 +475,10 @@ public class QuorumThread extends Thread
         else {
             // Lock released.
             if(qFile != null && fileId == qFile.getId()) {
-                if(qFile.getOpType() == Message.GET) {
+                if(qFile.getOpType() == Message.GET)
                     qFile.setReaders( -1 );
-                    if(qFile.toDelete())
-                        fileLock.remove( fileName );
-                }
-                else
+                
+                if(qFile.toDelete())
                     fileLock.remove( fileName );
             }
         }
@@ -515,18 +546,19 @@ public class QuorumThread extends Thread
 	
 	/**
 	 * Class used to represent a file during the quorum phase.
-	 * The object remains in the Map as long as its TimeToLive
-	 * is greater than 0.
+	 * This object remains in the Map as long as its TimeToLive
+	 * is less than a threshold.
 	*/
-	public static class QuorumFile
+	public static class QuorumFile implements TransferSpeed
 	{
 		/** Maximum waiting time of the file in the Map. */
-		private static final long MAX_TTL = 60000; // 1 Minute.
+		private static final long DEFAULT_TTL = 60000; // 1 Minute.
 		
 		private long id;
-		private long ttl = MAX_TTL;
+		private long ttl = 0, maxTTL;
 		private byte opType;
 		private int readers = 0;
+		private boolean isUpdated = false;
 		
 		public QuorumFile( final long id, final byte opType )
 		{
@@ -534,16 +566,24 @@ public class QuorumThread extends Thread
 			this.opType = opType;
 			if(opType == Message.GET)
 				readers = 1;
+			
+			maxTTL = DEFAULT_TTL;
 		}
 		
+		/**
+		 * Updates the TimeToLive of the file.
+		 * 
+		 * @param delta   amount of time to add
+		*/
 		public void updateTTL( final int delta )
 		{
-			ttl -= delta;
+		    if(!isUpdated())
+		        ttl += delta;
 		}
 		
 		public boolean toDelete()
 		{
-			return (opType == Message.GET && readers == 0) || ttl <= 0;
+			return readers == 0 || ttl >= maxTTL;
 		}
 		
 		/**
@@ -555,7 +595,7 @@ public class QuorumThread extends Thread
 		{
 			readers += value;
 			if(value == +1) // Restart the time to live.
-			    ttl = MAX_TTL;
+			    ttl = 0;
 		}
 		
 		public byte getOpType()
@@ -567,6 +607,28 @@ public class QuorumThread extends Thread
 		{
 			return id;
 		}
+		
+		private synchronized boolean isUpdated() {
+		    boolean updated = isUpdated;
+		    updated = false;
+		    return updated;
+		}
+		
+		private synchronized void setUpdated() {
+		    ttl = 0;
+		    isUpdated = true;
+		}
+
+        @Override
+        public void update( final int bytesToReceive, final double throughput )
+        {
+            setUpdated();
+            final int DELAY = 10;
+            // Compute the time to download the file + a little constant,
+            // just to be sure of the complete download of the file itself.
+            int time = ((int) (bytesToReceive / throughput) + DELAY) * 1000;
+            maxTTL = time;
+        }
 	}
 	
 	public static class QuorumSession

@@ -4,9 +4,9 @@
 
 package distributed_fs.net;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -66,20 +66,23 @@ public class Networking
 	
 	public class TCPSession implements Closeable
 	{
-		private final DataInputStream in;
-		private final DataOutputStream out;
+		private final BufferedInputStream in;
+		private final BufferedOutputStream out;
 		private final Socket socket;
 		private final String endPointAddress;
+		
 		private boolean close = false;
 		
-		public TCPSession( final DataInputStream in,
-						   final DataOutputStream out,
+		private final byte[] INT = new byte[Integer.BYTES];
+		
+		public TCPSession( final BufferedInputStream in,
+						   final BufferedOutputStream out,
 						   final Socket socket ) {
 			this( in, out, socket, "" );
 		}
 		
-		public TCPSession( final DataInputStream in,
-						   final DataOutputStream out,
+		public TCPSession( final BufferedInputStream in,
+						   final BufferedOutputStream out,
 						   final Socket socket,
 						   final String srcAddress ) {
 			this.in = in;
@@ -88,8 +91,8 @@ public class Networking
 			this.endPointAddress = srcAddress;
 		}
 		
-		public DataInputStream getInputStream(){ return in; }
-		public DataOutputStream getOutputStream(){ return out; }
+		public BufferedInputStream getInputStream(){ return in; }
+		public BufferedOutputStream getOutputStream(){ return out; }
 		public Socket getSocket(){ return socket; }
 		public String getEndPointAddress(){ return endPointAddress; }
 
@@ -163,28 +166,48 @@ public class Networking
          * Receives a new message.
         */
         public <T extends Message> T receiveMessage() throws IOException
+        {
+           return receiveMessage( null );
+        }
+		
+		/** 
+         * Receives a new message.
+        */
+        public <T extends Message> T receiveMessage( final TransferSpeed callback ) throws IOException
 		{
-		    T message = DFSUtils.deserializeObject( receive() );
+		    T message = DFSUtils.deserializeObject( receive( callback ) );
 		    return message;
 		}
+        
+        /** 
+         * Receives a new message as a list of bytes.    
+        */
+        public byte[] receive() throws IOException
+        {
+            return receive( null );
+        }
 		
 		/** 
 		 * Receives a new message as a list of bytes.
+		 * 
+		 * @param callback    
 		*/
-		public byte[] receive() throws IOException
+		public byte[] receive( final TransferSpeed callback ) throws IOException
 		{
-			try {
-				int size = in.readInt();
-				//System.out.println( "Read: " + data.length + " bytes" );
+		    try {
+				final int size = readInt();
 				boolean decompress = (in.read() == (byte) 0x1);
-			
 				byte[] data = new byte[size];
 				
-				int current = 0;
-				while(current < size) {
-					int bytesRead = in.read( data, current, (size - current) );
+				FileSpeed file = new FileSpeed( size );
+				if(callback != null)
+				    new ThroughputThread( file, callback ).start();
+				
+				while(file.bytesReceived < size) {
+					int bytesRead = in.read( data, file.bytesReceived, (size - file.bytesReceived) );
 					if(bytesRead >= 0)
-						current += bytesRead;
+					    file.bytesReceived += bytesRead;
+					//System.out.println( "Read " + bytesRead + " bytes." );
 				}
 				
 				if(decompress)
@@ -196,6 +219,16 @@ public class Networking
 				close();
 				throw e;
 			}
+		}
+		
+		/**
+		 * Reads the next {@link Integer#BYTES} bytes from the
+		 * socket.
+		*/
+		private int readInt() throws IOException
+		{
+		    in.read( INT );
+            return DFSUtils.byteArrayToInt( INT );
 		}
 		
 		@Override
@@ -221,6 +254,8 @@ public class Networking
 		/** Keep track of all the opened TCP sessions. */ 
 		private List<TCPSession> sessions = new ArrayList<>( 32 );
 		private boolean closed = false;
+		
+		
 		
 		public TCPnet() {}
 		
@@ -281,8 +316,8 @@ public class Networking
 			socket.setTcpNoDelay( true );
 			
 			String srcAddress = ((InetSocketAddress) socket.getRemoteSocketAddress()).getHostString();
-			DataInputStream in = new DataInputStream( socket.getInputStream() );
-			DataOutputStream out = new DataOutputStream( socket.getOutputStream() );
+			BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
+			BufferedOutputStream out = new BufferedOutputStream( socket.getOutputStream() );
 			
 			TCPSession session = new TCPSession( in, out, socket, srcAddress );
 			sessions.add( session );
@@ -321,8 +356,8 @@ public class Networking
 			
 			socket.setTcpNoDelay( true );
 			
-			DataInputStream in = new DataInputStream( socket.getInputStream() );
-			DataOutputStream out = new DataOutputStream( socket.getOutputStream() );
+			BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
+			BufferedOutputStream out = new BufferedOutputStream( socket.getOutputStream() );
 			TCPSession session = new TCPSession( in, out, socket, address );
 			
 			return session;
@@ -484,5 +519,51 @@ public class Networking
     			udpSocket.close();
 		    }
 		}
+	}
+	
+	private static class FileSpeed
+	{
+	    public int fileSize;
+	    public int bytesReceived;
+	    
+	    public FileSpeed( final int fileSize )
+	    {
+            this.fileSize = fileSize;
+        }
+	}
+	
+	/**
+	 * Thread used to compute the throughput of the communication.
+	*/
+	private static class ThroughputThread extends Thread
+	{
+	    private final FileSpeed file;
+	    private final TransferSpeed callback;
+	    
+	    
+	    public ThroughputThread( final FileSpeed file, final TransferSpeed callback )
+	    {
+            setName( "ThroughputThread" );
+            setDaemon( true );
+            
+            this.file = file;
+            this.callback = callback;
+        }
+	    
+	    @Override
+	    public void run()
+	    {
+	        long start = System.currentTimeMillis();
+            while(file.bytesReceived < file.fileSize) {
+                try { Thread.sleep( 10 ); }
+                catch( InterruptedException e ) {}
+                
+                long end = System.currentTimeMillis();
+                double throughput = file.bytesReceived / (end - start);
+                //System.out.println( "THROUGHPUT: " + (throughput / 1024f / 1024f) + " MB/s" );
+                
+                callback.update( file.fileSize - file.bytesReceived, throughput );
+            }
+	    }
 	}
 }
