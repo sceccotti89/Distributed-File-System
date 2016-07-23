@@ -25,8 +25,12 @@ import distributed_fs.utils.DFSUtils;
 
 public class Networking
 {
+    private ThroughputThread throughput_t;
+    
 	public static final byte[] FALSE = new byte[]{ (byte) 0x0 };
 	public static final byte[] TRUE = new byte[]{ (byte) 0x1 };
+	
+	
 	
 	/**
 	 * Creates a new message.
@@ -74,6 +78,9 @@ public class Networking
 		private boolean close = false;
 		
 		private final byte[] INT = new byte[Integer.BYTES];
+		
+		
+		
 		
 		public TCPSession( final BufferedInputStream in,
 						   final BufferedOutputStream out,
@@ -190,7 +197,7 @@ public class Networking
 		/** 
 		 * Receives a new message as a list of bytes.
 		 * 
-		 * @param callback    
+		 * @param callback    object used to be notified about the download time of the file
 		*/
 		public byte[] receive( final TransferSpeed callback ) throws IOException
 		{
@@ -199,9 +206,15 @@ public class Networking
 				boolean decompress = (in.read() == (byte) 0x1);
 				byte[] data = new byte[size];
 				
-				FileSpeed file = new FileSpeed( size );
-				if(callback != null)
-				    new ThroughputThread( file, callback ).start();
+				FileSpeed file = new FileSpeed( size, callback );
+				if(callback != null) {
+				    if(throughput_t == null) {
+				        throughput_t = new ThroughputThread();
+				        throughput_t.start();
+				    }
+				    
+				    throughput_t.addFile( file );
+				}
 				
 				while(file.bytesReceived < size) {
 					int bytesRead = in.read( data, file.bytesReceived, (size - file.bytesReceived) );
@@ -523,46 +536,74 @@ public class Networking
 	
 	private static class FileSpeed
 	{
-	    public int fileSize;
+	    public final int fileSize;
+	    public final TransferSpeed callback;
+	    public long startTime;
 	    public int bytesReceived;
 	    
-	    public FileSpeed( final int fileSize )
+	    public FileSpeed( final int fileSize, final TransferSpeed callback )
 	    {
             this.fileSize = fileSize;
+            this.callback = callback;
+            
+            startTime = System.currentTimeMillis();
         }
 	}
 	
 	/**
-	 * Thread used to compute the throughput of the communication.
+	 * Thread used to compute the throughput of the communication,
+	 * in real time.
 	*/
 	private static class ThroughputThread extends Thread
 	{
-	    private final FileSpeed file;
-	    private final TransferSpeed callback;
+	    private final List<FileSpeed> files = new ArrayList<>( 32 );
 	    
 	    
-	    public ThroughputThread( final FileSpeed file, final TransferSpeed callback )
+	    public ThroughputThread()
 	    {
             setName( "ThroughputThread" );
             setDaemon( true );
-            
-            this.file = file;
-            this.callback = callback;
+        }
+	    
+	    public void addFile( final FileSpeed file )
+	    {
+	        synchronized( files) {
+	            files.add( file );
+	        }
+	    }
+	    
+	    private void removeFile( final int index )
+        {
+	        synchronized( files) {
+	            files.remove( index );
+	        }
         }
 	    
 	    @Override
 	    public void run()
 	    {
-	        long start = System.currentTimeMillis();
-            while(file.bytesReceived < file.fileSize) {
-                try { Thread.sleep( 10 ); }
+	        while(true) {
+	            try { Thread.sleep( 1000 ); }
                 catch( InterruptedException e ) {}
-                
+	            
+	            for(int i = files.size() - 1; i >= 0; i--) {
+	                if(!computeThroughput( files.get( i ) ))
+	                    removeFile( i );
+	            }
+	        }
+	    }
+	    
+	    private boolean computeThroughput( final FileSpeed file )
+	    {
+	        if(file.bytesReceived >= file.fileSize) // File completely downloaded.
+	            return false;
+	        else {
                 long end = System.currentTimeMillis();
-                double throughput = file.bytesReceived / (end - start);
-                //System.out.println( "THROUGHPUT: " + (throughput / 1024f / 1024f) + " MB/s" );
+                double throughput = file.bytesReceived / (end - file.startTime);
+                //System.out.println( "Throughput: " + (throughput / 1024f / 1024f) + " MB/s" );
                 
-                callback.update( file.fileSize - file.bytesReceived, throughput );
+                file.callback.update( file.fileSize - file.bytesReceived, throughput );
+                return true;
             }
 	    }
 	}
