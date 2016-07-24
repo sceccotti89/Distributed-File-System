@@ -13,7 +13,7 @@ import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 public interface FileTransfer
 {
     /** 
-     * Sends the list of files, for saving or deleting operation, to the destination address.
+     * Sends the list of files to the destination address.
      * 
      * @param address           destination IP address
      * @param port              destination port

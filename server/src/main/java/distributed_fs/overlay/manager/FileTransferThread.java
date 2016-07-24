@@ -228,7 +228,6 @@ public class FileTransferThread extends Thread implements FileTransfer
         }
 		
 		database.close();
-		
 		aeService.shutDown();
 	}
 
@@ -320,7 +319,7 @@ public class FileTransferThread extends Thread implements FileTransfer
                 }
                 
                 if(synchNodeId != null) {
-                    // The receiver has received all the files.
+                    // The destination node has received all the files.
                     // We can remove the node from the synchronized ones.
                     session.receiveMessage();
                     aeService.getReceiver().removeFromSynch( synchNodeId );

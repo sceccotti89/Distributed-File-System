@@ -152,7 +152,7 @@ public class ThreadMonitor extends Thread
                             if(node instanceof StorageNode)
                                 node = StorageNode.startThread( threadPool, state );
                             else // LOAD BALANCER
-                                LoadBalancer.startThread( threadPool, state );
+                                node = LoadBalancer.startThread( threadPool, state );
                             
                             if(node != null)
                                 it.add( node );
