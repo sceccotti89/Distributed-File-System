@@ -31,11 +31,38 @@ All the project can be built using **gradle** or **maven**.
 
 ### Maven
 
+The whole project can be automatically built using the script inside the **maven scripts** folder, just tiping:
 
+```bash
+sh projectScript.sh
+```
+
+Alternatively you can built each single module of the project manually, using the
+```bash
+mvn install
+```
+command inside each module of the project (Client, Server and Gossip).
 
 ### Gradle
 
-All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
+You don't need to download **gradle**, because you can use the gradle wrapper that provides for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
+
+The Client can be built with:
+```bash
+./gradlew client:build
+```
+which recursively build the Server and Gossip modules.
+
+The StorageNode and LoadBalancer nodes can be built using the following command:
+```bash
+./gradlew server:build
+```
+which recursively build the Gossip module.
+
+The Gossip module can be built using the following command:
+```bash
+./gradlew gossip:build
+```
 
 If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are, respectively, **Resources/** and **Database/**.
 The setting files, when not specified, are: for client **Settings/ClientSettings.json**, for LoadBalancer and StorageNode **Settings/NodeSettings.json**.
@@ -66,11 +93,7 @@ All the setting files must be placed in the same folder as the JAR file.
 
 ### Distributed Nodes
 
-The StorageNode and LoadBalancer nodes can be built using the following command:
-```bash
-./gradlew server:build
-```
-and runs it with:
+The StorageNode and LoadBalancer nodes can be launched with:
 ```bash
 java -jar NodeLauncher-<version>.jar [parameters]
 ```
@@ -92,11 +115,7 @@ Optional parameters:
 
 ### Client Node
 
-The Client can be built in this way:
-```bash
-./gradlew client:build
-```
-and runs it with:
+The Client an be launched with:
 ```bash
 java -jar Client-<version>.jar [parameters]
 ```
