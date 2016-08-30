@@ -27,6 +27,14 @@ The file system is implemented in a hierarchical manner as a key-value map of ty
 
 ## User Guide
 
+All the project can be built using **gradle** or **maven**.
+
+## Maven
+
+
+
+## Gradle
+
 All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
 
 If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are, respectively, **Resources/** and **Database/**.
