@@ -5,9 +5,10 @@ The Distributed File System project is an eventually consistent distributed file
 <!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
 
 - [Introduction](#introduction)
-- [User Guide](#user-guide)
+- [Bbuilding project](#project-building)
 	- [Maven](#maven)
 	- [Gradle](#gradle)
+- [User guide](#user-guide)
 	- [Distributed Nodes](#distributed-nodes)
 	- [Client Node](#client-node)
 	- [Local Environment](#local-environment)
@@ -27,7 +28,7 @@ The file system is implemented in a hierarchical manner as a key-value map of ty
 - **delete**(key) to delete a file in the system. If the target is a folder all its content will be recursively deleted;
 - **getAll**() to retrieve all the files stored in a random node.
 
-## User Guide
+## Building project
 
 All the project can be built using **gradle** or **maven**.
 
@@ -65,6 +66,8 @@ The Gossip module can be built using the following command:
 ```bash
 ./gradlew gossip:build
 ```
+
+## User Guide
 
 If you don't provide a resource or database location, from both input than from file, the default ones will be used. They are, respectively, **Resources/** and **Database/**.
 The setting files, when not specified, are: for client **Settings/ClientSettings.json**, for LoadBalancer and StorageNode **Settings/NodeSettings.json**.
