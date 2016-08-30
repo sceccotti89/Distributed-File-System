@@ -95,7 +95,7 @@ All the setting files must be placed in the same folder as the JAR file.
 **Requirements**:
 
 - Java8
-- *Vagrant and VirtualBox (optional only for a Pseudo-Distributed Environment)*
+- *Vagrant and VirtualBox (optional, only for a Pseudo-Distributed Environment)*
 
 ### Distributed Nodes
 
