@@ -41,7 +41,7 @@ sh projectScript.sh (Linux and MacOS systems)
 start projectScript.bat (Windows systems)
 ```
 
-Alternatively you can built each single module of the project manually, using the
+Alternatively you can manually built each single module of the project, using the
 ```bash
 mvn install
 ```
