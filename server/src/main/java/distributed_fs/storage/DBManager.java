@@ -4,46 +4,122 @@
 
 package distributed_fs.storage;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+
+import org.apache.log4j.Logger;
+
+import distributed_fs.exception.DFSException;
+import distributed_fs.net.messages.Message;
+import distributed_fs.storage.DBManager.DataAccess.DataLock;
 
 public abstract class DBManager
 {
-    protected String root;
+    protected final String root;
     
     private List<DBListener> listeners = null;
+    
+    protected AsyncDiskWriter asyncWriter;
+    
+    private final ReentrantReadWriteLock DB_LOCK = new ReentrantReadWriteLock( true );
+    protected final ReadLock LOCK_READERS = DB_LOCK.readLock();
+    protected final WriteLock LOCK_WRITERS = DB_LOCK.writeLock();
     
     protected boolean disableAsyncWrites = false;
     protected boolean disableReconciliation = false;
     
-    private final ReentrantLock LOCK = new ReentrantLock( true );
+    private final DataAccess dAccess = new DataAccess();
     
-    protected AtomicBoolean shutDown = new AtomicBoolean( false );
+    protected final AtomicBoolean shutDown = new AtomicBoolean( false );
     
-    public DBManager() {}
+    private static final String RESOURCES_LOCATION = "Resources/";
+    
+    protected static final Logger LOGGER = Logger.getLogger( DBManager.class );
+    
+    
+    
+    
+    
+    public DBManager( final String resourcesLocation ) throws DFSException
+    {
+        root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
+        if(!createDirectory( root )) {
+            throw new DFSException( "Invalid resources path " + root + ".\n" +
+                                    "Make sure that the path is correct and that " +
+                                    "you have the permissions to create and execute it." );
+        }
+        LOGGER.info( "Resources created on: " + root );
+    }
+    
+    /**
+     * Returns the "normalized" path to the resources.
+     * 
+     * @param path          the path to the resources
+     * @param defaultPath   the default path if {@code path} is {@code null}
+     * 
+     * @return the normalized path
+    */
+    protected String createResourcePath( final String path, final String defaultPath )
+    {
+        String root = (path != null) ? path.replace( "\\", "/" ) : defaultPath;
+        if(root.startsWith( "./" ))
+            root = root.substring( 2 );
+        
+        root = new File( root ).getAbsolutePath().replace( "\\", "/" );
+        if(!root.endsWith( "/" ))
+            root += "/";
+        
+        return root;
+    }
     
     /**
      * By default all modifications are queued and written into disk on Background Writer Thread.
      * So all modifications are performed in asynchronous mode and do not block.
      * <p/>
-     * It is possible to disable Background Writer Thread, but this greatly hurts concurrency.
+     * It is possible to disable background Writer Thread, but this greatly hurts concurrency.
      * Without async writes, all threads remain blocked until all previous writes are not finished (single big lock).
      *
      * <p/>
-     * This may workaround some problems.
-     *
+     * The main drawback rises during a disk-read request:
+     * you could waits for all the pending operations for that particular file.
     */
-    public void disableAsyncWrites() {
-        disableAsyncWrites = true;
+    public void disableAsyncWrites()
+    {
+        if(!disableAsyncWrites) {
+            asyncWriter.setClosed();
+            disableAsyncWrites = true;
+        }
+    }
+    
+    /**
+     * Enables the background Writer Thread.
+     * 
+     * @param enableParallelWorkers    setting it to {@code true} starts a number of threads that works on queue.
+     *                                 It will speedup the queue operations, with a more expensive memory cost.
+    */
+    public void enableAsyncWrites( final boolean enableParallelWorkers )
+    {
+        if(disableAsyncWrites) {
+            asyncWriter = new AsyncDiskWriter( this, enableParallelWorkers );
+            disableAsyncWrites = false;
+        }
     }
     
     /**
@@ -57,8 +133,7 @@ public abstract class DBManager
     /**
      * Returns the file system root location.
     */
-    public String getFileSystemRoot()
-    {
+    public String getFileSystemRoot() {
         return root;
     }
     
@@ -70,8 +145,7 @@ public abstract class DBManager
      * @return {@code true} if the directory has been created,
      *         {@code false} otherwise.
     */
-    protected boolean createDirectory( final String dirPath )
-    {
+    protected boolean createDirectory( final String dirPath ) {
         return createDirectory( new File( dirPath ) );
     }
     
@@ -85,16 +159,22 @@ public abstract class DBManager
     */
     protected boolean createDirectory( final File dirFile )
     {
-        boolean created = false;
+        if(dirFile == null || dirFile.getPath().equals( root ))
+            return true;
         
-        LOCK.lock();
+        boolean created = false;
+        String fileName = root + normalizeFileName( dirFile.getPath() );
+        
+        DataLock dCond = dAccess.checkFileInUse( fileName, Message.PUT );
         
         if(dirFile.exists())
             created = true;
-        else
-            created = dirFile.mkdirs();
+        else {
+            created = createDirectory( dirFile.getParentFile() ) &&
+                      dirFile.mkdir();
+        }
         
-        LOCK.unlock();
+        dAccess.notifyFileInUse( fileName, dCond );
         
         return created;
     }
@@ -106,8 +186,7 @@ public abstract class DBManager
      * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
      *                              {@code false} otherwise
     */
-    public boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException
-    {
+    public boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException {
         return existFile( new File( filePath ), createIfNotExists );
     }
     
@@ -115,164 +194,208 @@ public abstract class DBManager
      * Checks whether a file exists.
      * 
      * @param file                  the file to check
-     * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
+     * @param createIfNotExists     setting it to {@code true} the file will be created if it doesn't exist,
      *                              {@code false} otherwise
     */
     protected boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
     {
         boolean exists = false;
-
-        LOCK.lock();
+        String fileName = root + normalizeFileName( file.getPath() );
+        
+        if(!disableAsyncWrites && asyncWriter != null)
+            asyncWriter.checkWrittenFile( fileName );
+        
+        DataLock dCond = dAccess.checkFileInUse( fileName, Message.GET );
         
         exists = file.exists();
         if(!exists && createIfNotExists) {
-            if(file.getParent() != null)
-                file.getParentFile().mkdirs();
+            createDirectory( file.getParentFile() );
             try { file.createNewFile(); }
-            catch( IOException e ) { LOCK.unlock(); throw e; }
+            catch( IOException e ) {
+                dAccess.notifyFileInUse( fileName, dCond );
+                throw e;
+            }
         }
         
-        LOCK.unlock();
+        dAccess.notifyFileInUse( fileName, dCond );
         
         return exists;
     }
     
     /**
-     * Checks whether a file is a directory.
+     * Checks the existence of a file in the current file system,
+     * starting from the root.
      * 
-     * @param filePath      path to the file
+     * @param filePath  the file to search
+     * 
+     * @return {@code true} if the file is present,
+     *         {@code false} otherwise
     */
-    protected boolean isDirectory( final String filePath )
+    public boolean checkExistsInFileSystem( final String filePath )
     {
-        boolean isDirectory = false;
+        String rootPath = root + normalizeFileName( filePath );
+        return checkExistsFile( new File( root ), rootPath );
+    }
+    
+    private boolean checkExistsFile( final File filePath, final String fileName )
+    {
+        File[] files = filePath.listFiles();
+        if(files == null)
+            files = filePath.listFiles();
         
-        LOCK.lock();
-        File file = new File( filePath );
-        isDirectory = file.exists() && file.isDirectory();
-        LOCK.unlock();
+        if(files != null) {
+            for(File file : files) {
+                String _file = file.getPath().replace( '\\', '/' );
+                if(file.isDirectory() && !_file.endsWith( "/" ))
+                    _file = _file + "/";
+                
+                if(_file.equals( fileName ))
+                    return true;
+                
+                if(file.isDirectory()) {
+                    if(checkExistsFile( file, fileName ))
+                        return true;
+                }
+            }
+        }
         
-        return isDirectory;
+        return false;
     }
     
     /** 
-     * Reads and serializes a file from disk.
+     * Reads the serialization of a file from disk.
      * 
      * @param filePath      path to the file to read
      * 
      * @return the byte serialization of the object
     */
-    protected byte[] readFileFromDisk( String filePath ) throws IOException
+    public byte[] readFileFromDisk( final String filePath ) throws IOException
     {
-        filePath = root + normalizeFileName( filePath );
+        String fileName = root + normalizeFileName( filePath );
         
-        LOCK.lock();
+        if(!disableAsyncWrites && asyncWriter != null)
+            asyncWriter.checkWrittenFile( fileName );
         
-        File file = new File( filePath );
+        DataLock dCond = dAccess.checkFileInUse( fileName, Message.GET );
         
-        int length = (int) file.length();
-        byte bytes[] = new byte[length];
-        
-        FileInputStream fis = null;
-        try { fis = new FileInputStream( file ); }
-        catch( FileNotFoundException e ) { LOCK.unlock(); throw e; }
-        
-        BufferedInputStream bis = new BufferedInputStream( fis );
+        File file = new File( fileName );
+        FileInputStream fis = new FileInputStream( file );
+        FileChannel fChannel = fis.getChannel();
+        byte[] bytes = new byte[(int) file.length()];
+        ByteBuffer bb = ByteBuffer.wrap( bytes );
         
         try {
-            bis.read( bytes, 0, bytes.length );
-            
-            bis.close();
+            fChannel.read( bb );
+            fChannel.close();
             fis.close();
         }
         catch( IOException e ) {
-            LOCK.unlock();
+            dAccess.notifyFileInUse( fileName, dCond );
             throw e;
         }
         
-        LOCK.unlock();
+        dAccess.notifyFileInUse( fileName, dCond );
         
         return bytes;
     }
     
     /** 
-     * Saves a file on disk.
+     * Writes a file on disk.
      * 
      * @param filePath  path where the file have to be write
      * @param content   bytes of the serialized object
     */
-    protected void saveFileOnDisk( final String filePath, final byte content[] ) throws IOException
+    public void writeFileOnDisk( final String filePath, final byte content[] ) throws IOException
     {
         if(content == null)
             createDirectory( filePath );
         else {
-            LOCK.lock();
+            String fileName = root + normalizeFileName( filePath );
+            DataLock dCond = dAccess.checkFileInUse( fileName, Message.PUT );
             
-            // Test whether the path to that file doesn't exist.
-            // In that case create all the necessary directories.
-            File file = new File( filePath ).getParentFile();
-            if(!file.exists())
-                file.mkdirs();
+            // Test whether the path to the file already exists.
+            // If it not exists all the necessary directories are created.
+            File file = new File( fileName );
+            File parent = file.getParentFile();
+            if(parent != null && !parent.exists())
+                createDirectory( parent );
             
-            FileOutputStream fos = null;
-            try { fos = new FileOutputStream( filePath ); }
-            catch( FileNotFoundException e ){ LOCK.unlock(); throw e; }
-            
-            BufferedOutputStream bos = new BufferedOutputStream( fos );
+            FileOutputStream out = new FileOutputStream( file );
+            BufferedOutputStream bos = new BufferedOutputStream( out );
             
             try {
                 bos.write( content, 0, content.length );
                 bos.flush();
-                
-                fos.close();
                 bos.close();
             }
             catch( IOException e ) {
-                LOCK.unlock();
+                dAccess.notifyFileInUse( fileName, dCond );
                 throw e;
             }
             
-            LOCK.unlock();
+            dAccess.notifyFileInUse( fileName, dCond );
         }
     }
     
     /**
      * Deletes all the content of a directory.<br>
-     * If it contains other folders inside, them will be deleted too
+     * If it contains other folders inside, they will be deleted too
+     * in a recursive manner.
+     * 
+     * @param dir  the current directory
+    */
+    protected void deleteDirectory( final String dirPath ) {
+        deleteDirectory( new File( dirPath ) );
+    }
+    
+    /**
+     * Deletes all the content of a directory.<br>
+     * If it contains other folders inside, they will be deleted too
      * in a recursive manner.
      * 
      * @param dir  the current directory
     */
     protected void deleteDirectory( final File dir )
     {
-        LOCK.lock();
+        String fileName = root + normalizeFileName( dir.getPath() );
+        DataLock dCond = dAccess.checkFileInUse( fileName, Message.DELETE );
         
         if(dir.exists()) {
             for(File f : dir.listFiles()) {
                 if(f.isDirectory())
                     deleteDirectory( f );
-                f.delete();
+                deleteFileOnDisk( f.getPath() );
             }
             
             dir.delete();
         }
         
-        LOCK.unlock();
+        dAccess.notifyFileInUse( fileName, dCond );
     }
     
     /** 
      * Deletes a file on disk.
      * 
-     * @param file  the name of the file
+     * @param filePath  path to the file to delete
     */
-    protected void deleteFileOnDisk( final String file )
+    protected void deleteFileOnDisk( final String filePath ) {
+        deleteFileOnDisk( new File( filePath ) );
+    }
+    
+    /** 
+     * Deletes a file on disk.
+     * 
+     * @param file    file to remove
+    */
+    protected void deleteFileOnDisk( final File file )
     {
-        LOCK.lock();
+        String fileName = root + normalizeFileName( file.getPath() );
+        DataLock dCond = dAccess.checkFileInUse( fileName, Message.DELETE );
         
-        File f = new File( file );
-        if(f.exists())
-            f.delete();
+        if(file.exists())
+            file.delete();
         
-        LOCK.unlock();
+        dAccess.notifyFileInUse( fileName, dCond );
     }
     
     /**
@@ -288,16 +411,12 @@ public abstract class DBManager
     */
     public String normalizeFileName( String fileName )
     {
-        fileName = fileName.replace( "\\", "/" ); // "Normalization" phase.
+        fileName = fileName.replace( "\\", "/" );
         String backup = fileName;
         if(fileName.startsWith( "./" ))
             fileName = fileName.substring( 2 );
         
-        File f = new File( fileName );
-        fileName = f.getAbsolutePath().replace( "\\", "/" ); // "Normalization" phase.
-        if(f.isDirectory() && !fileName.endsWith( "/" ))
-            fileName += "/";
-        
+        fileName = new File( fileName ).getAbsolutePath().replace( "\\", "/" );
         if(fileName.startsWith( root ))
             fileName = fileName.substring( root.length() );
         else
@@ -344,5 +463,125 @@ public abstract class DBManager
     public static interface DBListener
     {
         public void dbEvent( final String fileName, final byte code );
+    }
+    
+    /**
+     * Class used to access in safe mode the files
+     * present on disk and on database as well.<br>
+     * Based on the operation's type the file can be accessed
+     * simultaneously by different threads (read) or in a
+     * mutually exclusive way (write).<br>
+     * The behaviour of the access follow the reader-writer
+     * problem, namely N readers or only 1 writer at a time.
+    */
+    protected final class DataAccess
+    {
+        private final ReentrantLock dataLock = new ReentrantLock( true );
+        private final Map<String, DataLock> filesInUse;
+        
+        public DataAccess()
+        {
+            filesInUse = new HashMap<>( 64 );
+        }
+        
+        /**
+         * Checks whether a file can be accessed or not.
+         * 
+         * @param fileName    name of the file
+         * @param opType      type of operation
+         * 
+         * @return the object needed to access the file
+        */
+        public final DataLock checkFileInUse( final String fileName, final byte opType )
+        {
+            dataLock.lock();
+            
+            DataLock dAccess = filesInUse.get( fileName );
+            if(dAccess == null)
+                filesInUse.put( fileName, dAccess = new DataLock( opType ) );
+            else
+                dAccess.checkWaitOnQueue( opType );
+            
+            dataLock.unlock();
+            
+            return dAccess;
+        }
+        
+        /**
+         * When all the Threads responsible for the given file have finished, all the
+         * Threads waiting on queue will be notified and awakened.
+         * 
+         * @param fileName    name of the file
+         * @param dAccess     object used to access the file
+        */
+        public final void notifyFileInUse( final String fileName, final DataLock dAccess )
+        {
+            dataLock.lock();
+            
+            dAccess.wakeUpQueue();
+            if(dAccess.isFinished())
+                filesInUse.remove( fileName );
+            
+            dataLock.unlock();
+        }
+        
+        public class DataLock
+        {
+            private byte opType;
+            private int activeFlows = 1;
+            private Deque<DataAccessCondition> queue;
+            
+            public DataLock( final byte opType )
+            {
+                this.opType = opType;
+                queue = new ArrayDeque<>();
+            }
+            
+            /**
+             * Checks if the thread have to wait on queue,
+             * depending on the operation type.
+            */
+            public void checkWaitOnQueue( final byte opType )
+            {
+                if(this.opType == Message.GET && this.opType == opType)
+                    activeFlows++;
+                else {
+                    DataAccessCondition dCond = new DataAccessCondition();
+                    dCond.opType = opType;
+                    queue.addLast( dCond );
+                    try { dCond.cond.await(); }
+                    catch( InterruptedException e ) {}
+                }
+            }
+            
+            /**
+             * Wakes up all the threads that are waiting on queue.
+            */
+            public void wakeUpQueue()
+            {
+                if(--activeFlows == 0) {
+                    // All the active flows are finished.
+                    // The waiting threads can be activated.
+                    int size = queue.size();
+                    for(int i = 0; i < size; i++) {
+                        DataAccessCondition dCond = queue.removeFirst();
+                        this.opType = dCond.opType;
+                        dCond.cond.signal();
+                        if(dCond.opType != Message.GET)
+                            break;
+                    }
+                }
+            }
+            
+            public boolean isFinished() {
+                return activeFlows == 0 && queue.isEmpty();
+            }
+            
+            private class DataAccessCondition
+            {
+                public byte opType;
+                public Condition cond = dataLock.newCondition();
+            }
+        }
     }
 }

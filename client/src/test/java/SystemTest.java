@@ -127,7 +127,7 @@ public class SystemTest
         testHintedHandoff();
     }
     
-    private void testDeleteFolder() throws IOException, DFSException
+    private void testDeleteFolder() throws IOException, DFSException, InterruptedException
     {
         DFSService service = clients.get( 0 );
         
@@ -141,7 +141,10 @@ public class SystemTest
         assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1" ) );
         assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file1.txt" ) );
         assertNull( service.getFile( "./Clients/ResourcesClient1/ToDelete/sub_1/file2.txt" ) );
-        assertNull( service.get( "./Clients/ResourcesClient1/ToDelete/sub_1" ) );
+        
+        Thread.sleep( 1000 );
+        
+        assertTrue( service.get( "./Clients/ResourcesClient1/ToDelete/sub_1" ).isDeleted() );
     }
     
     private void testNoLoadBalancers() throws IOException, DFSException, InterruptedException

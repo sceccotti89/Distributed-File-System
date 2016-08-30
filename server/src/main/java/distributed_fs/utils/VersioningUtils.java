@@ -132,7 +132,7 @@ public class VersioningUtils {
                 Versioned<T> curr = iter.next();
                 Occurred occurred = value.getVersion().compare( curr.getVersion() );
                 //System.out.println( "VALUE: " + value + ", CURR: " + curr + ", COMPARE: " + occurred );
-                if (occurred == Occurred.BEFORE) {
+                if(occurred == Occurred.BEFORE) {
                     obsolete = true;
                     break;
                 } else if (occurred == Occurred.AFTER) {

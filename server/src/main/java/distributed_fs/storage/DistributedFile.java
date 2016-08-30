@@ -61,10 +61,7 @@ public class DistributedFile implements Serializable, IOSerializable
 		this.name = name;
 		this.version = version;
 		this.HintedHandoff = hintedHandoff;
-		
 		this.isDirectory = isDirectory;
-		if(isDirectory && !name.endsWith( "/" ))
-			this.name += "/";
 		
 		fileId = DFSUtils.getId( this.name );
 	}
@@ -78,6 +75,7 @@ public class DistributedFile implements Serializable, IOSerializable
                 content = DFSUtils.compressData( file );
 	        }
 	        catch( IOException e ) {
+	            e.printStackTrace();
 	            setDeleted( true );
 	        }
 	    }
@@ -156,8 +154,7 @@ public class DistributedFile implements Serializable, IOSerializable
 	 * Updated its current timestamp.<br>
 	 * It's useful when the file is transferred in another server.
 	*/
-	public void setCurrentTime()
-	{
+	public void setCurrentTime() {
 	    currTime = System.currentTimeMillis();
 	}
 	
@@ -165,8 +162,7 @@ public class DistributedFile implements Serializable, IOSerializable
      * Returns the Time To Live of the file.<br>
      * It's meaningful only if the file has been marked as deleted.
     */
-    public int getTimeToLive()
-    {
+    public int getTimeToLive() {
         return (int) Math.max( 0, TTL - liveness );
     }
 	
@@ -223,7 +219,8 @@ public class DistributedFile implements Serializable, IOSerializable
         
         byte[] clock = DFSUtils.serializeObject( version );
         ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES * 3 + Long.BYTES + Byte.BYTES * 3 +
-                                                 name.length() + clock.length + fileId.length() + hhSize + contentSize );
+                                                 name.length() + clock.length + fileId.length() +
+                                                 hhSize + contentSize );
         
         buffer.putInt( name.length() ).put( name.getBytes( StandardCharsets.UTF_8 ) );
         buffer.putInt( clock.length ).put( clock );

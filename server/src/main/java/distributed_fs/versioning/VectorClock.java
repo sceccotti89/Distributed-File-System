@@ -42,6 +42,9 @@ public class VectorClock implements Version, Serializable
     private TreeMap<String, Long> versionMap;
     /** A map of timestamps keyed by nodeId. */
     private TreeMap<String, Long> timestampMap;
+    
+    /** Identifier of the last node modifying the version. */
+    private String lastNodeId;
 
     /** The time of the last update on the server on which the update was performed. */
     private volatile long timestamp;
@@ -103,6 +106,7 @@ public class VectorClock implements Version, Serializable
             throw new IllegalArgumentException( node + " id can't be null." );
         
         long time = System.currentTimeMillis();
+        this.lastNodeId = node;
         
         if(versionMap.size() == MAX_NUMBER_OF_VERSIONS) {
         	// remove the oldest version based on the timestamp
@@ -144,7 +148,7 @@ public class VectorClock implements Version, Serializable
     public VectorClock incremented( final String nodeId ) 
     {
     	VectorClock copyClock = this.clone();
-    	copyClock.incrementVersion( nodeId );
+    	copyClock.incrementVersion( this.lastNodeId = nodeId );
         return copyClock;
     }
 	
@@ -153,22 +157,33 @@ public class VectorClock implements Version, Serializable
 	    return versionMap;
 	}
 	
+	public void setLastNodeId( final String node ) {
+	    this.lastNodeId = node;
+	}
+	
+	public String getLastNodeId() {
+	    return lastNodeId;
+	}
+	
 	@Override
     public VectorClock clone() 
     {
-        return new VectorClock( new TreeMap<>( versionMap ),
-        						new TreeMap<>( timestampMap ),
-        						this.timestamp );
+        VectorClock newClock = new VectorClock( new TreeMap<>( versionMap ),
+        						                new TreeMap<>( timestampMap ),
+        						                this.timestamp );
+        newClock.setLastNodeId( lastNodeId );
+        
+        return newClock;
     }
 	
     @Override
     public boolean equals( final Object object )
     {
-        if (this == object)
+        if(this == object)
             return true;
-        if (object == null)
+        if(object == null)
             return false;
-        if (!object.getClass().equals( VectorClock.class ))
+        if(!object.getClass().equals( VectorClock.class ))
             return false;
         VectorClock clock = (VectorClock) object;
         return versionMap.equals( clock.versionMap );
@@ -191,9 +206,8 @@ public class VectorClock implements Version, Serializable
             String node = entry.getKey();
             Long version = entry.getValue();
             builder.append( node + ":" + version );
-            if(versionsLeft > 0) {
+            if(versionsLeft > 0)
                 builder.append( ", " );
-            }
         }
         builder.append( ")" );
         builder.append( " ts:" + timestamp );
@@ -226,11 +240,10 @@ public class VectorClock implements Version, Serializable
         
         for(Map.Entry<String, Long> entry: clock.versionMap.entrySet()) {
             Long version = newClock.versionMap.get( entry.getKey() );
-            if(version == null) {
+            if(version == null)
                 newClock.versionMap.put( entry.getKey(), entry.getValue() );
-            } else {
+            else
                 newClock.versionMap.put( entry.getKey(), Math.max( version, entry.getValue() ) );
-            }
         }
         
         return newClock;

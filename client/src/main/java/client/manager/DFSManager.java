@@ -337,6 +337,17 @@ public abstract class DFSManager
 			return "TRANSACTION FAILED";
 	}
 	
+	protected String getOpCode( final byte opType )
+    {
+        switch( opType ) {
+            case( Message.PUT ): return "PUT";
+            case( Message.GET ): return "GET";
+            case( Message.DELETE ): return "DELETE";
+        }
+        
+        return null;
+    }
+	
 	public void shutDown()
 	{
 	    closed.set( true );

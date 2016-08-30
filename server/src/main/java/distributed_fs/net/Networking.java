@@ -587,23 +587,31 @@ public class Networking
                 catch( InterruptedException e ) {}
 	            
 	            for(int i = files.size() - 1; i >= 0; i--) {
-	                if(!computeThroughput( files.get( i ) ))
+	                if(computeThroughput( files.get( i ) ))
 	                    removeFile( i );
 	            }
 	        }
 	    }
 	    
+	    /**
+	     * Computes the actual throughput of the file.
+	     * 
+	     * @param file     the current file
+	     * 
+	     * @return {@code true} if the file has been completely download,
+	     *         {@code false} otherwise
+	    */
 	    private boolean computeThroughput( final FileSpeed file )
 	    {
 	        if(file.bytesReceived >= file.fileSize) // File completely downloaded.
-	            return false;
+	            return true;
 	        else {
                 long end = System.currentTimeMillis();
                 double throughput = file.bytesReceived / (end - file.startTime);
                 //System.out.println( "Throughput: " + (throughput / 1024f / 1024f) + " MB/s" );
                 
                 file.callback.update( file.fileSize - file.bytesReceived, throughput );
-                return true;
+                return false;
             }
 	    }
 	}

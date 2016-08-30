@@ -15,15 +15,8 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
-import org.apache.commons.collections4.map.LinkedMap;
-import org.apache.log4j.Logger;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -42,21 +35,13 @@ public class DFSDatabase extends DBManager implements Closeable
 	private final FileTransfer _fileMgr;
 	private final ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
-	private final AsyncDiskWriter asyncWriter;
 	private final List<String> toUpdate;
 	
 	private DB db;
 	private BTreeMap<String, DistributedFile> database;
 	
-	private final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock( true );
-	private final ReadLock LOCK_READERS = LOCK.readLock();
-	private final WriteLock LOCK_WRITERS = LOCK.writeLock();
-	
-	// Resources path locations.
-	private static final String RESOURCES_LOCATION = "Resources/";
+	// Database path location.
 	private static final String DATABASE_LOCATION = "Database/";
-	
-	private static final Logger LOGGER = Logger.getLogger( DFSDatabase.class );
 	
 	
 	
@@ -78,19 +63,13 @@ public class DFSDatabase extends DBManager implements Closeable
 						final String databaseLocation,
 						final FileTransfer fileMgr ) throws IOException, DFSException
 	{
+	    super( resourcesLocation );
+	    
 	    _fileMgr = fileMgr;
 		if(_fileMgr != null) {
 			hhThread = new CheckHintedHandoffDatabase( this );
 			hhThread.start();
 		}
-		
-		root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
-		if(!createDirectory( root )) {
-			throw new DFSException( "Invalid resources path " + root + ".\n" +
-									"Make sure that the path is correct and that " +
-			                        "you have the permissions to create and execute it." );
-		}
-		LOGGER.info( "Resources created on: " + root );
 		
 		String dbRoot = createResourcePath( databaseLocation, DATABASE_LOCATION );
         if(!createDirectory( dbRoot )) {
@@ -106,10 +85,12 @@ public class DFSDatabase extends DBManager implements Closeable
         database = db.treeMap( "map" );
         //db.commit();
         
+        asyncWriter = new AsyncDiskWriter( this, true );
+        
         toUpdate = new Vector<>();
         loadFiles();
         
-        // Add the files to the hinted handoff database.
+        // Save the files in the hinted handoff database.
         for(DistributedFile file : database.values()) {
             if(file.getHintedHandoff() != null && hhThread != null)
                 hhThread.saveFile( file );
@@ -117,30 +98,6 @@ public class DFSDatabase extends DBManager implements Closeable
 		
 		scanDBThread = new ScanDBThread();
 		scanDBThread.start();
-		
-		asyncWriter = new AsyncDiskWriter();
-		asyncWriter.start();
-	}
-	
-	/**
-	 * Returns the "normalized" path to the resources.
-	 * 
-	 * @param path			the path to the resources
-	 * @param defaultPath	the default path if {@code path} is {@code null}
-	 * 
-	 * @return the normalized path
-	*/
-	private String createResourcePath( final String path, final String defaultPath )
-	{
-		String root = (path != null) ? path.replace( "\\", "/" ) : defaultPath;
-		if(root.startsWith( "./" ))
-			root = root.substring( 2 );
-		
-		root = new File( root ).getAbsolutePath().replace( "\\", "/" );
-		if(!root.endsWith( "/" ))
-			root += "/";
-        
-        return root;
 	}
 	
 	/**
@@ -208,7 +165,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 
     /** 
-	 * Save a file on the database.
+	 * Saves a file on the database.
 	 * 
 	 * @param file				name of the file to save
 	 * @param clock				the associated vector clock
@@ -222,31 +179,33 @@ public class DFSDatabase extends DBManager implements Closeable
 								 final String hintedHandoff, final boolean saveOnDisk )
 								         throws IOException
 	{
-		return saveFile( file.getName(), file.getContent(), clock, file.isDirectory(), hintedHandoff, saveOnDisk );
+		return saveFile( file.getName(), file.getContent(), clock,
+		                 file.isDirectory(), hintedHandoff, saveOnDisk );
 	}
 	
 	/**
-	 * Save a file on the database.
+	 * Saves a file on the database.
 	 * 
-	 * @param fileName		name of the file to save
-	 * @param content		file's content
-	 * @param clock			the associated vector clock
-	 * @param hintedHandoff	the hinted handoff address in the form {@code ipAddress:port}
-	 * @param saveOnDisk	{@code true} if the file has to be saved on disk,
-	 * 						{@code false} otherwise
+	 * @param filePath		  path of the file to save
+	 * @param content		  file's content
+	 * @param clock			  the associated vector clock
+	 * @param isDirectory     {@code true} if the file is a directory, {@code false} otherwise
+	 * @param hintedHandoff	  the hinted handoff address in the form {@code ipAddress:port}
+	 * @param saveOnDisk	  {@code true} if the file has to be saved on disk,
+	 * 						  {@code false} otherwise
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
-	public VectorClock saveFile( String fileName, final byte[] content,
+	public VectorClock saveFile( final String filePath, final byte[] content,
 								 final VectorClock clock, final boolean isDirectory,
 								 final String hintedHandoff, final boolean saveOnDisk )
 								         throws IOException
 	{
-		Preconditions.checkNotNull( fileName, "fileName cannot be null." );
+		Preconditions.checkNotNull( filePath, "filePath cannot be null." );
 		Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
-		fileName = normalizeFileName( fileName );
+		String fileName = normalizeFileName( filePath );
 		String fileId = DFSUtils.getId( fileName );
 		
 		LOCK_WRITERS.lock();
@@ -284,11 +243,12 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	private void doSave( final DistributedFile file,
-						 final byte[] content, final boolean saveOnDisk ) throws IOException
+						 final byte[] content,
+						 final boolean saveOnDisk ) throws IOException
 	{
 		if(saveOnDisk) {
     		if(disableAsyncWrites)
-    		    saveFileOnDisk( root + file.getName(), content );
+    		    writeFileOnDisk( root + file.getName(), content );
     		else
     		    asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
 		}
@@ -300,7 +260,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	/**
-     * Add the parent of a file on database (if it doesn't exist).
+     * Adds the parent of a file on database (if it doesn't exist).
      * 
      * @param f    the current file
     */
@@ -312,12 +272,13 @@ public class DFSDatabase extends DBManager implements Closeable
         
         // Add the file on database. It's obviously a directory.
         String fileName = normalizeFileName( f.getPath() );
+        
         if(!database.containsKey( DFSUtils.getId( fileName ) )) {
             DistributedFile file = new DistributedFile( fileName, true, new VectorClock(), null );
             database.put( file.getId(), file );
             if(saveOnDisk) {
                 if(disableAsyncWrites)
-                    saveFileOnDisk( root + fileName, null );
+                    writeFileOnDisk( root + fileName, null );
                 else
                     asyncWriter.enqueue( null, root + fileName, Message.PUT );
             }
@@ -339,8 +300,7 @@ public class DFSDatabase extends DBManager implements Closeable
     */
     public VectorClock deleteFile( final DistributedFile file, final String hintedHandoff )
     {
-        return deleteFile( file.getName(), file.getVersion(),
-                           file.isDirectory(), hintedHandoff );
+        return deleteFile( file.getName(), file.getVersion(), file.isDirectory(), hintedHandoff );
     }
 	
 	/**
@@ -349,22 +309,23 @@ public class DFSDatabase extends DBManager implements Closeable
 	 * but only marked as deleted.
 	 * The file is keep on database until its TimeToLive is not expired.
 	 * 
-	 * @param fileName        name of the file to remove
+	 * @param filePath        path to the file to remove
 	 * @param clock           actual version of the file
+	 * @param isDirectory     {@code true} if the file is a directory, {@code false} otherwise
 	 * @param hintedHandoff   the hinted handoff address
 	 * 
 	 * @return the new clock, if updated, {@code null} otherwise.
 	*/
-	public VectorClock deleteFile( String fileName,
+	public VectorClock deleteFile( final String filePath,
 	                               final VectorClock clock,
 	                               final boolean isDirectory,
 	                               final String hintedHandoff )
 	{
-	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
+	    Preconditions.checkNotNull( filePath, "filePath cannot be null." );
 	    Preconditions.checkNotNull( clock,    "clock cannot be null." );
 		
 		VectorClock updated = null;
-		fileName = normalizeFileName( fileName );
+		String fileName = normalizeFileName( filePath );
 		String fileId = DFSUtils.getId( fileName );
 		
 		LOCK_WRITERS.lock();
@@ -393,7 +354,7 @@ public class DFSDatabase extends DBManager implements Closeable
                     asyncWriter.enqueue( null, root + fileName, Message.DELETE );
                 
                 if(isDirectory)
-                    removeDirectory( new File( root + fileName ) );
+                    removeDirectory( new File( root + fileName ), clock.getLastNodeId() );
                 db.commit();
             }
         }
@@ -409,24 +370,24 @@ public class DFSDatabase extends DBManager implements Closeable
 	/**
 	 * Delete recursively all the content of a folder.
 	 * 
-	 * @param dir  current directory
+	 * @param dir      current directory
+	 * @param nodeId   
 	*/
-    private void removeDirectory( final File dir )
+    private void removeDirectory( final File dir, final String nodeId )
     {
         File[] files = dir.listFiles();
         if(files != null) {
             for(File f : files) {
-                String fileName = f.getPath().replace( "\\", "/" );
-                if(f.isDirectory()) {
-                    removeDirectory( f );
-                    fileName += "/";
-                }
-                fileName = normalizeFileName( fileName );
+                String fileName = normalizeFileName( f.getPath().replace( "\\", "/" ) );
+                if(f.isDirectory())
+                    removeDirectory( f, nodeId );
                 
                 DistributedFile file = database.get( DFSUtils.getId( fileName ) );
                 if(file != null && !file.isDeleted()) {
                     file.setDeleted( true );
+                    file.incrementVersion( nodeId );
                     database.put( file.getId(), file );
+                    
                     if(disableAsyncWrites)
                         deleteFileOnDisk( root + fileName );
                     else
@@ -572,71 +533,6 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	/**
-	 * Updates the lastModified parameter of the given file.
-	 * 
-	 * @param fileName         name of the file to update
-	 * @param lastModified     the last modified value
-	*/
-	/*public void updateLastModified( final String fileName, final long lastModified )
-	{
-	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
-	    LOCK_WRITERS.lock();
-        if(db.isClosed()) {
-            LOCK_WRITERS.unlock();
-            return;
-        }
-        
-        DistributedFile file = database.get( fileId );
-        if(file != null) {
-            file.setLastModified( lastModified );
-            database.put( fileId, file );
-            db.commit();
-        }
-        
-        LOCK_WRITERS.unlock();
-	}*/
-	
-	/**
-	 * Checks the existence of a file in the application file system,
-	 * starting from the root.
-	 * 
-	 * @param filePath	the file to search
-	 * 
-	 * @return {@code true} if the file is present,
-	 * 		   {@code false} otherwise
-	*/
-	public boolean checkExistsInFileSystem( final String filePath )
-	{
-	    String rootPath = root + normalizeFileName( filePath );
-		return checkExistsFile( new File( root ), rootPath );
-	}
-	
-	private boolean checkExistsFile( final File filePath, final String fileName )
-	{
-		File[] files = filePath.listFiles();
-		if(files == null)
-		    files = filePath.listFiles();
-		
-		if(files != null) {
-			for(File file : files) {
-			    String _file = file.getPath().replace( '\\', '/' );
-				if(file.isDirectory() && !_file.endsWith( "/" ))
-				    _file = _file + "/";
-			    
-				if(_file.equals( fileName ))
-					return true;
-				
-				if(file.isDirectory()) {
-					if(checkExistsFile( file, fileName ))
-						return true;
-				}
-			}
-		}
-		
-		return false;
-	}
-	
-	/**
 	 * Checks if a member is a hinted handoff replica node.
 	 * 
 	 * @param nodeAddress	address of the node
@@ -658,8 +554,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		
 		try { scanDBThread.join(); }
 		catch( InterruptedException e ) {}
-		try { asyncWriter.join(); }
-        catch( InterruptedException e ) {}
+		
 		if(hhThread != null) {
 			try { hhThread.join(); }
 			catch( InterruptedException e ) {}
@@ -890,103 +785,5 @@ public class DFSDatabase extends DBManager implements Closeable
 		{
 			interrupt();
 		}
-	}
-	
-	/**
-	 * Class used to write asynchronously a file on disk.<br>
-	 * It's implemented as a queue, storing files
-	 * in a FIFO discipline.<br>
-	 * It can be disabled but the database operations would be slowed,
-	 * in particular for huge files.
-	*/
-	private class AsyncDiskWriter extends Thread
-	{
-	    private final LinkedMap<String,QueueNode> files;
-	    private final Lock lock = new ReentrantLock();
-	    private final Condition notEmpty = lock.newCondition();
-	    
-	    public AsyncDiskWriter()
-	    {
-	        setName( "AsyncWriter" );
-	        
-	        files = new LinkedMap<>( 64 );
-        }
-	    
-	    @Override
-	    public void run()
-	    {
-	        LOGGER.info( "AsyncWriter thread launched." );
-	        
-	        while(!shutDown.get()) {
-	            try {
-	                QueueNode node = dequeue();
-	                // Write or delete a file on disk.
-	                if(node.opType == Message.PUT)
-	                    saveFileOnDisk( node.path, node.file );
-	                else
-	                    deleteFileOnDisk( node.path );
-                } catch ( InterruptedException e ) {
-                    break;
-                }
-                catch( IOException e1 ) {
-                    e1.printStackTrace();
-                }
-	        }
-	        
-	        LOGGER.info( "AsyncWriter thread closed." );
-	    }
-	    
-	    private QueueNode dequeue() throws InterruptedException
-	    {
-	        lock.lock();
-	        
-	        while(files.isEmpty())
-	            notEmpty.await();
-	        
-	        // Get and remove the first element of the queue.
-	        QueueNode node = files.remove( 0 );
-	        
-	        lock.unlock();
-	        
-	        return node;
-	    }
-	    
-	    /**
-	     * Inserts a file into the queue.
-	     * 
-	     * @param file     the file's content. It may be {@code null} in a delete operation
-	     * @param path     the file's location. It may be a relative or absolute path to the file
-	     * @param opType   the operation to perform ({@code PUT} or {@code DELETE})
-	    */
-	    public void enqueue( final byte[] file, final String path, final byte opType )
-	    {
-	        lock.lock();
-	        
-	        boolean empty = files.isEmpty();
-            files.put( path, new QueueNode( file, path, opType ) );
-            if(empty)
-                notEmpty.signal();
-            
-            lock.unlock();
-	    }
-	    
-	    private class QueueNode
-	    {
-	        public final byte[] file;
-	        public final String path;
-	        public final byte opType;
-	        
-	        public QueueNode( final byte[] file, final String path, final byte opType )
-	        {
-                this.file = file;
-                this.path = path;
-                this.opType = opType;
-            }
-	    }
-	    
-	    public void shutDown()
-        {
-            interrupt();
-        }
 	}
 }

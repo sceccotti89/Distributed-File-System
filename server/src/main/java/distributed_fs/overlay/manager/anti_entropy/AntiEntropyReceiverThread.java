@@ -222,17 +222,17 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				if(treeHeight > inputHeight)
 					reduceTree( treeHeight - inputHeight, nodes );
 				
-				List<Node> pTree = null;
-				
 				LOGGER.debug( "Height: " + treeHeight );
 				
+				List<Node> pTree = null;
 				for(int levels = Math.min( treeHeight, inputHeight ); levels >= 0 && nodes.size() > 0; levels--) {
 					// Receive a new level.
 					ByteBuffer data = ByteBuffer.wrap( session.receive() );
 					pTree = MerkleDeserializer.deserializeNodes( data );
 					LOGGER.debug( "Received tree: " + pTree.size() );
 					
-					compareLevel( nodes, pTree );
+					if(compareLevel( nodes, pTree ))
+					    break;
 				}
 			}
 		}
@@ -242,8 +242,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		 * 
 		 * @param nodes		list of own nodes
 		 * @param pTree		the input tree level
+		 *
+		 * @return {@code true} if the input level is equal with the current one, {@code false} otherwise
 		*/
-		private void compareLevel( final Deque<Node> nodes, final List<Node> pTree ) throws IOException
+		private boolean compareLevel( final Deque<Node> nodes, final List<Node> pTree ) throws IOException
 		{
 			BitSet _bitSet = new BitSet();
 			int pTreeSize = pTree.size();
@@ -291,7 +293,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 			}
 			
-			session.sendMessage( _bitSet.toByteArray(), true );
+      byte[] msg = net.createMessage( new byte[]{ (byte) ((nodes.size() == 0) ? 0x1 : 0x0 ) }, _bitSet.toByteArray(), false );
+			session.sendMessage( msg, true );
+
+       return _bitSet.cardinality() == pTreeSize;
 		}
 		
 		/**

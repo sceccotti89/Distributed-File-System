@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Deque;
 import java.util.HashSet;
@@ -202,12 +203,17 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 				reduceTree( m_tree.getHeight() - inputHeight, nodes );
 			
 			int nNodes;
-			for(int levels = Math.min( m_tree.getHeight(), inputHeight ); levels >= 0 && (nNodes = nodes.size()) > 0; levels--) {
+			int levels = Math.min( m_tree.getHeight(), inputHeight );
+			boolean finish = false;
+			// If the leaves level is reached we stop to send the current level.
+			for(; !finish && levels >= 0 && (nNodes = nodes.size()) > 0; levels--) {
 				sendCurrentLevel( nodes );
 				
 				// Receive the response set.
 				LOGGER.debug( "Waiting the response..." );
-				BitSet set = BitSet.valueOf( session.receive() );
+				byte[] msg = session.receive();
+				finish = (msg[0] == (byte) 0x1);
+				BitSet set = BitSet.valueOf( Arrays.copyOfRange( msg, 1, msg.length ) );
 				LOGGER.debug( "Received the response." );
 				
 				if(set.cardinality() == nNodes) {
@@ -253,14 +259,12 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	private void sendCurrentLevel( final Deque<Node> nodes ) throws IOException
 	{
 		int nNodes = nodes.size();
-		
-		// If the leaves level is reached we stop to send the current level.
-		int maxSize = Integer.BYTES + (Integer.BYTES + MerkleTree.sigLength) * nNodes;
-		ByteBuffer buffer = ByteBuffer.allocate( Byte.BYTES + maxSize );
+		int maxSize = Integer.BYTES + MerkleTree.sigLength * nNodes;
+		ByteBuffer buffer = ByteBuffer.allocate( maxSize );
 		
 		// Put the number of nodes.
 		buffer.putInt( nNodes );
-		// Put the length and signature of each node.
+		// Put the signature of each node.
 		for(Node node : nodes)
 			buffer.put( node.sig );
 		

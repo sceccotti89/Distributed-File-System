@@ -201,8 +201,7 @@ public class FileTransferThread extends Thread implements FileTransfer
 	/**
 	 * Returns the own database.
 	*/
-	public DFSDatabase getDatabase()
-	{
+	public DFSDatabase getDatabase() {
 		return database;
 	}
 	

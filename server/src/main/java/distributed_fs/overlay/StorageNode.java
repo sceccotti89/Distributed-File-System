@@ -291,7 +291,7 @@ public class StorageNode extends DFSNode
                               -1 : DFSUtils.bytesToLong( data.getPayload() );
                 Metadata meta = data.getMetadata();
     			
-    			LOGGER.debug( "[SN] Received (TYPE, COORD) = ('" + getCodeString( opType ) + ":" + isCoordinator + "')" );
+    			LOGGER.debug( "[SN] Received TYPE = " + getCodeString( opType ) + ", COORD = " + isCoordinator );
     			
     			if(isCoordinator) {
     				// The connection with the client must be estabilished before the quorum.
@@ -324,7 +324,7 @@ public class StorageNode extends DFSNode
     				    DistributedFile file = new DistributedFile( data.getPayload() );
     					// Get (if present) the hinted handoff address.
     					String hintedHandoff = meta.getHintedHandoff();
-    					LOGGER.debug( "[SN] PUT -> (FILE, HH) = ('" + file.getName() + ":" + hintedHandoff + "')" );
+    					LOGGER.debug( "[SN] PUT -> FILE = " + file.getName() + ", HH = " + hintedHandoff );
     					
     					handlePUT( isCoordinator, file, hintedHandoff );
     					break;
@@ -341,7 +341,7 @@ public class StorageNode extends DFSNode
     				    DistributedFile dFile = new DistributedFile( data.getPayload() );
     				    // Get (if present) the hinted handoff address.
                         hintedHandoff = meta.getHintedHandoff();
-                        LOGGER.debug( "[SN] DELETE: " + dFile.getName() + ":" + hintedHandoff );
+                        LOGGER.debug( "[SN] DELETE -> FILE = " + dFile.getName() + ", HH = " + hintedHandoff );
     				    
     				    handleDELETE( isCoordinator, dFile, hintedHandoff );
     				    break;
@@ -700,16 +700,14 @@ public class StorageNode extends DFSNode
     	private void sendClientResponse( final VectorClock clock ) throws IOException
     	{
     	    if(!replacedThread || actionsList.isEmpty()) {
-                LOGGER.debug( "[SN] Sending the updated clock to the client..." );
+                LOGGER.debug( "[SN] Sending the response to the client..." );
                 MessageResponse message;
                 if(clock == null)
                     message = new MessageResponse( (byte) 0x0 );
-                else {
+                else
                     message = new MessageResponse( (byte) 0x1 );
-                    //message.addObject( DFSUtils.serializeObject( clock ) );
-                }
+                
                 session.sendMessage( message, true );
-                LOGGER.debug( "[SN] Clock sent." );
                 actionsList.addLast( DONE );
             }
             else

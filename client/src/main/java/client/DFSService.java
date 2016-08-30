@@ -307,93 +307,25 @@ public class DFSService extends DFSManager implements IDFSService
     @Override
     public boolean put( final String fileName ) throws DFSException, IOException
     {
-        if(isClosed()) {
-            LOGGER.error( "Sorry but the service is closed." );
-            return false;
-        }
-        
-        Preconditions.checkNotNull( fileName, "fileName cannot be null." );
-        
-        if(!initialized) {
-            throw new DFSException( "The system has not been initialized.\n" +
-                                    "Use the \"start\" method to initialize the system." );
-        }
-        
-        LOGGER.info( "Starting PUT operation: " + fileName );
-        
-        lock.lock();
-        
-        String dbRoot = database.getFileSystemRoot();
-        String normFileName = database.normalizeFileName( fileName );
-        if(!database.existFile( dbRoot + normFileName, false )) {
-            lock.unlock();
-            LOGGER.error( "Operation PUT not performed: file \"" + fileName + "\" not founded. " );
-            LOGGER.error( "The file must be present in one of the sub-directories starting from: " + dbRoot );
-            return false;
-        }
-        
-        DistributedFile file = database.getFile( fileName );
-        if(file == null) {
-            File f = new File( dbRoot + normFileName );
-            file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
-        }
-        
-        double startTime = System.currentTimeMillis();
-        
-        TCPSession session = null;
-        if((session = contactRemoteNode( normFileName, Message.PUT )) == null) {
-            lock.unlock();
-            return false;
-        }
-        
-        boolean completed = true;
-        
-        try {
-            // Send the file.
-            file.setDeleted( false );
-            file.loadContent( database );
-            sendPutMessage( session, file, hintedHandoff );
-            
-            // Checks whether the load balancer has found an available node,
-            // or (with no balancers) if the quorum has been completed successfully.
-            if(!checkResponse( session, "PUT", false ))
-                throw new IOException();
-            
-            if(useLoadBalancer) {
-                // Checks whether the request has been forwarded to the storage node.
-                if((session = waitRemoteConnection( session )) == null ||
-                   !checkResponse( session, "PUT", true ))
-                    throw new IOException();
-            }
-            
-            // Update the file's vector clock.
-            MessageResponse message = session.receiveMessage();
-            if(message.getType() == (byte) 0x1) {
-                LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
-                VectorClock newClock = file.getVersion().incremented( session.getEndPointAddress() );
-                database.saveFile( file, newClock, null, false );
-            }
-        }
-        catch( IOException e ) {
-            //e.printStackTrace();
-            LOGGER.info( "Operation PUT '" + fileName + "' not performed. Try again later." );
-            completed = false;
-        }
-        
-        lock.unlock();
-        
-        if(completed) {
-            double completeTime = ((double) System.currentTimeMillis() - startTime) / 1000d;
-            LOGGER.info( "Operation PUT '" + fileName + "' successfully completed in " + completeTime + " seconds." );
-        }
-        
-        session.close();
-        
-        return completed;
+        return doWrite( Message.PUT, fileName );
     }
     
     @Override
     public boolean delete( final String fileName ) throws IOException, DFSException
+    {
+        return doWrite( Message.DELETE, fileName );
+    }
+    
+    /**
+     * Computes the write operation on the given file name.
+     * 
+     * @param opType    the type ({@code PUT} or {@code DELETE}) of the operation
+     * @param fileName  name of the file
+     * 
+     * @return {@code true} if the operation has been completed successfully,
+     *         {@code false} otherwise
+    */
+    private boolean doWrite( final byte opType, final String fileName ) throws IOException, DFSException
     {
         if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
@@ -407,6 +339,9 @@ public class DFSService extends DFSManager implements IDFSService
                                     "Use the \"start\" method to initialize the system." );
         }
         
+        String opCode = getOpCode( opType );
+        LOGGER.info( "Starting " + opCode + " operation for: " + fileName );
+        
         boolean completed = true;
         
         lock.lock();
@@ -415,12 +350,10 @@ public class DFSService extends DFSManager implements IDFSService
         String normFileName = database.normalizeFileName( fileName );
         if(!database.existFile( dbRoot + normFileName, false )) {
             lock.unlock();
-            LOGGER.error( "Operation DELETE for " + fileName + " not performed. File not found." );
+            LOGGER.error( "Operation " + opCode + " not performed: file \"" + fileName + "\" not founded. " );
             LOGGER.error( "The file must be present in one of the sub-directories starting from: " + dbRoot );
             return false;
         }
-        
-        LOGGER.info( "Starting DELETE operation for: " + fileName );
         
         DistributedFile file = database.getFile( fileName );
         if(file == null) {
@@ -430,23 +363,30 @@ public class DFSService extends DFSManager implements IDFSService
         
         double startTime = System.currentTimeMillis();
         TCPSession session = null;
-        if((session = contactRemoteNode( normFileName, Message.DELETE )) == null) {
+        if((session = contactRemoteNode( normFileName, opType )) == null) {
             lock.unlock();
             return false;
         }
         
         try {
-            sendDeleteMessage( session, file, hintedHandoff );
+            if(opType == Message.DELETE)
+                sendDeleteMessage( session, file, hintedHandoff );
+            else{
+                // PUT operation.
+                file.setDeleted( false );
+                file.loadContent( database );
+                sendPutMessage( session, file, hintedHandoff );
+            }
             
             // Checks whether the load balancer has found an available node,
             // or (with no balancers) if the quorum has been completed successfully.
-            if(!checkResponse( session, "DELETE", false ))
+            if(!checkResponse( session, opCode, false ))
                 throw new IOException();
             
             if(useLoadBalancer) {
                 // Checks whether the request has been forwarded to the storage node.
                 if((session = waitRemoteConnection( session )) == null ||
-                   !checkResponse( session, "DELETE", true ))
+                   !checkResponse( session, opCode, true ))
                     throw new IOException();
             }
             
@@ -456,13 +396,15 @@ public class DFSService extends DFSManager implements IDFSService
             if(message.getType() == (byte) 0x1) {
                 LOGGER.debug( "Updating version of the file '" + fileName + "'..." );
                 VectorClock newClock = file.getVersion().incremented( session.getEndPointAddress() );
-                database.deleteFile( fileName, newClock, file.isDirectory(), null );
+                if(opType == Message.PUT)
+                    database.saveFile( file, newClock, null, false );
+                else
+                    database.deleteFile( fileName, newClock, file.isDirectory(), null );
             }
         }
         catch( IOException e ) {
             e.printStackTrace();
-            LOGGER.info( "Operation DELETE for \"" + fileName + "\" not performed. " +
-                         "Try again later." );
+            LOGGER.info( "Operation " + opCode + " for \"" + fileName + "\" not performed. Try again later." );
             completed = false;
         }
         
@@ -470,7 +412,7 @@ public class DFSService extends DFSManager implements IDFSService
         
         if(completed) {
             double completeTime = ((double) System.currentTimeMillis() - startTime) / 1000d;
-            LOGGER.info( "Operation DELETE '" + fileName + "' successfully completed in " + completeTime + " seconds." );
+            LOGGER.info( "Operation " + opCode + " '" + fileName + "' successfully completed in " + completeTime + " seconds." );
         }
         session.close();
         
