@@ -6,6 +6,8 @@ The Distributed File System project is an eventually consistent distributed file
 
 - [Introduction](#introduction)
 - [User Guide](#user-guide)
+	- [Maven](#maven)
+	- [Gradle](#gradle)
 	- [Distributed Nodes](#distributed-nodes)
 	- [Client Node](#client-node)
 	- [Local Environment](#local-environment)
