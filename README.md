@@ -5,7 +5,7 @@ The Distributed File System project is an eventually consistent distributed file
 <!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
 
 - [Introduction](#introduction)
-- [Bbuilding project](#project-building)
+- [Building project](#project-building)
 	- [Maven](#maven)
 	- [Gradle](#gradle)
 - [User guide](#user-guide)
