@@ -29,11 +29,11 @@ The file system is implemented in a hierarchical manner as a key-value map of ty
 
 All the project can be built using **gradle** or **maven**.
 
-## Maven
+### Maven
 
 
 
-## Gradle
+### Gradle
 
 All the project can be built using **gradle**. You don't need to download it, because you can use the gradle wrapper that downloads for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
 
