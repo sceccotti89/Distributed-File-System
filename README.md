@@ -37,7 +37,8 @@ All the project can be built using **gradle** or **maven**.
 The whole project can be automatically built using the script inside the **maven scripts** folder, just tiping:
 
 ```bash
-sh projectScript.sh
+sh projectScript.sh (for Linux and MacOS systems)
+start projectScript.bat (for Windows systems)
 ```
 
 Alternatively you can built each single module of the project manually, using the
@@ -148,7 +149,7 @@ The disableLB mode is maintained until the client owns at least one storage node
 ### Local Environment
 
 If you want to test the system in a multi-threaded environment using your machine, you can do that launching the Client node with the `-locale` option.
-If the list of input nodes is empty a fixed number of distributed nodes is used, namely 2 LoadBalancers and 5 StorageNodes.
+If the list of input nodes is empty a fixed number of distributed nodes is used, namely 2 LoadBalancers and 4 StorageNodes.
 
 ### Pseudo-Distributed Environment
 
