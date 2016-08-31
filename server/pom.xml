@@ -92,7 +92,7 @@
 				</configuration>
 			</plugin>
 
-			<plugin>
+			<!--<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
 				<version>2.4</version>
@@ -104,9 +104,9 @@
 						</goals>
 					</execution>
 				</executions>
-			</plugin>
+			</plugin>-->
 
-			<plugin>
+			<!--<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
 				<version>2.6</version>
@@ -114,17 +114,23 @@
 					<archive>
 						<manifest>
 							<addClasspath>true</addClasspath>
-							<!--<mainClass>distributed_fs.NodeLauncher</mainClass>-->
+							<mainClass>distributed_fs.NodeLauncher</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
-			</plugin>
+			</plugin>-->
 
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
 				<version>2.4.1</version>
 				<configuration>
+				    <archive>
+						<manifest>
+							<addClasspath>true</addClasspath>
+							<mainClass>distributed_fs.NodeLauncher</mainClass>
+						</manifest>
+					</archive>
 					<descriptorRefs>
 						<descriptorRef>jar-with-dependencies</descriptorRef>
 					</descriptorRefs>
