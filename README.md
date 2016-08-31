@@ -37,8 +37,8 @@ All the project can be built using **gradle** or **maven**.
 The whole project can be automatically built using the script inside the **maven scripts** folder, just tiping:
 
 ```bash
-sh projectScript.sh (Linux and MacOS systems)
-start projectScript.bat (Windows systems)
+sh buildAll.sh (Linux and MacOS systems)
+start buildAll.bat (Windows systems)
 ```
 
 Alternatively you can manually built the project using the following commands:
