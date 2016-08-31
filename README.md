@@ -41,11 +41,11 @@ sh projectScript.sh (Linux and MacOS systems)
 start projectScript.bat (Windows systems)
 ```
 
-Alternatively you can manually built the project using the
+Alternatively you can manually built the project using the following commands:
 ```bash
-mvn install
+mvn install (server and gossip modules)
+mvn package (client module)
 ```
-command inside each module of the project (Client, Server and Gossip).
 
 ### Gradle
 
