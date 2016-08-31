@@ -284,7 +284,7 @@ public class SystemTest
         
         System.out.println( "Waiting..." );
         // Wait the necessary time before to check if the last node have received the file.
-        TimeUnit.SECONDS.sleep( AntiEntropyThread.WAIT_TIMER * 2 + 1 );
+        TimeUnit.SECONDS.sleep( AntiEntropyThread.WAIT_TIMER + 1 );
         System.out.println( "NODE: " + members.get( 1 + NUMBER_OF_BALANCERS ) +
                             ", FILE: " + servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ) );
         
