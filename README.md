@@ -30,7 +30,7 @@ The file system is implemented in a hierarchical manner as a key-value map of ty
 
 ## Building project
 
-All the project can be built using **gradle** or **maven** tools.
+All the project can be built using either the **gradle** or **maven** tool.
 
 ### Maven
 
