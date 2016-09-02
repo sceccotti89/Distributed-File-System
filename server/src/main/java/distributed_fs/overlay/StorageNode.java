@@ -6,6 +6,7 @@ package distributed_fs.overlay;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -704,8 +705,10 @@ public class StorageNode extends DFSNode
                 MessageResponse message;
                 if(clock == null)
                     message = new MessageResponse( (byte) 0x0 );
-                else
+                else {
                     message = new MessageResponse( (byte) 0x1 );
+                    message.addObject( _address.getBytes( StandardCharsets.UTF_8 ) );
+                }
                 
                 session.sendMessage( message, true );
                 actionsList.addLast( DONE );

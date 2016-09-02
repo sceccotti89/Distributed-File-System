@@ -31,6 +31,8 @@ public class ClientSynchronizer extends Thread
     
     private final ReentrantLock lock;
     
+    private boolean reconciliation = false;
+    
     private static final Scanner SCAN = new Scanner( System.in );
     
     // Time to wait before to check the database (0.5 seconds).
@@ -120,52 +122,65 @@ public class ClientSynchronizer extends Thread
             DistributedFile myFile = database.getFile( fileName );
             try {
                 VectorClock clock = file.getVersion();
-                if(myFile != null) clock = clock.merge( myFile.getVersion() );
-                
-                if(myFile == null || !reconcileVersions( myFile, file )) {
-                    // The received file has the most updated version.
+                if(myFile != null){
+                    Occurred occ = reconcileVersions( myFile, file );
+                    if(occ != Occurred.AFTER) {
+                        DistributedFile finalVersion;
+                        if(occ == Occurred.CONCURRENTLY) {
+                            // Ask the client for the version.
+                            List<DistributedFile> vFiles = Arrays.asList( myFile, file );
+                            int id = makeReconciliation( vFiles );
+                            finalVersion = vFiles.get( id );
+                            clock = clock.merge( myFile.getVersion() );
+                        }
+                        else {
+                            // The input file has the most updated version.
+                            finalVersion = file;
+                        }
+                        
+                        // Update the file on database and
+                        // write-back the reconciled version.
+                        if(!finalVersion.isDeleted()) {
+                            database.saveFile( finalVersion, clock, null, true );
+                            service.put( fileName );
+                        }
+                        else {
+                            database.deleteFile( fileName, clock, file.isDirectory(), null );
+                            service.delete( fileName );
+                        }
+                    }
+                }
+                else {
+                    // The client doesn't own a version of the file.
                     // Update the file on database.
                     if(!file.isDeleted())
                         database.saveFile( file, clock, null, true );
                     else
                         database.deleteFile( fileName, clock, file.isDirectory(), null );
                 }
-                else {
-                    // If the deleted state of the own file is different than
-                    // the received one, it's write-back.
-                    if(myFile.isDeleted() != file.isDeleted()) {
-                        if(myFile.isDeleted())
-                            service.delete( fileName );
-                        else
-                            service.put( fileName );
-                    }
-                }
             }
-            catch( IOException e ) {}
+            catch( IOException e ) {
+                e.printStackTrace();
+            }
             
             lock.unlock();
         }
     }
     
     /**
-     * Makes the reconciliation among different vector clocks.
+     * Checks the occurred version of the files.
      * 
      * @param myFile       the own file
      * @param otherFile    the received file
      * 
-     * @return {@code true} if the own file has the most updated version,
-     *         {@code false} otherwise
+     * @return the occurred version between the two files
     */
-    private boolean reconcileVersions( final DistributedFile myFile,
-                                       final DistributedFile otherFile )
+    private Occurred reconcileVersions( final DistributedFile myFile,
+                                        final DistributedFile otherFile )
     {
         VectorClock myClock = myFile.getVersion();
         VectorClock otherClock = otherFile.getVersion();
-        
-        Occurred occ = myClock.compare( otherClock );
-        if(occ == Occurred.AFTER) return true;
-        if(occ == Occurred.BEFORE) return false;
-        return makeReconciliation( Arrays.asList( myFile, otherFile ) ) == 0;
+        return myClock.compare( otherClock );
     }
 
     /**
@@ -177,9 +192,13 @@ public class ClientSynchronizer extends Thread
     */
     public synchronized int makeReconciliation( final List<DistributedFile> versions )
     {
+        reconciliation = true;
+        
         int size = versions.size();
-        if(size == 1)
+        if(size == 1) {
+            reconciliation = false;
             return 0;
+        }
         
         System.out.println( "There are multiple versions of the file '" + versions.get( 0 ).getName() + "', which are: " );
         for(int i = 0; i < size; i++)
@@ -188,11 +207,24 @@ public class ClientSynchronizer extends Thread
         while(true) {
             System.out.print( "Choose the correct version: " );
             int id = SCAN.nextInt() - 1;
-            if(id >= 0 && id < size)
+            if(id >= 0 && id < size) {
+                reconciliation = false;
                 return id;
+            }
             else
                 System.out.println( "Error: select a number in the range [1-" + size + "]" );
         }
+    }
+    
+    
+    /**
+     * Gets the reconciliation attribute.
+     * 
+     * @return {@code true} if the client is in the reconciliation phase,
+     *         {@code false} otherwise
+    */
+    public boolean getReconciliation() {
+        return reconciliation;
     }
     
     public void shutDown()

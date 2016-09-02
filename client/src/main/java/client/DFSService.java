@@ -256,15 +256,16 @@ public class DFSService extends DFSManager implements IDFSService
             backToClient = database.getFile( fileName );
             if(backToClient == null) {
                 // Choose the version among the only received files.
-                reconciled = false;
+                reconciled = (size > 1);
                 id = syncClient.makeReconciliation( files );
             }
             else {
                 if(backToClient.getVersion().compare( clock ) == Occurred.CONCURRENTLY) {
-                    System.out.println( "MY: " + backToClient.getVersion() + ", IN: " + clock );
                     files.add( backToClient );
                     id = syncClient.makeReconciliation( files );
+                    clock = clock.merge( backToClient.getVersion() );
                     reconciled = true;
+                    size++;
                 }
             }
             
@@ -635,6 +636,11 @@ public class DFSService extends DFSManager implements IDFSService
 		int randomNeighborIndex = random.nextInt( nodes.size() );
 		return nodes.get( randomNeighborIndex );
 	}
+	
+	/***/
+    public boolean isReconciling() {
+        return syncClient.getReconciliation();
+    }
 	
 	/**
 	 * Returns the state of the system.
