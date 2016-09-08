@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.overlay.manager.QuorumThread.QuorumSession;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
@@ -70,7 +70,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	    
 	    while(!shutDown.get()) {
 	        try {
-	            TCPSession session = net.waitForConnection( me.getHost(), me.getPort() + PORT_OFFSET );
+	            Session session = net.waitForConnection( me.getHost(), me.getPort() + PORT_OFFSET );
 	            if(session == null)
 	                continue;
 	            
@@ -98,12 +98,12 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	private class AntiEntropyNode extends Thread
 	{
 		private MerkleTree m_tree = null;
-		private TCPSession session;
+		private Session session;
 		private final List<DistributedFile> filesToSend;
 		private String sourceId = null;
 		private BitSet bitSet = new BitSet();
 		
-		public AntiEntropyNode( final TCPSession session )
+		public AntiEntropyNode( final Session session )
 		{
 		    setName( "AntiEntropyNode" );
 		    

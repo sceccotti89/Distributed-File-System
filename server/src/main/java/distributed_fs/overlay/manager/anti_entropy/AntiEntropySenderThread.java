@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.net.Networking;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.overlay.manager.anti_entropy.MerkleTree.Node;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
@@ -37,7 +37,7 @@ import gossiping.GossipMember;
 */
 public class AntiEntropySenderThread extends AntiEntropyThread
 {
-	private TCPSession session;
+	private Session session;
 	private MerkleTree m_tree = null;
 	
 	// Used to keep track of the common files.

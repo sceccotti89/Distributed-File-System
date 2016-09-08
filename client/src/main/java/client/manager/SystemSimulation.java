@@ -23,7 +23,7 @@ public class SystemSimulation implements Closeable
     private List<DFSNode> nodes;
     
     private static final int NUMBER_OF_BALANCERS = 2;
-    private static final int NUMBER_OF_STORAGES = 4;
+    private static final int NUMBER_OF_STORAGES = 5;
     
     private static final String IpAddress = "127.0.0.1";
     

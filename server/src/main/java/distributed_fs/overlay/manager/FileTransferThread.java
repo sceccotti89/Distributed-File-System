@@ -18,7 +18,7 @@ import org.apache.log4j.Logger;
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.overlay.manager.QuorumThread.QuorumFile;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
@@ -81,7 +81,7 @@ public class FileTransferThread extends Thread implements FileTransfer
 		
 		try {
 		    while(!shutDown.get()) {
-				TCPSession session = net.waitForConnection();
+				Session session = net.waitForConnection();
 				if(session == null)
 				    continue;
 				
@@ -116,7 +116,7 @@ public class FileTransferThread extends Thread implements FileTransfer
     }
 	
 	@Override
-	public void receiveFiles( final TCPSession session ) throws IOException
+	public void receiveFiles( final Session session ) throws IOException
 	{
 	    ByteBuffer data = ByteBuffer.wrap( session.receive() );
         // Read the synch attribute.
@@ -235,9 +235,9 @@ public class FileTransferThread extends Thread implements FileTransfer
 	*/
 	private class ReceiveFilesThread extends Thread
 	{
-		private TCPSession session;
+		private Session session;
 		
-		public ReceiveFilesThread( final TCPSession session )
+		public ReceiveFilesThread( final Session session )
 		{
 		    setName( "ReceiverFile" );
 		    
@@ -290,7 +290,7 @@ public class FileTransferThread extends Thread implements FileTransfer
 		public void run()
 		{
 		    result = true;
-			TCPSession session = null;
+			Session session = null;
             
             try {
                 LOGGER.debug( "Connecting to " + address + ":" + port );

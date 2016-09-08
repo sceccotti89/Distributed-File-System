@@ -19,7 +19,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import javax.swing.Timer;
 
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.RUDPnet;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.TransferSpeed;
 import distributed_fs.net.messages.Message;
@@ -92,10 +93,10 @@ public class QuorumThread extends Thread
     @Override
     public void run()
     {
-        TCPnet net;
+        RUDPnet net;
         
         try{
-            net = new TCPnet( address, port );
+            net = new RUDPnet( address, port );
             net.setSoTimeout( DFSNode.WAIT_CLOSE );
         }
         catch( IOException e ) {
@@ -108,7 +109,7 @@ public class QuorumThread extends Thread
         byte[] msg;
         while(!shutDown.get()) {
             try {
-                TCPSession session = net.waitForConnection();
+                Session session = net.waitForConnection();
                 if(session == null)
                     continue;
                 
@@ -162,7 +163,7 @@ public class QuorumThread extends Thread
      * Starts the quorum phase.
      * 
      * @param state         state of the caller thread
-     * @param session       the actual TCP connection
+     * @param session       the actual connection
      * @param opType        the operation type
      * @param fileName      name of the file
      * @param destId        the destination virtual node
@@ -171,7 +172,7 @@ public class QuorumThread extends Thread
      * @return list of contacted nodes that have agreed to the quorum
     */
     public List<QuorumNode> checkQuorum( final ThreadState state,
-                                         final TCPSession session,
+                                         final Session session,
                                          final byte opType,
                                          final String fileName,
                                          final String destId ) throws IOException
@@ -204,7 +205,7 @@ public class QuorumThread extends Thread
      * Contacts the nodes to complete the quorum phase.
      * 
      * @param state          state of the caller thread
-     * @param session        the actual TCP connection
+     * @param session        the actual connection
      * @param opType         the operation type
      * @param fileName       name of the file
      * @param nodes          list of contacted nodes
@@ -212,7 +213,7 @@ public class QuorumThread extends Thread
      * @return list of nodes that agreed to the quorum
     */
     private List<QuorumNode> contactNodes( final ThreadState state,
-                                           final TCPSession session,
+                                           final Session session,
                                            final byte opType,
                                            final String fileName,
                                            final List<GossipMember> nodes ) throws IOException
@@ -223,29 +224,29 @@ public class QuorumThread extends Thread
             state.setValue( ThreadState.AGREED_NODES, agreedNodes );
         }
         
-        TCPnet net = new TCPnet();
+        RUDPnet net = new RUDPnet();
         
         Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
         if(errors == null) errors = 0;
         for(GossipMember node : nodes) {
-            TCPSession mySession = null;
+            Session newSession = null;
             try {
                 // Start the remote connection.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
                     DFSNode.LOGGER.info( "[SN] Contacting " + node + "..." );
-                    mySession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
-                    state.setValue( ThreadState.AGREED_NODE_CONN, mySession );
+                    newSession = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
+                    state.setValue( ThreadState.AGREED_NODE_CONN, newSession );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
                 else {
-                    mySession = state.getValue( ThreadState.AGREED_NODE_CONN );
+                    newSession = state.getValue( ThreadState.AGREED_NODE_CONN );
                     state.getActionsList().removeFirst();
                 }
                 
                 // Send the message.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
                     byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
-                    mySession.sendMessage( msg, true );
+                    newSession.sendMessage( msg, true );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
                 else
@@ -255,7 +256,7 @@ public class QuorumThread extends Thread
                 DFSNode.LOGGER.info( "[SN] Waiting the response..." );
                 ByteBuffer data;
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
-                    data = ByteBuffer.wrap( mySession.receive() );
+                    data = ByteBuffer.wrap( newSession.receive() );
                     state.setValue( ThreadState.QUORUM_MSG_RESPONSE, data );
                     state.getActionsList().addLast( DFSNode.DONE );
                 }
@@ -264,7 +265,7 @@ public class QuorumThread extends Thread
                     state.getActionsList().remove();
                 }
                 
-                mySession.close();
+                newSession.close();
                 
                 // Read the response.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
@@ -294,8 +295,8 @@ public class QuorumThread extends Thread
                 // Ignored.
                 e.printStackTrace();
                 
-                if(mySession != null)
-                    mySession.close();
+                if(newSession != null)
+                    newSession.close();
                 
                 // Unreachable node: check for the completion of the quorum.
                 DFSNode.LOGGER.info( "[SN] Node " + node + " is not reachable." );
@@ -320,7 +321,7 @@ public class QuorumThread extends Thread
      * @param agreedNodes   list of contacted nodes
     */
     public void cancelQuorum( final ThreadState state,
-                              final TCPSession session,
+                              final Session session,
                               final List<QuorumNode> agreedNodes ) throws IOException
     {
         if(session != null)
@@ -342,7 +343,7 @@ public class QuorumThread extends Thread
         TCPnet net = new TCPnet();
         for(int i = agreedNodes.size() - 1; i >= 0; i--) {
             GossipMember node = agreedNodes.get( i ).getNode();
-            TCPSession mySession = null;
+            Session mySession = null;
             try {
                 mySession = state.getValue( ThreadState.RELEASE_QUORUM_CONN );
                 if(mySession == null || mySession.isClosed()) {
@@ -383,7 +384,7 @@ public class QuorumThread extends Thread
      * @param response  the quorum response
     */
     public void sendQuorumResponse( final ThreadState state,
-                                    final TCPSession session,
+                                    final Session session,
                                     final byte response ) throws IOException
     {
         if(session != null) {

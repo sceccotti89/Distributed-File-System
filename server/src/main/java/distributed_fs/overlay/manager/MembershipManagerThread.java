@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.DFSNode;
@@ -75,7 +75,7 @@ public class MembershipManagerThread extends Thread
         DFSNode.LOGGER.info( "MembershipManager thread launched." );
         
         while(!closed.get()) {
-            TCPSession session = null;
+            Session session = null;
             try {
                 session = net.waitForConnection( address, port );
                 if(session == null)
@@ -101,7 +101,7 @@ public class MembershipManagerThread extends Thread
      * 
      * @param session   the incoming connection
     */
-    private void sendMembershipList( final TCPSession session ) throws IOException
+    private void sendMembershipList( final Session session ) throws IOException
     {
         // Get the list of members and send it to the user.
         List<GossipNode> members;

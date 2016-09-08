@@ -27,9 +27,6 @@ public class NodeLauncher
     public static void main( final String args[] ) throws ParseException, IOException, InterruptedException, DFSException
     {
         NodeArgsParser.parseArgs( args );
-        //NodeArgsParser.parseArgs( new String[]{ "-t", "0", "--help" } );
-        //NodeArgsParser.parseArgs( new String[]{ "-t", "1", "-v", "10", "--port", "8000", "-n", "127.0.0.1:3000:1" } );
-        //NodeArgsParser.parseArgs( new String[]{ "-t", "1", "-f", "Settings/NodeSettings.json" } );
         if(NodeArgsParser.hasOnlyHelpOptions())
             return;
         

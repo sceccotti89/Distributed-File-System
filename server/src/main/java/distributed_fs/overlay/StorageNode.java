@@ -17,7 +17,7 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.manager.NetworkMonitorSenderThread;
 import distributed_fs.net.manager.NetworkMonitorThread;
@@ -187,7 +187,7 @@ public class StorageNode extends DFSNode
 		
 		try {
 			while(!shutDown.get()) {
-				TCPSession session = _net.waitForConnection( _address, port );
+				Session session = _net.waitForConnection( _address, port );
 				if(session != null) {
 				    synchronized( threadPool ) {
 				        if(threadPool.isShutdown())
@@ -223,7 +223,7 @@ public class StorageNode extends DFSNode
 	*/
 	private static class StorageWorker extends DFSNode
 	{
-        private TCPSession session;
+        private Session session;
         private String destId; // Virtual destination node identifier, for an input request.
         private List<QuorumNode> agreedNodes; // List of nodes that have agreed to the quorum.
         private boolean replacedThread;
@@ -250,7 +250,7 @@ public class StorageNode extends DFSNode
                              final QuorumThread quorum_t,
                              final ConsistentHasher<GossipMember, String> cHasher,
                              final TCPnet net,
-                             final TCPSession session,
+                             final Session session,
                              final NetworkMonitorThread netMonitor ) throws IOException
         {
         	super( net, fMgr, cHasher );
@@ -264,7 +264,8 @@ public class StorageNode extends DFSNode
         	
         	actionsList = new ArrayDeque<>( 32 );
         	state = new ThreadState( id, replacedThread, actionsList,
-        	                         fMgr, quorum_t, cHasher, this.netMonitor );
+        	                         fMgr, quorum_t, cHasher, net, session,
+        	                         this.netMonitor );
         }
     
         @Override
@@ -392,7 +393,7 @@ public class StorageNode extends DFSNode
     		if(isCoordinator) {
     			// Send the GET request to all the agreed nodes,
     			// to retrieve their version of the file and make the reconciliation.
-    			List<TCPSession> openSessions = sendRequestToReplicaNodes( fileName );
+    			List<Session> openSessions = sendGETRequestToReplicaNodes( fileName );
     			if(openSessions == null) {
     			    quorum_t.sendQuorumResponse( state, session, Message.TRANSACTION_FAILED );
     			    return;
@@ -471,15 +472,15 @@ public class StorageNode extends DFSNode
     	}
     	
     	/** 
-         * Sends the actual request to the replica nodes.
+         * Sends the actual GET request to the replica nodes.
          * 
          * @param fileName		name of the file to send
          * 
          * @return list of sessions opened with other replica nodes.
         */
-        private List<TCPSession> sendRequestToReplicaNodes( final String fileName )
+        private List<Session> sendGETRequestToReplicaNodes( final String fileName )
         {
-        	List<TCPSession> openSessions = state.getValue( ThreadState.OPENED_SESSIONS );
+        	List<Session> openSessions = state.getValue( ThreadState.OPENED_SESSIONS );
         	if(openSessions == null) {
         	    openSessions = new ArrayList<>( QuorumSession.getMaxNodes() );
         	    state.setValue( ThreadState.OPENED_SESSIONS, openSessions );
@@ -490,7 +491,7 @@ public class StorageNode extends DFSNode
         	for(QuorumNode qNode : agreedNodes) {
         		try{
         			GossipMember node = qNode.getNode();
-        			TCPSession session;
+        			Session session;
         			// Get the remote connection.
         			if(!replacedThread || actionsList.isEmpty()) {
         			    session = _net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
@@ -533,7 +534,7 @@ public class StorageNode extends DFSNode
     	 * @param openSessions     
     	*/
     	private void getReplicaVersions( final List<DistributedFile> filesToSend,
-    	                                 final List<TCPSession> openSessions ) throws IOException
+    	                                 final List<Session> openSessions ) throws IOException
     	{
     	    // Get the value of the indexes.
             Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
@@ -545,7 +546,7 @@ public class StorageNode extends DFSNode
             int index = 0;
             
             // Get the replica versions.
-            for(TCPSession session : openSessions) {
+            for(Session session : openSessions) {
                 if(index == toIndex) {
                     try{
                         ByteBuffer data;

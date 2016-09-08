@@ -25,7 +25,7 @@ import org.json.JSONObject;
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.Message;
 import distributed_fs.net.messages.MessageRequest;
@@ -221,7 +221,7 @@ public abstract class DFSManager
         }
     }
 	
-	protected void sendPutMessage( final TCPSession session, final DistributedFile file, final String hintedHandoff ) throws IOException
+	protected void sendPutMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 	    LOGGER.info( "Sending data..." );
 		
@@ -239,7 +239,7 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected void sendGetMessage( final TCPSession session, final String fileName ) throws IOException
+	protected void sendGetMessage( final Session session, final String fileName ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
 		
@@ -257,12 +257,12 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected List<DistributedFile> readGetResponse( final TCPSession session ) throws IOException
+	protected List<DistributedFile> readGetResponse( final Session session ) throws IOException
     {
 	    return readGetAllResponse( session );
     }
 	
-	protected void sendGetAllMessage( final TCPSession session, final String fileName ) throws IOException
+	protected void sendGetAllMessage( final Session session, final String fileName ) throws IOException
     {
 	    MessageRequest message;
 	    
@@ -280,7 +280,7 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
 	
-	protected List<DistributedFile> readGetAllResponse( final TCPSession session ) throws IOException
+	protected List<DistributedFile> readGetAllResponse( final Session session ) throws IOException
 	{
 	    LOGGER.info( "Waiting for the incoming files..." );
 	    
@@ -300,7 +300,7 @@ public abstract class DFSManager
         return files;
 	}
 	
-	protected void sendDeleteMessage( final TCPSession session, final DistributedFile file, final String hintedHandoff ) throws IOException
+	protected void sendDeleteMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
 	{
 		LOGGER.info( "Sending data..." );
 		
@@ -319,7 +319,7 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected boolean checkResponse( final TCPSession session, final String op, final boolean toPrint ) throws IOException
+	protected boolean checkResponse( final Session session, final boolean toPrint ) throws IOException
 	{
 		MessageResponse message = session.receiveMessage();
 		byte opType = message.getType();
@@ -338,15 +338,15 @@ public abstract class DFSManager
 	}
 	
 	protected String getOpCode( final byte opType )
-    {
-        switch( opType ) {
-            case( Message.PUT ): return "PUT";
-            case( Message.GET ): return "GET";
-            case( Message.DELETE ): return "DELETE";
-        }
-        
-        return null;
-    }
+	{
+	    switch( opType ) {
+    	    case( Message.PUT ): return "PUT";
+    	    case( Message.GET ): return "GET";
+    	    case( Message.DELETE ): return "DELETE";
+	    }
+	    
+	    return null;
+	}
 	
 	public void shutDown()
 	{

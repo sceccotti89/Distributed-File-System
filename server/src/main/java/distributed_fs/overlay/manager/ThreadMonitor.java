@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.manager.NetworkMonitorReceiverThread;
 import distributed_fs.net.manager.NetworkMonitorSenderThread;
@@ -194,7 +194,7 @@ public class ThreadMonitor extends Thread
 	    private final boolean replacedThread;
 	    private final Deque<Object> actionsList;
 	    private TCPnet net;
-	    private TCPSession session;
+	    private Session session;
 	    
 	    private Map<String, Object> values;
 	    
@@ -204,12 +204,17 @@ public class ThreadMonitor extends Thread
 	                        final FileTransferThread fMgr,
 	                        final QuorumThread quorum_t,
 	                        final ConsistentHasher<GossipMember, String> cHasher,
+	                        final TCPnet net,
+	                        final Session session,
 	                        final NetworkMonitorThread netMonitor )
 	    {
 	        this.fMgr = fMgr;
 	        this.quorum_t = quorum_t;
 	        this.cHasher = cHasher;
 	        this.netMonitor = netMonitor;
+	        
+	        this.net = net;
+	        this.session = session;
 	        
 	        this.id = id;
 	        this.replacedThread = replacedThread;
@@ -227,7 +232,7 @@ public class ThreadMonitor extends Thread
 	    public boolean isReplacedThread() { return replacedThread; }
 	    public Deque<Object> getActionsList(){ return actionsList; }
 	    public TCPnet getNet(){ return net; }
-	    public TCPSession getSession(){ return session; }
+	    public Session getSession(){ return session; }
 	    
 	    @SuppressWarnings("unchecked")
 	    public <T> T getValue( final String key ) { return (T) values.get( key ); }

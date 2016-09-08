@@ -22,6 +22,9 @@ import java.util.List;
 
 import distributed_fs.net.messages.Message;
 import distributed_fs.utils.DFSUtils;
+import net.rudp.ReliableServerSocket;
+import net.rudp.ReliableSocket;
+import net.rudp.ReliableSocketOutputStream;
 
 public class Networking
 {
@@ -68,7 +71,7 @@ public class Networking
 		return buffer.array();
 	}
 	
-	public class TCPSession implements Closeable
+	public class Session implements Closeable
 	{
 		private final BufferedInputStream in;
 		private final BufferedOutputStream out;
@@ -82,16 +85,16 @@ public class Networking
 		
 		
 		
-		public TCPSession( final BufferedInputStream in,
-						   final BufferedOutputStream out,
+		public Session( final BufferedInputStream in,
+						final BufferedOutputStream out,
 						   final Socket socket ) {
 			this( in, out, socket, "" );
 		}
 		
-		public TCPSession( final BufferedInputStream in,
-						   final BufferedOutputStream out,
-						   final Socket socket,
-						   final String srcAddress ) {
+		public Session( final BufferedInputStream in,
+						final BufferedOutputStream out,
+						final Socket socket,
+						final String srcAddress ) {
 			this.in = in;
 			this.out = out;
 			this.socket = socket;
@@ -248,11 +251,11 @@ public class Networking
 		public void close()
 		{
 			if(!close) {
-				try {
-					in.close();
-					out.close();
-					socket.close();
-				}
+				try { in.close(); }
+                catch( IOException e ){}
+				try { out.close();}
+				catch( IOException e ){}
+				try { socket.close();}
 				catch( IOException e ){}
 				
 				close = true;
@@ -265,7 +268,7 @@ public class Networking
 		private ServerSocket servSocket;
 		private int soTimeout = 0;
 		/** Keep track of all the opened TCP sessions. */ 
-		private List<TCPSession> sessions = new ArrayList<>( 32 );
+		private List<Session> sessions = new ArrayList<>( 32 );
 		private boolean closed = false;
 		
 		
@@ -302,10 +305,13 @@ public class Networking
 		/**
 		 * Waits for a new connection.
 		*/
-		public TCPSession waitForConnection() throws IOException
+		public Session waitForConnection() throws IOException
 		{
+		    if(servSocket == null)
+		        throw new IOException( "Local address and port cannot be empty." );
+		    
 			// The address and port values have been already
-			// setted in the constructor.
+			// defined in the constructor.
 			return waitForConnection( null, 0 );
 		}
 		
@@ -315,7 +321,7 @@ public class Networking
 		 * @param localAddress
 		 * @param localPort
 		*/
-		public TCPSession waitForConnection( final String localAddress, final int localPort ) throws IOException
+		public Session waitForConnection( final String localAddress, final int localPort ) throws IOException
 		{
 			if(servSocket == null) {
 				InetAddress iAddress = InetAddress.getByName( localAddress );
@@ -332,7 +338,7 @@ public class Networking
 			BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
 			BufferedOutputStream out = new BufferedOutputStream( socket.getOutputStream() );
 			
-			TCPSession session = new TCPSession( in, out, socket, srcAddress );
+			Session session = new Session( in, out, socket, srcAddress );
 			sessions.add( session );
 			
 			return session;
@@ -342,7 +348,7 @@ public class Networking
 		 * Tries a connection with the remote host address.
 		 * This has the same effect as invoking: {@code tryConnect( address, port, 0 )}.
 		*/
-		public TCPSession tryConnect( final String address, final int port ) throws IOException
+		public Session tryConnect( final String address, final int port ) throws IOException
 		{
 			return tryConnect( address, port, 0 );
 		}
@@ -356,7 +362,7 @@ public class Networking
 		 * 					for a maximum of {@code timeOut} milliseconds.
 		 * 					0 means infinite time.
 		*/
-		public TCPSession tryConnect( final String address, final int port, final int timeOut ) throws IOException
+		public Session tryConnect( final String address, final int port, final int timeOut ) throws IOException
 		{
 			Socket socket = new Socket();
 			
@@ -371,7 +377,7 @@ public class Networking
 			
 			BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
 			BufferedOutputStream out = new BufferedOutputStream( socket.getOutputStream() );
-			TCPSession session = new TCPSession( in, out, socket, address );
+			Session session = new Session( in, out, socket, address );
 			
 			return session;
 		}
@@ -382,7 +388,7 @@ public class Networking
 		    if(!closed) {
     			closed = true;
 		        try {
-    				for(TCPSession session : sessions)
+    				for(Session session : sessions)
     					session.close();
     				sessions.clear();
     				
@@ -533,6 +539,139 @@ public class Networking
 		    }
 		}
 	}
+	
+	public static class RUDPnet extends Networking implements Closeable
+    {
+	    private ReliableServerSocket servSocket;
+        private int soTimeout = 0;
+        /** Keep track of all the opened RUDP sessions. */ 
+        private List<Session> sessions = new ArrayList<>( 32 );
+        private boolean closed = false;
+        
+        
+        
+        public RUDPnet() {}
+        
+        /**
+         * Constructor used to instantiate the {@code ServerSocket} object.
+         * 
+         * @param localAddress  
+         * @param localPort     
+        */
+        public RUDPnet( final String localAddress, final int localPort ) throws IOException
+        {
+            InetAddress iAddress = InetAddress.getByName( localAddress );
+            servSocket = new ReliableServerSocket( localPort, 0, iAddress );
+            System.out.println( "Creata socket " + servSocket.getLocalSocketAddress() );
+        }
+        
+        /**
+         * Enable/disable {@code SO_TIMEOUT} with the specified timeout, in milliseconds.
+         * With this option set to a non-zero timeout, a call to accept() for this ServerSocket will block for only this amount of time. 
+         * If the timeout expires, a java.net.SocketTimeoutException is raised, though the ServerSocket is still valid.
+         * The option must be enabled prior to entering the blocking operation to have effect.
+         * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
+        */
+        public void setSoTimeout( final int timeout ) {
+            soTimeout = timeout;
+            if(servSocket != null)
+                servSocket.setSoTimeout( timeout );
+        }
+        
+        /**
+         * Waits for a new connection.
+        */
+        public Session waitForConnection() throws IOException
+        {
+            if(servSocket == null)
+                throw new IOException( "Local address and port must be defined." );
+            
+            // The address and port values have been already
+            // defined in the constructor.
+            return waitForConnection( null, 0 );
+        }
+        
+        /**
+         * Waits for a new connection.
+         * 
+         * @param localAddress
+         * @param localPort
+        */
+        public Session waitForConnection( final String localAddress, final int localPort ) throws IOException
+        {
+            if(servSocket == null) {
+                InetAddress iAddress = InetAddress.getByName( localAddress );
+                servSocket = new ReliableServerSocket( localPort, 0, iAddress );
+                servSocket.setSoTimeout( soTimeout );
+            }
+            
+            Socket socket;
+            try{ socket = servSocket.accept(); }
+            catch( SocketTimeoutException e ) { return null; }
+            
+            String srcAddress = ((InetSocketAddress) socket.getRemoteSocketAddress()).getHostString();
+            BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
+            BufferedOutputStream out = new BufferedOutputStream( (ReliableSocketOutputStream) socket.getOutputStream() );
+            
+            Session session = new Session( in, out, socket, srcAddress );
+            sessions.add( session );
+            
+            return session;
+        }
+        
+        /**
+         * Tries a connection with the remote host address.
+         * This has the same effect as invoking: {@code tryConnect( address, port, 0 )}.
+        */
+        public Session tryConnect( final String address, final int port ) throws IOException
+        {
+            return tryConnect( address, port, 0 );
+        }
+        
+        /** 
+         * Tries a connection with the remote host address.
+         * 
+         * @param address   the remote address
+         * @param port      the remote port
+         * @param timeOut   the connection will remain blocked
+         *                  for a maximum of {@code timeOut} milliseconds.
+         *                  0 means infinite time.
+        */
+        public Session tryConnect( final String address, final int port, final int timeOut ) throws IOException
+        {
+            ReliableSocket socket = new ReliableSocket();
+            
+            try {
+                socket.connect( new InetSocketAddress( address, port ), timeOut );
+            } catch( SocketTimeoutException e ) {
+                socket.close();
+                return null;
+            }
+            
+            BufferedInputStream in = new BufferedInputStream( socket.getInputStream() );
+            BufferedOutputStream out = new BufferedOutputStream( (ReliableSocketOutputStream) socket.getOutputStream() );
+            Session session = new Session( in, out, socket, address );
+            
+            return session;
+        }
+
+        @Override
+        public void close()
+        {
+            if(!closed) {
+                closed = true;
+                for(Session session : sessions)
+                    session.close();
+                sessions.clear();
+                
+                // FIXME Bug on the MR-UDP library.
+                // FIXME Loop of exceptions start internally (in some Thread).
+                // FIXME Add this lines when the bug will be fixed.
+                //if(servSocket != null)
+                    //servSocket.close();
+            }
+        }
+    }
 	
 	private static class FileSpeed
 	{

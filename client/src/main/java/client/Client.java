@@ -44,7 +44,8 @@ public class Client implements DBListener
 	private static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
     
 	// Regular expressions.
-	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list", "enableLB", "disableLB", "help", "exit" };
+	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list",
+	                                                       "enableLB", "disableLB", "help", "exit" };
 	//private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
 	
@@ -186,8 +187,9 @@ public class Client implements DBListener
 		String command = null;
 		
 		while(true) {
-			try{ command = readCommand(); }
-			catch( IOException e ){
+			try{
+			    command = readCommand();
+			} catch( IOException e ){
 				e.printStackTrace();
 				break;
 			}
@@ -252,11 +254,11 @@ public class Client implements DBListener
 	}
 	
 	private String readCommand() throws IOException
-    {
-        String command = null;
-        
-        while(true) {
-            if(service.isReconciling() || !SCAN.ready()) {
+	{
+	    String command = null;
+	    
+	    while(true) {
+    	    if(service.isReconciling() || !SCAN.ready()) {
                 try { Thread.sleep( 200 ); }
                 catch( InterruptedException e ) {}
                 continue;
@@ -270,21 +272,21 @@ public class Client implements DBListener
                 // Exception raised when the service is closed.
                 break;
             }
-        }
+	    }
         
         return command;
-    }
+	}
 	
 	private static String getFile( final String command, int offset )
-    {
-        // Remove the initial white spaces and tabs.
-        while(offset < command.length() &&
-             (command.charAt( offset ) == ' ' ||
-              command.charAt( offset ) == '\t')) {
-            offset++;
-        }
-        
-        // Remove the last white spaces and tabs.
+	{
+	    // Remove the initial white spaces and tabs.
+	    while(offset < command.length() &&
+	         (command.charAt( offset ) == ' ' ||
+	          command.charAt( offset ) == '\t')) {
+	        offset++;
+	    }
+	    
+	    // Remove the last white spaces and tabs.
         int index = command.length() - 1;
         while(index >= offset &&
              (command.charAt( index ) == ' ' ||
@@ -293,25 +295,25 @@ public class Client implements DBListener
         }
         
         String file = command.substring( offset, index + 1 );
-        if(file.startsWith( "\"" ) && file.endsWith( "\"" ))
-            file = file.substring( 1, file.length() - 1 );
-        else {
-            if(file.contains( " " ) || file.contains( "\t" )) {
-                System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
-                System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
-                return null;
-            }
-        }
-        
-        /*if(file.matches( FILE_REGEX ))
-            return file;
-        else {
-            System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
-            System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
-        }*/
-        
-        return file;
-    }
+		if(file.startsWith( "\"" ) && file.endsWith( "\"" ))
+		    file = file.substring( 1, file.length() - 1 );
+		else {
+		    if(file.contains( " " ) || file.contains( "\t" )) {
+		        System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
+	            System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
+	            return null;
+		    }
+		}
+		
+		/*if(file.matches( FILE_REGEX ))
+			return file;
+		else {
+			System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
+			System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
+		}*/
+		
+		return file;
+	}
 	
 	/**
 	 * Checks the confirm to remove a file.

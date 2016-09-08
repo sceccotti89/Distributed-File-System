@@ -84,7 +84,9 @@ public class ClientSynchronizer extends Thread
                         checkFiles( files );
                 }
             }
-            catch( IOException | DFSException e ) {}
+            catch( IOException | DFSException e ) {
+                e.printStackTrace();
+            }
             
             try { sleep( DB_CHECK_TIMER ); }
             catch( InterruptedException e ) { break; }
@@ -215,7 +217,6 @@ public class ClientSynchronizer extends Thread
                 System.out.println( "Error: select a number in the range [1-" + size + "]" );
         }
     }
-    
     
     /**
      * Gets the reconciliation attribute.

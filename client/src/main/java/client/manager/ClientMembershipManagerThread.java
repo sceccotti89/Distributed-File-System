@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.log4j.Logger;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.messages.MessageResponse;
 import distributed_fs.overlay.manager.MembershipManagerThread;
@@ -73,7 +73,7 @@ public class ClientMembershipManagerThread extends Thread
                 server = members.get( index );
                 LOGGER.debug( "[CLIENT] Selected: " + server );
                 
-                TCPSession session = net.tryConnect( server.getHost(), server.getPort() + MembershipManagerThread.PORT_OFFSET, 2000 );
+                Session session = net.tryConnect( server.getHost(), server.getPort() + MembershipManagerThread.PORT_OFFSET, 2000 );
                 if(session == null) {
                     cHasher.removeBucket( server );
                     LOGGER.debug( "[CLIENT] Node: " + server + " is unreachable." );

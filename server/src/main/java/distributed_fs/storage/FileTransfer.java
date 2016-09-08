@@ -7,7 +7,7 @@ package distributed_fs.storage;
 import java.io.IOException;
 import java.util.List;
 
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.overlay.manager.QuorumThread.QuorumNode;
 
 public interface FileTransfer
@@ -33,5 +33,5 @@ public interface FileTransfer
      * 
      * @param session   current TCP session
     */
-    public void receiveFiles( final TCPSession session ) throws IOException, InterruptedException;
+    public void receiveFiles( final Session session ) throws IOException, InterruptedException;
 }

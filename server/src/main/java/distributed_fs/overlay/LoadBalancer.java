@@ -14,7 +14,7 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.exception.DFSException;
-import distributed_fs.net.Networking.TCPSession;
+import distributed_fs.net.Networking.Session;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.manager.NetworkMonitorReceiverThread;
 import distributed_fs.net.manager.NetworkMonitorThread;
@@ -149,7 +149,7 @@ public class LoadBalancer extends DFSNode
 	    
 		try {
 			while(!shutDown.get()) {
-				TCPSession session = _net.waitForConnection( _address, this.port );
+				Session session = _net.waitForConnection( _address, this.port );
 				if(session != null) {
 				    synchronized( threadPool ) {
                         if(threadPool.isShutdown())
@@ -183,7 +183,7 @@ public class LoadBalancer extends DFSNode
     */
 	private static class LoadBalancerWorker extends DFSNode
 	{
-	    private TCPSession session;
+	    private Session session;
 	    private String clientAddress;
 	    private boolean replacedThread;
 	    
@@ -200,7 +200,7 @@ public class LoadBalancer extends DFSNode
     	*/
     	private LoadBalancerWorker( final boolean replacedThread,
     	                      final TCPnet net,
-    						  final TCPSession srcSession,
+    						  final Session srcSession,
     						  final ConsistentHasher<GossipMember, String> cHasher,
     						  final NetworkMonitorThread netMonitor ) throws IOException
     	{
@@ -213,7 +213,8 @@ public class LoadBalancer extends DFSNode
     		
     		actionsList = new ArrayDeque<>( 8 );
             state = new ThreadState( id, replacedThread, actionsList,
-                                     fMgr, null, cHasher, this.netMonitor );
+                                     fMgr, null, cHasher, net, session,
+                                     this.netMonitor );
     	}
     	
     	@Override
@@ -259,7 +260,7 @@ public class LoadBalancer extends DFSNode
     				LOGGER.debug( "[LB] Nodes: " + nodes );
     				
     				String hintedHandoff = null;
-    				TCPSession newSession = null;
+    				Session newSession = null;
     				Integer index = state.getValue( ThreadState.NODES_INDEX );
     				if(index == null) index = nodes.size();
     				for(int i = index - 1; i >= 0; i--) {
@@ -379,7 +380,7 @@ public class LoadBalancer extends DFSNode
     	 * @param fileName         the requested file
     	 * @param fileContent      content of the file
     	*/
-    	private void forwardRequest( final TCPSession session, final byte opType, final String destId,
+    	private void forwardRequest( final Session session, final byte opType, final String destId,
     	                             final String hintedHandoff, final String fileName, final byte[] fileContent )
     	                                     throws IOException
     	{

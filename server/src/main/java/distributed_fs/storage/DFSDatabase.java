@@ -221,7 +221,7 @@ public class DFSDatabase extends DBManager implements Closeable
             doSave( file, content, saveOnDisk );
 		}
 		else {
-			if(updateVersions( file.getVersion(), clock )) {
+			if(updateVersion( file.getVersion(), clock )) {
 				// The input version is newer than mine, then
 				// it overrides the current one.
 				file.setVersion( updated = clock.clone() );
@@ -337,7 +337,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		DistributedFile file = database.get( fileId );
 		
 		// Check whether the input version is newer than mine.
-		if(file == null || updateVersions( file.getVersion(), clock )) {
+		if(file == null || updateVersion( file.getVersion(), clock )) {
 		    updated = clock.clone();
             if(file == null)
                 file = new DistributedFile( fileName, isDirectory, clock, hintedHandoff );
@@ -407,7 +407,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	 * @return {@code true} if the received file has the most updated version,
 	 * 		   {@code false} otherwise.
 	*/
-	private boolean updateVersions( final VectorClock myClock, final VectorClock vClock )
+	private boolean updateVersion( final VectorClock myClock, final VectorClock vClock )
 	{
 	    if(disableReconciliation)
 	        return false;
