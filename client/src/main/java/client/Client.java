@@ -149,6 +149,7 @@ public class Client implements DBListener
             reader = new ConsoleReader();
             reader.setBellEnabled( false );
             reader.addCompletor( completor );
+            reader.setDefaultPrompt( "[CLIENT] " );
             
 			if(service.start()) {
 				System.out.println( "[CLIENT] Type 'help' for commands informations." );
@@ -266,7 +267,7 @@ public class Client implements DBListener
                 continue;
             }
             
-            command = reader.readLine( "[CLIENT] " );
+            command = reader.readLine();
             try {
                 if(!command.isEmpty())
                     break;
