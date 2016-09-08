@@ -180,6 +180,8 @@ public class Client implements DBListener
 			service.shutDown();
 		if(sim != null)
 		    sim.close();
+		
+		System.exit( 0 );
 	}
 	
 	private Operation checkInput() throws DFSException
