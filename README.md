@@ -133,7 +133,7 @@ Optional parameters:
 - `-n [--node] <arg>` add a new node, where arg is in the format `hostname:port:nodeType`
 - `-r [--rloc] <path>` set the location of the resources
 - `-d [--dloc] <path>` set the location of the database
-- `-locale` start the system in the local environment
+- `-locale` start the system in the [local environment](#local-environment)
 - `-h [--help]` show the help informations
 
 The operations provided by the client, in addition to the **get**, **put and delete** mentioned before, are:
