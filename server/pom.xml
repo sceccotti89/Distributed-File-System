@@ -65,6 +65,12 @@
 			<artifactId>guava</artifactId>
 			<version>19.0</version>
 		</dependency>
+		
+        <dependency>
+            <groupId>rudp</groupId>
+            <artifactId>mr-udp</artifactId>
+            <version>1.0</version>
+        </dependency>
 
 	</dependencies>
 	<build>
@@ -91,34 +97,49 @@
 					<downloadJavadocs>true</downloadJavadocs>
 				</configuration>
 			</plugin>
-
+			
 			<!--<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-source-plugin</artifactId>
-				<version>2.4</version>
-				<executions>
-					<execution>
-						<id>attach-sources</id>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-					</execution>
-				</executions>
+			    <groupId>org.codehaus.mojo</groupId>
+			    <artifactId>wagon-maven-plugin</artifactId>
+			    <version>1.0</version>
+			    <executions>
+			        <execution>
+			            <id>download-mrudp</id>
+			            <phase>pre-integration-test</phase>
+			            <goals>
+			                <goal>download-single</goal>
+			            </goals>
+			            <configuration>
+			                <url>http://lac-rio.com/mr-udp</url>
+			                <fromFile>mr-udp.jar</fromFile>
+			                <toDir>${project.basedir}/libs</toDir>
+			            </configuration>
+			        </execution>
+			    </executions>
 			</plugin>-->
-
-			<!--<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<version>2.6</version>
-				<configuration>
-					<archive>
-						<manifest>
-							<addClasspath>true</addClasspath>
-							<mainClass>distributed_fs.NodeLauncher</mainClass>
-						</manifest>
-					</archive>
-				</configuration>
-			</plugin>-->
+			
+			<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>2.5.2</version>
+                <executions>
+                    <execution>
+                        <id>install-external</id>
+                        <phase>clean</phase>
+                        <configuration>
+                            <file>${basedir}/libs/mr-udp-1.0.jar</file>
+                            <groupId>net.rudp</groupId>
+                            <artifactId>mr-udp</artifactId>
+                            <version>1.0</version>
+                            <packaging>jar</packaging>
+                            <generatePom>true</generatePom>
+                        </configuration>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
 
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

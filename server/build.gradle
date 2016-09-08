@@ -19,10 +19,7 @@ jar {
 
 repositories {
 	mavenCentral()
-    flatDir {
-		dirs 'lib'
-	}
-	maven { url "https://jitpack.io" }
+    maven { url "https://jitpack.io" }
 }
 
 dependencies {
@@ -34,5 +31,6 @@ dependencies {
 	compile 'jline:jline:1.0'
 	compile 'org.json:json:20160212'
 	compile 'com.google.guava:guava:19.0'
+	compile files('libs/mr-udp-1.0.jar')
 	compile project(':gossip')
 }

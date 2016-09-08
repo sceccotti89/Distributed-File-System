@@ -1,12 +1,8 @@
-cd ..
-
-cd gossip
+cd ../gossip
 call mvn install
-cd ..
 
-cd server
+cd ../server
 call mvn install
-cd..
 
-cd client
+cd../client
 mvn package
