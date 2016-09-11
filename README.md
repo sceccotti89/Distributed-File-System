@@ -41,11 +41,7 @@ sh buildAll.sh (Linux and MacOS systems)
 start buildAll.bat (Windows systems)
 ```
 
-Alternatively you can manually built the project using the following commands:
-```bash
-mvn install (server and gossip modules)
-mvn package (client module)
-```
+Alternatively you can manually built the project, following the commands present in the script.
 
 ### Gradle
 
