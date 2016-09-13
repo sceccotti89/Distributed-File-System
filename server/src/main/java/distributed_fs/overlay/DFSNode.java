@@ -29,7 +29,6 @@ import org.json.JSONObject;
 
 import distributed_fs.consistent_hashing.ConsistentHasher;
 import distributed_fs.consistent_hashing.ConsistentHasherImpl;
-import distributed_fs.exception.DFSException;
 import distributed_fs.net.Networking.TCPnet;
 import distributed_fs.net.manager.NetworkMonitorThread;
 import distributed_fs.net.manager.NodeStatistics;
@@ -155,17 +154,6 @@ public abstract class DFSNode extends Thread implements GossipListener
     {
         if(!isAlive())
             startGossiping = enable;
-    }
-    
-    /**
-     * Sets the backup location.
-     * 
-     * @param dbBackupPath     the database backup location
-     * @param resBackupPath    the resources backup location
-    */
-    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException
-    {
-        fMgr.getDatabase().setBackup( dbBackupPath, resBackupPath );
     }
     
     /**

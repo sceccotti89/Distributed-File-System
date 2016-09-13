@@ -33,13 +33,12 @@ import gossiping.event.GossipState;
 public class DFSDatabase extends DBManager implements Closeable
 {
 	private final FileTransfer _fileMgr;
+	private final ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
-	private final List<String> toUpdate = new Vector<>();
+	private final List<String> toUpdate;
 	
 	private DB db;
 	private BTreeMap<String, DistributedFile> database;
-	
-	private DFSDatabase backup;
 	
 	// Database path location.
 	private static final String DATABASE_LOCATION = "Database/";
@@ -48,7 +47,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	
 	
 	/**
-	 * Constructs a new Distributed File System database.
+	 * Construct a new Distributed File System database.
 	 * 
 	 * @param resourcesLocation		location of the files on disk.
 	 *                              If {@code null}, will be set
@@ -58,7 +57,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	 * 								the default one ({@link #DATABASE_LOCATION}).
 	 * @param fileMgr				the manager used to send/receive files.
 	 *								If {@code null} the database for the hinted handoff
-	 * 								nodes does not start.
+	 * 								nodes does not start
 	*/
 	public DFSDatabase( final String resourcesLocation,
 						final String databaseLocation,
@@ -85,42 +84,20 @@ public class DFSDatabase extends DBManager implements Closeable
                     .make();
         database = db.treeMap( "map" );
         //db.commit();
-	}
-	
-	/**
-     * Starts a new instance of the database.
-    */
-	public void start() throws IOException
-	{
-	    start = true;
-	    
-	    loadFiles();
+        
+        asyncWriter = new AsyncDiskWriter( this, true );
+        
+        toUpdate = new Vector<>();
+        loadFiles();
         
         // Save the files in the hinted handoff database.
         for(DistributedFile file : database.values()) {
             if(file.getHintedHandoff() != null && hhThread != null)
                 hhThread.saveFile( file );
         }
-        
-        if(!disableAsyncWrites)
-            asyncWriter = new AsyncDiskWriter( this, true );
-        
-        scanDBThread = new ScanDBThread( this );
-        scanDBThread.start();
-	}
-	
-	/**
-	 * Sets the backup location for the database and resources.
-	 * 
-	 * @param dbBackupPath     the database backup location
-	 * @param resBackupPath    the resources backup location
-	*/
-	public void setBackup( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException
-	{
-	    backup = new DFSDatabase( resBackupPath, dbBackupPath, null );
-	    backup.disableAsyncWrites();
-	    backup.disableScanDB();
-	    backup.start();
+		
+		scanDBThread = new ScanDBThread();
+		scanDBThread.start();
 	}
 	
 	/**
@@ -149,11 +126,6 @@ public class DFSDatabase extends DBManager implements Closeable
 			    if(file == null) {
 			        file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
 			        database.put( file.getId(), file );
-			        if(backup != null) {
-			            byte[] content = (file.isDirectory() ? null : readFileFromDisk( fileName ));
-			            backup.saveFile( fileName, content, file.getVersion(), file.isDirectory(), null, true );
-			        }
-			        
 			        notifyListeners( fileName, Message.GET );
 			    }
 			    
@@ -174,10 +146,9 @@ public class DFSDatabase extends DBManager implements Closeable
 	    for(DistributedFile file : files) {
             // If the file is no more on disk it's definitely removed.
             if(!existFile( root + file.getName(), false ) && !file.isDeleted()) {
-                forceRemoveFile( file );
-                
-                if(backup != null)
-                    backup.forceRemoveFile( file );
+                LOCK_WRITERS.lock();
+                database.remove( file.getId() );
+                LOCK_WRITERS.unlock();
                 
                 notifyListeners( file.getName(), Message.DELETE );
                 if(hhThread != null)
@@ -238,7 +209,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		String fileId = DFSUtils.getId( fileName );
 		
 		LOCK_WRITERS.lock();
-		if(db.isClosed() || !start) {
+		if(db.isClosed()) {
 		    LOCK_WRITERS.unlock();
 		    return null;
 		}
@@ -264,9 +235,6 @@ public class DFSDatabase extends DBManager implements Closeable
             hhThread.saveFile( file );
     	
 		LOCK_WRITERS.unlock();
-		
-		if(backup != null)
-		    backup.saveFile( fileName, content, clock, isDirectory, hintedHandoff, saveOnDisk );
 		
 		if(saveOnDisk && updated != null)
 		    notifyListeners( fileName, Message.GET );
@@ -361,7 +329,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		String fileId = DFSUtils.getId( fileName );
 		
 		LOCK_WRITERS.lock();
-		if(db.isClosed() || !start) {
+		if(db.isClosed()) {
             LOCK_WRITERS.unlock();
             return null;
         }
@@ -392,9 +360,6 @@ public class DFSDatabase extends DBManager implements Closeable
         }
     	
 		LOCK_WRITERS.unlock();
-		
-		if(backup != null)
-		    backup.deleteFile( fileName, clock, isDirectory, hintedHandoff );
 		
 		if(updated != null)
             notifyListeners( fileName, Message.DELETE );
@@ -451,38 +416,14 @@ public class DFSDatabase extends DBManager implements Closeable
 	}
 	
 	/**
-     * Forces a file to be definitely removed from the database.
-     * 
-     * @param file  the file to remove
-    */
-	private void forceRemoveFile( final DistributedFile file )
-	{
-	    LOCK_WRITERS.lock();
-        
-        if(db.isClosed() || !start) {
-            LOCK_WRITERS.unlock();
-            return;
-        }
-        
-        LOGGER.debug( "Removing file: " + file.getName() );
-        database.remove( file.getId() );
-        db.commit();
-        if(hhThread != null)
-            hhThread.removeFiles( file );
-        
-        LOCK_WRITERS.unlock();
-	}
-	
-	/**
 	 * Removes definitely a file from the database.
 	 * 
-	 * @param file  the file to remove
+	 * @param file  the file to delete
 	*/
-	protected void removeFile( final DistributedFile file )
+	private void removeFile( final DistributedFile file )
 	{
 	    LOCK_WRITERS.lock();
-	    
-	    if(db.isClosed() || !start) {
+	    if(db.isClosed()) {
             LOCK_WRITERS.unlock();
             return;
         }
@@ -511,7 +452,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	    String fileId = DFSUtils.getId( fileName );
 	    
 	    LOCK_READERS.lock();
-	    if(db.isClosed() || !start) {
+	    if(db.isClosed()) {
             LOCK_READERS.unlock();
             return false;
         }
@@ -537,8 +478,7 @@ public class DFSDatabase extends DBManager implements Closeable
 		List<DistributedFile> result = new ArrayList<>( 32 );
 		
 		LOCK_READERS.lock();
-		
-		if(db.isClosed() || !start) {
+		if(db.isClosed()) {
             LOCK_READERS.unlock();
             return null;
         }
@@ -564,7 +504,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	{
 	    String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
 	    LOCK_READERS.lock();
-	    if(db.isClosed() || !start) {
+	    if(db.isClosed()) {
             LOCK_READERS.unlock();
             return null;
         }
@@ -582,7 +522,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	public List<DistributedFile> getAllFiles()
 	{
 	    LOCK_READERS.lock();
-	    if(db.isClosed() || !start) {
+	    if(db.isClosed()) {
             LOCK_READERS.unlock();
             return null;
         }
@@ -609,16 +549,11 @@ public class DFSDatabase extends DBManager implements Closeable
 		shutDown.set( true );
 		
 		if(hhThread != null) hhThread.shutDown();
-		if(scanDBThread != null)
-		    scanDBThread.shutDown();
+		scanDBThread.shutDown();
+		asyncWriter.shutDown();
 		
-		if(asyncWriter != null)
-		    asyncWriter.shutDown();
-		
-		if(scanDBThread != null) {
-    		try { scanDBThread.join(); }
-    		catch( InterruptedException e ) {}
-		}
+		try { scanDBThread.join(); }
+		catch( InterruptedException e ) {}
 		
 		if(hhThread != null) {
 			try { hhThread.join(); }
@@ -630,10 +565,52 @@ public class DFSDatabase extends DBManager implements Closeable
 		    db.close();
 		LOCK_WRITERS.unlock();
 		
-		if(backup != null)
-		    backup.close();
-		
 		LOGGER.info( "Database closed." );
+	}
+	
+	/**
+	 * Class used to periodically test
+	 * if a file has to be definitely removed
+	 * from the database.
+	*/
+	private class ScanDBThread extends Thread
+	{
+		// Time to wait before to check the database (1 minute).
+		private static final int CHECK_TIMER = 60000;
+		
+		public ScanDBThread()
+		{
+		    setName( "ScanDB" );
+		}
+		
+		@Override
+		public void run()
+		{
+		    LOGGER.info( "Database scanner thread launched." );
+		    
+		    List<DistributedFile> files;
+		    
+			while(!shutDown.get()) {
+				try{ Thread.sleep( CHECK_TIMER );}
+				catch( InterruptedException e ){ break; }
+				
+				files = getAllFiles();
+				for(int i = files.size() - 1; i >= 0; i--) {
+					DistributedFile file = files.get( i );
+					if(file.isDeleted()) {
+						if(file.checkDelete())
+						    removeFile( file );
+					}
+				}
+			}
+			
+			LOGGER.info( "Database scanner thread closed." );
+		}
+		
+		public void shutDown()
+		{
+			interrupt();
+		}
 	}
 	
 	/**
