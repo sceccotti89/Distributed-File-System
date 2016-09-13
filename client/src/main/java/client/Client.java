@@ -262,7 +262,7 @@ public class Client implements DBListener
 	    
 	    while(true) {
     	    if(service.isReconciling() || !SCAN.ready()) {
-                try { Thread.sleep( 200 ); }
+                try { Thread.sleep( 50 ); }
                 catch( InterruptedException e ) {}
                 continue;
             }
