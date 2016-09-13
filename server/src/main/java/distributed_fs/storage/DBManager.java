@@ -37,13 +37,16 @@ public abstract class DBManager
     private List<DBListener> listeners = null;
     
     protected AsyncDiskWriter asyncWriter;
+    protected ScanDBThread scanDBThread;
     
     private final ReentrantReadWriteLock DB_LOCK = new ReentrantReadWriteLock( true );
     protected final ReadLock LOCK_READERS = DB_LOCK.readLock();
     protected final WriteLock LOCK_WRITERS = DB_LOCK.writeLock();
     
     protected boolean disableAsyncWrites = false;
+    protected boolean disableScanDB = false;
     protected boolean disableReconciliation = false;
+    protected boolean start = false;
     
     private final DataAccess dAccess = new DataAccess();
     
@@ -102,10 +105,9 @@ public abstract class DBManager
     */
     public void disableAsyncWrites()
     {
-        if(!disableAsyncWrites) {
+        if(!disableAsyncWrites && asyncWriter != null)
             asyncWriter.setClosed();
-            disableAsyncWrites = true;
-        }
+        disableAsyncWrites = true;
     }
     
     /**
@@ -116,14 +118,35 @@ public abstract class DBManager
     */
     public void enableAsyncWrites( final boolean enableParallelWorkers )
     {
-        if(disableAsyncWrites) {
+        if(disableAsyncWrites)
             asyncWriter = new AsyncDiskWriter( this, enableParallelWorkers );
-            disableAsyncWrites = false;
-        }
+        disableAsyncWrites = false;
     }
     
     /**
-     * Disable the conflict resolutor
+     * Disables the database scanner Thread.
+    */
+    public void disableScanDB()
+    {
+        if(!disableScanDB && scanDBThread != null)
+            scanDBThread.shutDown();
+        disableScanDB = false;
+    }
+    
+    /**
+     * Enables the database scanner Thread.
+     * 
+     * @param db    the associated database
+    */
+    public void enableScanDB( final DFSDatabase db )
+    {
+        if(disableScanDB)
+            scanDBThread = new ScanDBThread( db );
+        disableScanDB = false;
+    }
+    
+    /**
+     * Disable the conflict resolutor,
      * when two files have concurrent versions.
     */
     public void disableResolveConflicts() {
@@ -463,6 +486,59 @@ public abstract class DBManager
     public static interface DBListener
     {
         public void dbEvent( final String fileName, final byte code );
+    }
+    
+    /**
+     * Class used to periodically test
+     * if a file has to be definitely removed
+     * from the database.
+    */
+    protected class ScanDBThread extends Thread
+    {
+        // Time to wait before to check the database (1 minute).
+        private static final int CHECK_TIMER = 60000;
+        
+        private DFSDatabase db;
+        
+        
+        
+        
+        
+        public ScanDBThread( final DFSDatabase db )
+        {
+            setName( "ScanDB" );
+            
+            this.db = db;
+        }
+        
+        @Override
+        public void run()
+        {
+            LOGGER.info( "Database scanner thread launched." );
+            
+            List<DistributedFile> files;
+            
+            while(!shutDown.get()) {
+                try{ Thread.sleep( CHECK_TIMER );}
+                catch( InterruptedException e ){ break; }
+                
+                files = db.getAllFiles();
+                for(int i = files.size() - 1; i >= 0; i--) {
+                    DistributedFile file = files.get( i );
+                    if(file.isDeleted()) {
+                        if(file.checkDelete())
+                            db.removeFile( file );
+                    }
+                }
+            }
+            
+            LOGGER.info( "Database scanner thread closed." );
+        }
+        
+        public void shutDown()
+        {
+            interrupt();
+        }
     }
     
     /**

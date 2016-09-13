@@ -25,6 +25,7 @@ public class DatabaseTest
         deleteDirectory( new File( "Database" ) );
 		
 		DFSDatabase database = new DFSDatabase( null, null, null );
+		database.start();
 		DistributedFile file;
 		
 		for(int i = 1; i <= 10; i++) {

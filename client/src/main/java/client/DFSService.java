@@ -73,6 +73,7 @@ public class DFSService extends DFSManager implements IDFSService
 		database = new DFSDatabase( resourcesLocation, databaseLocation, null );
 		if(listener != null)
 		    database.addListener( listener );
+		database.start();
 		
 		Runtime.getRuntime().addShutdownHook( new Thread()
 		{
@@ -83,6 +84,17 @@ public class DFSService extends DFSManager implements IDFSService
 				LOGGER.info( "Service has been shutdown..." );
 			}
 		});
+	}
+	
+	/**
+     * Sets the backup location.
+     * 
+     * @param dbBackupPath     the database backup location
+     * @param resBackupPath    the resources backup location
+    */
+    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException
+    {
+        database.setBackup( dbBackupPath, resBackupPath );
 	}
 	
 	/**
@@ -192,63 +204,68 @@ public class DFSService extends DFSManager implements IDFSService
 	
 	@Override
 	public DistributedFile get( final String fileName ) throws DFSException
-	{
-	    if(isClosed()) {
+    {
+        if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
             return null;
         }
-	    
-	    Preconditions.checkNotNull( fileName, "fileName cannot be null." );
-		
-		if(!initialized) {
-		    throw new DFSException( "The system has not been initialized.\n" +
-		                            "Use the \"start\" method to initialize the system." );
-		}
-		
-		LOGGER.info( "Starting GET operation: " + fileName );
-		DistributedFile backToClient;
-		boolean unlock = false;
-		
-		double startTime = System.currentTimeMillis();
-		
-		String normFileName = database.normalizeFileName( fileName );
-		Session session = null;
-		if((session = contactRemoteNode( normFileName, Message.GET )) == null)
-			return null;
-		
-		try {
-			// Send the request.
-			sendGetMessage( session, normFileName );
-			
-			// Checks whether the load balancer has found an available node,
-			// or (with no balancers) if the quorum has been completed successfully.
-			if(!checkResponse( session, false ))
-				throw new IOException();
-			
-			if(useLoadBalancer) {
-			    // Checks whether the request has been forwarded to the storage node.
-			    if((session = waitRemoteConnection( session )) == null ||
-    			   !checkResponse( session, true ))
-    				throw new IOException();
-			}
-			
-			// Receive one or more files.
-			List<DistributedFile> files = readGetResponse( session );
-			
-			int size = files.size();
-			if(size == 0) {
-				LOGGER.info( "File \"" + fileName + "\" not found." );
-				session.close();
-				return null;
-			}
-			
-			int id = 0;
-			VectorClock clock = new VectorClock();
-			// Generate only one clock, merging all the received versions.
-			for(DistributedFile file : files)
-				clock = clock.merge( file.getVersion() );
-			
-			lock.lock();
+        
+        Preconditions.checkNotNull( fileName, "fileName cannot be null." );
+        
+        if(!initialized) {
+            throw new DFSException( "The system has not been initialized.\n" +
+                                    "Use the \"start\" method to initialize the system." );
+        }
+        
+        LOGGER.info( "Starting GET operation: " + fileName );
+        DistributedFile backToClient;
+        boolean unlock = false;
+        boolean responseError = false;
+        
+        double startTime = System.currentTimeMillis();
+        
+        String normFileName = database.normalizeFileName( fileName );
+        Session session = null;
+        if((session = contactRemoteNode( normFileName, Message.GET )) == null)
+            return null;
+        
+        try {
+            // Send the request.
+            sendGetMessage( session, normFileName );
+            
+            // Checks whether the load balancer has found an available node,
+            // or (with no balancers) if the quorum has been completed successfully.
+            if(!checkResponse( session, false )) {
+                responseError = true;
+                throw new IOException();
+            }
+            
+            if(useLoadBalancer) {
+                // Checks whether the request has been forwarded to the storage node.
+                session = waitRemoteConnection( session );
+                if(!checkResponse( session, true )) {
+                    responseError = true;
+                    throw new IOException();
+                }
+            }
+            
+            // Receive one or more files.
+            List<DistributedFile> files = readGetResponse( session );
+            
+            int size = files.size();
+            if(size == 0) {
+                LOGGER.info( "File \"" + fileName + "\" not found." );
+                session.close();
+                return null;
+            }
+            
+            int id = 0;
+            VectorClock clock = new VectorClock();
+            // Generate only one clock, merging all the received versions.
+            for(DistributedFile file : files)
+                clock = clock.merge( file.getVersion() );
+            
+            lock.lock();
             unlock = true;
             
             boolean reconciled = false;
@@ -267,42 +284,43 @@ public class DFSService extends DFSManager implements IDFSService
                     size++;
                 }
             }
-			
-			// Update the database.
+            
+            // Update the database.
             DistributedFile file = files.get( id );
-			if(file.isDeleted())
-			    database.deleteFile( fileName, clock, file.isDirectory(), null );
-			else
-			    database.saveFile( file, clock, null, true );
-			
-			backToClient = database.getFile( fileName );
-			
-			unlock = false;
-			lock.unlock();
-			
-			// Send back the reconciled version.
+            if(file.isDeleted())
+                database.deleteFile( fileName, clock, file.isDirectory(), null );
+            else
+                database.saveFile( file, clock, null, true );
+            
+            backToClient = database.getFile( fileName );
+            
+            unlock = false;
+            lock.unlock();
+            
+            // Send back the reconciled version.
             if(size > 1 && reconciled) {
                 // If the operation is not performed an exception is thrown.
                 if((!file.isDeleted() && !put( fileName )) ||
                     (file.isDeleted() && !delete( fileName )))
                     throw new IOException();
             }
-		}
-		catch( IOException e ) {
-			LOGGER.info( "Operation GET not performed. Try again later." );
-			if(unlock)
-			    lock.unlock();
-			//e.printStackTrace();
-			session.close();
-			return null;
-		}
-		
-		session.close();
-		double completeTime = ((double) System.currentTimeMillis() - startTime) / 1000d;
-		LOGGER.info( "Operation GET successfully completed in " + completeTime + " seconds. Received: " + backToClient );
-		
-		return backToClient;
-	}
+        }
+        catch( IOException e ) {
+            LOGGER.info( "Operation GET not performed. Try again later." );
+            if(unlock)
+                lock.unlock();
+            if(!responseError)
+                e.printStackTrace();
+            session.close();
+            return null;
+        }
+        
+        session.close();
+        double completeTime = ((double) System.currentTimeMillis() - startTime) / 1000d;
+        LOGGER.info( "Operation GET successfully completed in " + completeTime + " seconds. Received: " + backToClient );
+        
+        return backToClient;
+    }
 	
 	@Override
 	public boolean put( final String fileName ) throws DFSException, IOException
@@ -326,8 +344,8 @@ public class DFSService extends DFSManager implements IDFSService
 	 *         {@code false} otherwise
 	*/
 	private boolean doWrite( final byte opType, final String fileName ) throws IOException, DFSException
-	{
-	    if(isClosed()) {
+    {
+        if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
             return false;
         }
@@ -359,7 +377,14 @@ public class DFSService extends DFSManager implements IDFSService
         if(file == null) {
             File f = new File( dbRoot + normFileName );
             file = new DistributedFile( normFileName, f.isDirectory(), new VectorClock(), null );
+            file.loadContent( database );
+            if(opType == Message.PUT)
+                database.saveFile( file, file.getVersion(), null, true );
+            else 
+                database.deleteFile( file, null );
         }
+        
+        boolean responseError = false;
         
         double startTime = System.currentTimeMillis();
         Session session = null;
@@ -380,14 +405,18 @@ public class DFSService extends DFSManager implements IDFSService
             
             // Checks whether the load balancer has found an available node,
             // or (with no balancers) if the quorum has been completed successfully.
-            if(!checkResponse( session, false ))
+            if(!checkResponse( session, false )) {
+                responseError = true;
                 throw new IOException();
+            }
             
             if(useLoadBalancer) {
                 // Checks whether the request has been forwarded to the storage node.
-                if((session = waitRemoteConnection( session )) == null ||
-                   !checkResponse( session, true ))
+                session = waitRemoteConnection( session );
+                if(!checkResponse( session, true )) {
+                    responseError = true;
                     throw new IOException();
+                }
             }
             
             // Update the file's vector clock.
@@ -404,7 +433,8 @@ public class DFSService extends DFSManager implements IDFSService
             }
         }
         catch( IOException e ) {
-            e.printStackTrace();
+            if(!responseError)
+                e.printStackTrace();
             LOGGER.info( "Operation " + opCode + " for \"" + fileName + "\" not performed. Try again later." );
             completed = false;
         }
@@ -418,7 +448,7 @@ public class DFSService extends DFSManager implements IDFSService
         session.close();
         
         return completed;
-	}
+    }
 	
 	@Override
 	public List<DistributedFile> listFiles()
@@ -454,7 +484,7 @@ public class DFSService extends DFSManager implements IDFSService
 	 * @param opType   type of the operation
 	 * 
 	 * @return the TCP session if at least one remote node is available,
-	 * 		   {@code false} otherwise.
+	 * 		   {@code null} otherwise.
 	*/
 	private Session contactLoadBalancerNode( final byte opType )
 	{
@@ -648,7 +678,10 @@ public class DFSService extends DFSManager implements IDFSService
 		return closed.get();
 	}
 	
-	/***/
+	/**
+	 * Checks whether the system is trying
+	 * to reconcile any concurrent versions.
+	*/
 	public boolean isReconciling() {
 	    return syncClient.getReconciliation();
 	}
