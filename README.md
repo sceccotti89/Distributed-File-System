@@ -41,11 +41,7 @@ sh buildAll.sh (Linux and MacOS systems)
 start buildAll.bat (Windows systems)
 ```
 
-Alternatively you can manually built the project using the following commands:
-```bash
-mvn install (server and gossip modules)
-mvn package (client module)
-```
+Alternatively you can manually built the project, following the commands present in the script.
 
 ### Gradle
 
@@ -167,6 +163,7 @@ My suggestion is to assign the VMs in this way: at least 1 for Client and LoadBa
 - [jline](http://jline.sourceforge.net/), to read the user input.
 - [guava](https://github.com/google/guava), to compute the id of the objects using an hash function.
 - [json](https://github.com/stleary/JSON-java), to read and write JSON files.
+- [mr-udp](http://lac-rio.com/mr-udp/), to implement the Reliable UDP protocol.
 - [gossiping](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/gossiping), customized version of the gossiping protocol.
 - [versioning](https://github.com/tonellotto/Distributed-Enabling-Platforms/tree/master/versioning), cloned version of the Voldemort project.
 
