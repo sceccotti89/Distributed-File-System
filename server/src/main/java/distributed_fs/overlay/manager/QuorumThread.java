@@ -243,6 +243,9 @@ public class QuorumThread extends Thread
                     state.getActionsList().removeFirst();
                 }
                 
+                if(newSession == null)
+                    throw new IOException();
+                
                 // Send the message.
                 if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
                     byte[] msg = net.createMessage( new byte[]{ MAKE_QUORUM, opType }, fileName.getBytes( StandardCharsets.UTF_8 ), true );
@@ -293,7 +296,7 @@ public class QuorumThread extends Thread
             }
             catch( IOException e ) {
                 // Ignored.
-                e.printStackTrace();
+                //e.printStackTrace();
                 
                 if(newSession != null)
                     newSession.close();
