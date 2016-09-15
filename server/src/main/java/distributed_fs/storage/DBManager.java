@@ -46,7 +46,7 @@ public abstract class DBManager
     protected boolean disableAsyncWrites = false;
     protected boolean disableReconciliation = false;
     
-    private final WeakHashMap<String, byte[]> cache;
+    private final Map<String, byte[]> cache;
     
     private final DataAccess dAccess = new DataAccess();
     
