@@ -39,10 +39,13 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 {
 	private Session session;
 	private MerkleTree m_tree = null;
+	private int destPort;
 	
 	// Used to keep track of the common files.
 	private BitSet bitSet = new BitSet();
 	private final Set<String> addresses = new HashSet<>();
+	
+	private final List<DistributedFile> filesExchanged;
 	
 	
 	
@@ -55,6 +58,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 		super( _me, _database, fMgr, cHasher );
 		setName( "AntiEntropySender" );
+		
+		filesExchanged = new ArrayList<>( 16 );
 	}
 	
 	@Override
@@ -134,12 +139,21 @@ public class AntiEntropySenderThread extends AntiEntropyThread
     		              ", FILES: " + files +
     		              ", TREE: " + m_tree );
     		
+    		// Get the destination port.
+    		destPort = DFSUtils.byteArrayToInt( session.receive() );
+    		
     		// Check the differences among the trees.
     		checkTreeDifferences();
     		
     		if(m_tree != null && bitSet.cardinality() > 0) {
     			LOGGER.debug( "Id: " + vNodeId + ", BitSet: " + bitSet );
     			sendVersions( files );
+    		}
+    		
+    		// Receive the list of files that the receiver wants to retrieve.
+    		if(bitSet.cardinality() > 0) {
+        		BitSet set = BitSet.valueOf( session.receive() );
+        		sendFiles( set );
     		}
 		}
 		
@@ -206,7 +220,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			int levels = Math.min( m_tree.getHeight(), inputHeight );
 			boolean finish = false;
 			// If the leaves level is reached we stop to send the current level.
-			for(; !finish && levels >= 0 && (nNodes = nodes.size()) > 0; levels--) {
+			for( ; !finish && levels >= 0 && (nNodes = nodes.size()) > 0; levels--) {
 				sendCurrentLevel( nodes );
 				
 				// Receive the response set.
@@ -281,6 +295,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	{
 		int fileSize = files.size();
 		byte[] msg = null;
+		filesExchanged.clear();
 		
 		for(int i = bitSet.nextSetBit( 0 ); i >= 0 && i < fileSize; i = bitSet.nextSetBit( i+1 )) {
 			if(i == Integer.MAX_VALUE)
@@ -289,9 +304,26 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 			DistributedFile file = files.get( i );
 			byte[] vClock = DFSUtils.serializeObject( file.getVersion() );
 			msg = net.createMessage( msg, vClock, true );
+			filesExchanged.add( file );
 		}
 		
 		session.sendMessage( msg, true );
+	}
+	
+	/**
+	 * Send the requested files.
+	 * 
+	 * @param set  contains all the bits for the requested files
+	*/
+	private void sendFiles( final BitSet set )
+	{
+	    List<DistributedFile> filesToSend = new ArrayList<>( set.cardinality() );
+	    for(int i = set.nextSetBit( 0 ); i >= 0; i = set.nextSetBit( i+1 )) {
+	        DistributedFile file = filesExchanged.get( i );
+	        filesToSend.add( file );
+	    }
+	    
+	    fMgr.sendFiles( session.getEndPointAddress(), destPort, filesToSend, false, null, null );
 	}
 	
 	/**

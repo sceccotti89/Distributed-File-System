@@ -42,6 +42,7 @@ import gossiping.GossipMember;
 public class AntiEntropyReceiverThread extends AntiEntropyThread
 {
     private ExecutorService threadPool;
+    private final int port;
 	
 	/** Map used to manage nodes in the synchronization phase */
 	private volatile Set<String> syncNodes = new ConcurrentSkipListSet<>();
@@ -60,17 +61,19 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 	    threadPool = Executors.newFixedThreadPool( QuorumSession.getMaxNodes() );
 	    addToSynch( me.getId() );
 	    net.setSoTimeout( 500 );
+	    
+	    port = me.getPort() + PORT_OFFSET;
 	}
 	
 	@Override
 	public void run()
 	{
 	    LOGGER.info( "Anti Entropy Receiver Thread launched" );
-	    LOGGER.info( "[AE] Waiting on: " + me.getHost() + ":" + (me.getPort() + PORT_OFFSET) );
+	    LOGGER.info( "[AE] Waiting on: " + me.getHost() + ":" + port );
 	    
 	    while(!shutDown.get()) {
 	        try {
-	            Session session = net.waitForConnection( me.getHost(), me.getPort() + PORT_OFFSET );
+	            Session session = net.waitForConnection( me.getHost(), port );
 	            if(session == null)
 	                continue;
 	            
@@ -162,7 +165,6 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 			}
 			catch( IOException e ) {
-			    // Ignored.
 				e.printStackTrace();
 				
 				if(sourceId != null)
@@ -192,6 +194,8 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			
 			// Send out a positive response.
             session.sendMessage( Networking.TRUE, false );
+            // Send the own port.
+            session.sendMessage( DFSUtils.intToByteArray( me.getPort() ), false );
 			return data;
 		}
 		
@@ -293,10 +297,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 				}
 			}
 			
-      byte[] msg = net.createMessage( new byte[]{ (byte) ((nodes.size() == 0) ? 0x1 : 0x0 ) }, _bitSet.toByteArray(), false );
+			byte[] msg = net.createMessage( new byte[]{ (byte) ((nodes.size() == 0) ? 0x1 : 0x0 ) }, _bitSet.toByteArray(), false );
 			session.sendMessage( msg, true );
-
-       return _bitSet.cardinality() == pTreeSize;
+			
+			return _bitSet.cardinality() == pTreeSize;
 		}
 		
 		/**
@@ -313,7 +317,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 			    DistributedFile file = files.get( i );
 			    file.loadContent( database );
 			    filesToSend.add( file );
-			    System.out.println( "Sending: " + file + " because absent." );
+			    //System.out.println( "Sending: " + file + " because absent." );
 				if(i == Integer.MAX_VALUE)
 					break; // or (i+1) would overflow.
 			}
@@ -349,18 +353,28 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
 		                            final String address,
 		                            final String sourceNodeId ) throws IOException
 		{
+		    BitSet filesToReceive = new BitSet();
+		    
 			// Get the files that are shared by the two nodes, but with different versions.
 			for(int i = bitSet.nextSetBit( 0 ), j = 0; i >= 0; i = bitSet.nextSetBit( i+1 ), j++) {
 				if(i == Integer.MAX_VALUE)
 					break; // or (i+1) would overflow.
 				
 				DistributedFile file = files.get( i );
-				// If the own version is younger than the input version, the associated file is sent.
-				if(inClocks.get( j ).compare( file.getVersion() ) == Occurred.BEFORE) {
+				Occurred result = inClocks.get( j ).compare( file.getVersion() );
+				// If the own file has the most updated version, it is sent.
+				if(result == Occurred.BEFORE) {
 					file.loadContent( database );
 				    filesToSend.add( file );
 				}
+				else if(result == Occurred.AFTER) {
+				    // The received file has the most updated version.
+				    filesToReceive.set( j );
+				}
 			}
+			
+			// Send the list of versions to retrieve.
+			session.sendMessage( filesToReceive.toByteArray(), true );
 		}
 	}
 	
