@@ -17,6 +17,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -45,6 +46,8 @@ public abstract class DBManager
     protected boolean disableAsyncWrites = false;
     protected boolean disableReconciliation = false;
     
+    private final WeakHashMap<String, byte[]> cache;
+    
     private final DataAccess dAccess = new DataAccess();
     
     protected final AtomicBoolean shutDown = new AtomicBoolean( false );
@@ -59,6 +62,7 @@ public abstract class DBManager
     
     public DBManager( final String resourcesLocation ) throws DFSException
     {
+        cache = new WeakHashMap<>( 32 );
         root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
         if(!createDirectory( root )) {
             throw new DFSException( "Invalid resources path " + root + ".\n" +
@@ -278,20 +282,23 @@ public abstract class DBManager
         
         DataLock dCond = dAccess.checkFileInUse( fileName, Message.GET );
         
-        File file = new File( fileName );
-        FileInputStream fis = new FileInputStream( file );
-        FileChannel fChannel = fis.getChannel();
-        byte[] bytes = new byte[(int) file.length()];
-        ByteBuffer bb = ByteBuffer.wrap( bytes );
-        
-        try {
-            fChannel.read( bb );
-            fChannel.close();
-            fis.close();
-        }
-        catch( IOException e ) {
-            dAccess.notifyFileInUse( fileName, dCond );
-            throw e;
+        byte[] bytes = cache.get( filePath );
+        if(bytes == null) {
+            File file = new File( fileName );
+            FileInputStream fis = new FileInputStream( file );
+            FileChannel fChannel = fis.getChannel();
+            bytes = new byte[(int) file.length()];
+            ByteBuffer bb = ByteBuffer.wrap( bytes );
+            
+            try {
+                fChannel.read( bb );
+                fChannel.close();
+                fis.close();
+            }
+            catch( IOException e ) {
+                dAccess.notifyFileInUse( fileName, dCond );
+                throw e;
+            }
         }
         
         dAccess.notifyFileInUse( fileName, dCond );
@@ -332,6 +339,9 @@ public abstract class DBManager
                 dAccess.notifyFileInUse( fileName, dCond );
                 throw e;
             }
+            
+            // Invalidate (if present) the version in the cache.
+            cache.remove( fileName );
             
             dAccess.notifyFileInUse( fileName, dCond );
         }
