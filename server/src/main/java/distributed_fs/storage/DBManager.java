@@ -13,11 +13,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -34,6 +35,7 @@ import distributed_fs.storage.DBManager.DataAccess.DataLock;
 public abstract class DBManager
 {
     protected final String root;
+    protected String backupRoot;
     
     private List<DBListener> listeners = null;
     
@@ -46,7 +48,7 @@ public abstract class DBManager
     protected boolean disableAsyncWrites = false;
     protected boolean disableReconciliation = false;
     
-    private final Map<String, byte[]> cache;
+    private final DBCache cache;
     
     private final DataAccess dAccess = new DataAccess();
     
@@ -62,7 +64,7 @@ public abstract class DBManager
     
     public DBManager( final String resourcesLocation ) throws DFSException
     {
-        cache = new WeakHashMap<>( 32 );
+        cache = new DBCache();
         root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
         if(!createDirectory( root )) {
             throw new DFSException( "Invalid resources path " + root + ".\n" +
@@ -282,7 +284,7 @@ public abstract class DBManager
         
         DataLock dCond = dAccess.checkFileInUse( fileName, Message.GET );
         
-        byte[] bytes = cache.get( filePath );
+        byte[] bytes = cache.get( fileName );
         if(bytes == null) {
             File file = new File( fileName );
             FileInputStream fis = new FileInputStream( file );
@@ -299,6 +301,8 @@ public abstract class DBManager
                 dAccess.notifyFileInUse( fileName, dCond );
                 throw e;
             }
+            
+            cache.put( fileName, bytes );
         }
         
         dAccess.notifyFileInUse( fileName, dCond );
@@ -473,6 +477,156 @@ public abstract class DBManager
     public static interface DBListener
     {
         public void dbEvent( final String fileName, final byte code );
+    }
+    
+    /**
+     * Class used to implement a cache.<br>
+     * It manages all the most recent files read from the application.
+    */
+    public static final class DBCache
+    {
+        private final Map<String, CacheEntry> files;
+        private int spaceOccupancy = 0;
+        
+        private static final int MAX_SIZE = 1 << 21; // 64MBytes
+        
+        public DBCache()
+        {
+            files = new HashMap<>( 64 );
+        }
+        
+        /**
+         * Associates the specified value with the specified key in this map
+         * (optional operation).  If the map previously contained a mapping for
+         * the key, the old value is replaced by the specified value.  (A map
+         * <tt>m</tt> is said to contain a mapping for a key <tt>k</tt> if and only
+         * if {@link #containsKey(Object) m.containsKey(k)} would return
+         * <tt>true</tt>.)
+         *
+         * @param key key with which the specified value is to be associated
+         * @param value value to be associated with the specified key
+         * @return the previous value associated with <tt>key</tt>, or
+         *         <tt>null</tt> if there was no mapping for <tt>key</tt>.
+         *         (A <tt>null</tt> return can also indicate that the map
+         *         previously associated <tt>null</tt> with <tt>key</tt>,
+         *         if the implementation supports <tt>null</tt> values.)
+        */
+        private void put( final String key, final byte[] value )
+        {
+            int length = value.length;
+            if(length > MAX_SIZE) // Can't exceed the maximum size.
+                return;
+            
+            if(length > getLeftSpace()) {
+                // Remove the old entry in the cache.
+                Entry<String, CacheEntry> oldestKey = null;
+                for(Entry<String, CacheEntry> entry : files.entrySet()) {
+                    if(oldestKey == null || entry.getValue().timestamp < oldestKey.getValue().timestamp)
+                        oldestKey = entry;
+                }
+                if(oldestKey != null) {
+                    byte[] data = files.remove( oldestKey.getKey() ).getValue();
+                    spaceOccupancy -= data.length;
+                }
+            }
+            
+            files.put( key, new CacheEntry( value ) );
+            spaceOccupancy += length;
+        }
+        
+        /**
+         * Removes the mapping for a key from this map if it is present
+         * (optional operation).   More formally, if this map contains a mapping
+         * from key <tt>k</tt> to value <tt>v</tt> such that
+         * <code>(key==null ?  k==null : key.equals(k))</code>, that mapping
+         * is removed.  (The map can contain at most one such mapping.)
+         *
+         * <p>Returns the value to which this map previously associated the key,
+         * or <tt>null</tt> if the map contained no mapping for the key.
+         *
+         * @param key key whose mapping is to be removed from the map
+         * @return the previous value associated with <tt>key</tt>, or
+         *         <tt>null</tt> if there was no mapping for <tt>key</tt>.
+        */
+        private void remove( final String key )
+        {
+            CacheEntry val = files.remove( key );
+            if(val != null)
+                spaceOccupancy -= val.getValue().length;
+        }
+        
+        /**
+         * Returns the value to which the specified key is mapped,
+         * or {@code null} if this map contains no mapping for the key.
+         *
+         * <p>More formally, if this map contains a mapping from a key
+         * {@code k} to a value {@code v} such that {@code (key==null ? k==null :
+         * key.equals(k))}, then this method returns {@code v}; otherwise
+         * it returns {@code null}.  (There can be at most one such mapping.)
+         *
+         * @param key the key whose associated value is to be returned
+         * @return the value to which the specified key is mapped, or
+         *         {@code null} if this map contains no mapping for the key
+        */
+        private byte[] get( final String key )
+        {
+            CacheEntry val = files.get( key );
+            byte[] data = null;
+            if(val != null) {
+                val.refresh();
+                data = val.getValue();
+            }
+            
+            return data;
+        }
+        
+        /**
+         * Returns the free space
+         * used to store the files.
+        */
+        private int getLeftSpace()
+        {
+            return MAX_SIZE - spaceOccupancy;
+        }
+        
+        /**
+         * Building block of the cache. It contains fields and methods
+         * to properly manage the additional informations
+         * about the stored values.
+        */
+        public static class CacheEntry implements Comparator<CacheEntry>
+        {
+            private byte[] value;
+            private Long timestamp;
+            
+            public CacheEntry( final byte[] value )
+            {
+                this.value = value;
+                refresh();
+            }
+            
+            /**
+             * Returns the associated key.
+            */
+            public byte[] getValue()
+            {
+                return value;
+            }
+            
+            /**
+             * Refreshes the actual timestamp.
+            */
+            public void refresh()
+            {
+                timestamp = System.currentTimeMillis();
+            }
+            
+            @Override
+            public int compare( final CacheEntry o1, final CacheEntry o2 )
+            {
+                return o1.timestamp.compareTo( o2.timestamp );
+            }
+        }
     }
     
     /**
