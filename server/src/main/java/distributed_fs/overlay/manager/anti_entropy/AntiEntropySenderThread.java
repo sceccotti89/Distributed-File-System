@@ -40,6 +40,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	private Session session;
 	private MerkleTree m_tree = null;
 	private int destPort;
+	private List<DistributedFile> filesToSend;
 	
 	// Used to keep track of the common files.
 	private BitSet bitSet = new BitSet();
@@ -130,6 +131,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	    String prevId = cHasher.getPreviousBucket( vNodeId );
 	    List<DistributedFile> files = database.getKeysInRange( prevId, vNodeId );
         m_tree = createMerkleTree( files );
+        filesToSend = new ArrayList<>( 32 );
 	    
 		boolean complete = handShake( node, vNodeId, prevId );
 		if(complete) {
@@ -149,6 +151,9 @@ public class AntiEntropySenderThread extends AntiEntropyThread
     			LOGGER.debug( "Id: " + vNodeId + ", BitSet: " + bitSet );
     			sendVersions( files );
     		}
+    		
+    		// Send all the files that the receiver doesn't own.
+    		getMissingFiles( files );
     		
     		// Receive the list of files that the receiver wants to retrieve.
     		if(bitSet.cardinality() > 0) {
@@ -311,13 +316,37 @@ public class AntiEntropySenderThread extends AntiEntropyThread
 	}
 	
 	/**
+     * Gets all the files that the other node doesn't have.
+     * 
+     * @param files     list of files in the range
+    */
+    private void getMissingFiles( final List<DistributedFile> files )
+    {
+        if(m_tree != null) {
+            // Flip the values to get all the not-in-common files.
+            bitSet.flip( 0, m_tree.getNumLeaves() );
+            
+            for(int i = bitSet.nextSetBit( 0 ); i >= 0; i = bitSet.nextSetBit( i+1 )) {
+                DistributedFile file = files.get( i );
+                file.loadContent( database );
+                filesToSend.add( file );
+                //System.out.println( "Sending: " + file + " because absent." );
+                if(i == Integer.MAX_VALUE)
+                    break; // or (i+1) would overflow.
+            }
+            
+            // Flip back the values.
+            bitSet.flip( 0, m_tree.getNumLeaves() );
+        }
+    }
+	
+	/**
 	 * Send the requested files.
 	 * 
 	 * @param set  contains all the bits for the requested files
 	*/
 	private void sendFiles( final BitSet set )
 	{
-	    List<DistributedFile> filesToSend = new ArrayList<>( set.cardinality() );
 	    for(int i = set.nextSetBit( 0 ); i >= 0; i = set.nextSetBit( i+1 )) {
 	        DistributedFile file = filesExchanged.get( i );
 	        filesToSend.add( file );
