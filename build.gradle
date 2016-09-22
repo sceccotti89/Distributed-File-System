@@ -1,0 +1,25 @@
+
+apply plugin: 'application'
+
+version = '1.0'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    maven { url "https://jitpack.io" }
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = '2.5'
+}
+
+run {
+    /* Can pass all the properties: */
+    systemProperties System.getProperties()
+
+    /* Need to split the space-delimited value in the exec.args */
+    if(System.getProperty("exec.args") != null) {
+        args System.getProperty("exec.args").split()
+    }
+}
