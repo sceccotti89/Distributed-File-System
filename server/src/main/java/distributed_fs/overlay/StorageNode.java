@@ -135,16 +135,25 @@ public class StorageNode extends DFSNode
 	}
 	
 	/**
-	 * Enable/disable the anti-entropy mechanism.<br>
-	 * By default this value is setted to {@code true}.
-	 * 
-	 * @param enable    {@code true} to enable the anti-entropy mechanism,
+     * Enable/disable the anti-entropy mechanism.<br>
+     * By default this value is setted to {@code true}.
+     * 
+     * @param enable    {@code true} to enable the anti-entropy mechanism,
      *                  {@code false} otherwise
-	*/
-	public void setAntiEntropy( final boolean enable )
-	{
-	    fMgr.setAntiEntropy( enable );
-	}
+    */
+    public void setAntiEntropy( final boolean enable ) {
+        fMgr.setAntiEntropy( enable );
+    }
+    
+    /**
+     * Sets the backup location.
+     * 
+     * @param dbBackupPath     the database backup location
+     * @param resBackupPath    the resources backup location
+    */
+    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException {
+        fMgr.getDatabase().setBackup( dbBackupPath, resBackupPath );
+    }
 	
 	/**
 	 * Starts the node.<br>

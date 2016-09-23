@@ -103,6 +103,8 @@ public class DFSService extends DFSManager implements IDFSService
 	*/
 	public boolean start() throws IOException
 	{
+	    database.newInstance();
+	    
 		if(!disableSyncThread) {
 		    syncClient = new ClientSynchronizer( this, database, lock );
 		    syncClient.start();

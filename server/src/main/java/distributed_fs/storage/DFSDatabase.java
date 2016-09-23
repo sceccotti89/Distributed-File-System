@@ -15,8 +15,11 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.collections4.map.LinkedMap;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -32,16 +35,20 @@ import gossiping.event.GossipState;
 
 public class DFSDatabase extends DBManager implements Closeable
 {
+    // List of threads.
 	private final FileTransfer _fileMgr;
-	private final ScanDBThread scanDBThread;
+	private ScanDBThread scanDBThread;
 	private CheckHintedHandoffDatabase hhThread;
-	private final List<String> toUpdate;
+	private BackupThread bThread;
+	
+	private final List<String> toUpdate = new Vector<>( 64 );
 	
 	private DB db;
 	private BTreeMap<String, DistributedFile> database;
 	
 	// Database path location.
 	private static final String DATABASE_LOCATION = "Database/";
+	
 	
 	
 	
@@ -61,7 +68,7 @@ public class DFSDatabase extends DBManager implements Closeable
 	*/
 	public DFSDatabase( final String resourcesLocation,
 						final String databaseLocation,
-						final FileTransfer fileMgr ) throws IOException, DFSException
+						final FileTransfer fileMgr ) throws DFSException
 	{
 	    super( resourcesLocation );
 	    
@@ -83,11 +90,35 @@ public class DFSDatabase extends DBManager implements Closeable
                     .snapshotEnable()
                     .make();
         database = db.treeMap( "map" );
-        //db.commit();
+	}
+	
+	/**
+     * Sets the backup location.
+     * 
+     * @param dbBackupPath     the database backup location
+     * @param resBackupPath    the resources backup location
+    */
+    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws DFSException, IOException
+	{
+        String dbRoot = createResourcePath( dbBackupPath, null );
+        if(!createDirectory( dbRoot )) {
+            throw new DFSException( "Invalid database path " + dbRoot + ".\n" +
+                                    "Make sure that the path is correct and that " +
+                                    "you have the permissions to create and execute it." );
+        }
+        LOGGER.info( "Backup database created on: " + dbRoot );
         
-        asyncWriter = new AsyncDiskWriter( this, true );
+        bThread = new BackupThread( dbBackupPath, resBackupPath );
+        bThread.start();
+	}
+    
+    /**
+     * Creates a new instance of the database.
+    */
+    public void newInstance() throws IOException
+    {
+        launched.set( true );
         
-        toUpdate = new Vector<>();
         loadFiles();
         
         // Save the files in the hinted handoff database.
@@ -95,10 +126,15 @@ public class DFSDatabase extends DBManager implements Closeable
             if(file.getHintedHandoff() != null && hhThread != null)
                 hhThread.saveFile( file );
         }
-		
-		scanDBThread = new ScanDBThread();
-		scanDBThread.start();
-	}
+        
+        if(!disableScanDB) {
+            scanDBThread = new ScanDBThread();
+            scanDBThread.start();
+        }
+        
+        if(!disableAsyncWrites)
+            asyncWriter = new AsyncDiskWriter( this, true );
+    }
 	
 	/**
      * Loads all the files present in the file system,
@@ -127,6 +163,11 @@ public class DFSDatabase extends DBManager implements Closeable
 			        file = new DistributedFile( fileName, f.isDirectory(), new VectorClock(), null );
 			        database.put( file.getId(), file );
 			        notifyListeners( fileName, Message.GET );
+			        
+			        if(bThread != null) {
+			            file.loadContent( this );
+			            bThread.enqueue( file, file.getContent(), BackupThread.PUT );
+			        }
 			    }
 			    
 			    toUpdate.add( file.getName() );
@@ -148,11 +189,14 @@ public class DFSDatabase extends DBManager implements Closeable
             if(!existFile( root + file.getName(), false ) && !file.isDeleted()) {
                 LOCK_WRITERS.lock();
                 database.remove( file.getId() );
+                notifyListeners( file.getName(), Message.DELETE );
                 LOCK_WRITERS.unlock();
                 
-                notifyListeners( file.getName(), Message.DELETE );
                 if(hhThread != null)
                     hhThread.removeFiles( file );
+                
+                if(bThread != null)
+                    bThread.enqueue( file, null, BackupThread.DELETE );
             }
         }
 	}
@@ -233,11 +277,14 @@ public class DFSDatabase extends DBManager implements Closeable
 		
 		if(hintedHandoff != null && hhThread != null)
             hhThread.saveFile( file );
+		
+		if(saveOnDisk && updated != null)
+            notifyListeners( fileName, Message.GET );
     	
 		LOCK_WRITERS.unlock();
 		
-		if(saveOnDisk && updated != null)
-		    notifyListeners( fileName, Message.GET );
+		if(updated != null && bThread != null)
+		    bThread.enqueue( file, content, BackupThread.PUT );
 		
 		return updated;
 	}
@@ -276,6 +323,7 @@ public class DFSDatabase extends DBManager implements Closeable
         if(!database.containsKey( DFSUtils.getId( fileName ) )) {
             DistributedFile file = new DistributedFile( fileName, true, new VectorClock(), null );
             database.put( file.getId(), file );
+            
             if(saveOnDisk) {
                 if(disableAsyncWrites)
                     writeFileOnDisk( root + fileName, null );
@@ -357,12 +405,14 @@ public class DFSDatabase extends DBManager implements Closeable
                     removeDirectory( new File( root + fileName ), clock.getLastNodeId() );
                 db.commit();
             }
+            
+            notifyListeners( fileName, Message.DELETE );
         }
     	
 		LOCK_WRITERS.unlock();
 		
-		if(updated != null)
-            notifyListeners( fileName, Message.DELETE );
+		if(updated != null && bThread != null)
+            bThread.enqueue( file, null, BackupThread.DELETE );
 		
 		return updated;
 	}
@@ -422,21 +472,29 @@ public class DFSDatabase extends DBManager implements Closeable
 	*/
 	private void removeFile( final DistributedFile file )
 	{
+	    boolean deleted = false;
+	    
 	    LOCK_WRITERS.lock();
+	    
 	    if(db.isClosed()) {
             LOCK_WRITERS.unlock();
             return;
         }
 	    
 	    if(file.isDeleted()) {
+	        deleted = true;
 	        LOGGER.debug( "Removing file: " + file.getName() );
 		    database.remove( file.getId() );
 		    db.commit();
+		    
 		    if(hhThread != null)
 		        hhThread.removeFiles( file );
 	    }
         
         LOCK_WRITERS.unlock();
+        
+        if(deleted && bThread != null)
+            bThread.enqueue( file, null, BackupThread.REMOVE );
 	}
 	
     /** 
@@ -543,30 +601,37 @@ public class DFSDatabase extends DBManager implements Closeable
 		hhThread.checkMember( nodeAddress, state );
 	}
 
-    @Override
-	public void close()
-	{
-		shutDown.set( true );
-		
-		if(hhThread != null) hhThread.shutDown();
-		scanDBThread.shutDown();
-		asyncWriter.shutDown();
-		
-		try { scanDBThread.join(); }
-		catch( InterruptedException e ) {}
-		
-		if(hhThread != null) {
-			try { hhThread.join(); }
-			catch( InterruptedException e ) {}
-		}
-		
-		LOCK_WRITERS.lock();
-		if(!db.isClosed())
-		    db.close();
-		LOCK_WRITERS.unlock();
-		
-		LOGGER.info( "Database closed." );
-	}
+	@Override
+    public void close()
+    {
+        shutDown.set( true );
+        
+        if(hhThread != null) hhThread.shutDown();
+        if(scanDBThread != null) scanDBThread.shutDown();
+        asyncWriter.shutDown();
+        
+        if(scanDBThread != null) {
+            try { scanDBThread.join(); }
+            catch( InterruptedException e ) {}
+        }
+        
+        if(hhThread != null) {
+            try { hhThread.join(); }
+            catch( InterruptedException e ) {}
+        }
+        
+        LOCK_WRITERS.lock();
+        if(!db.isClosed())
+            db.close();
+        LOCK_WRITERS.unlock();
+        
+        if(bThread != null) {
+            try { bThread.join(); }
+            catch( InterruptedException e ) {}
+        }
+        
+        LOGGER.info( "Database closed." );
+    }
 	
 	/**
 	 * Class used to periodically test
@@ -715,7 +780,7 @@ public class DFSDatabase extends DBManager implements Closeable
 			MUTEX_LOCK.lock();
 			
 			List<DistributedFile> files = hhDatabase.get( file.getHintedHandoff() );
-			if(files == null) files = new ArrayList<>( 8 );
+			if(files == null) files = new ArrayList<>( 64 );
 			files.add( file );
 			hhDatabase.put( file.getHintedHandoff(), files );
 			
@@ -785,5 +850,116 @@ public class DFSDatabase extends DBManager implements Closeable
 		{
 			interrupt();
 		}
+	}
+	
+	/**
+     * Thread used to perform the operations in background,
+     * writing in a backup database.
+    */
+	private class BackupThread extends Thread
+	{
+	    private DFSDatabase backup;
+	    private final LinkedMap<String, QueueNode> filesQueue;
+	    private final Lock lock;
+	    private final Condition notEmpty;
+	    
+	    private static final byte PUT = 0, DELETE = 1, REMOVE = 2;
+	    
+	    
+	    
+	    public BackupThread( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException
+	    {
+	        backup = new DFSDatabase( resBackupPath, dbBackupPath, null );
+	        backup.disableAsyncWrites();
+	        backup.disableScanDB();
+	        
+	        filesQueue = new LinkedMap<>( 64 );
+	        lock = new ReentrantLock();
+	        notEmpty = lock.newCondition();
+        }
+	    
+	    @Override
+	    public void run()
+	    {
+	        QueueNode node;
+	        while(!shutDown.get()) {
+	            try {
+                    node = dequeue();
+                    if(node == null)
+                        continue;
+                    
+                    // Write or delete a file on disk.
+                    DistributedFile file = node.file;
+                    switch( node.opType ) {
+                        case( PUT ):
+                            backup.saveFile( file.getName(), node.content, file.getVersion(), file.isDirectory(), file.getHintedHandoff(), true );
+                            break;
+                        case( DELETE ):
+                            backup.deleteFile( file.getName(), file.getVersion(), file.isDirectory(), file.getHintedHandoff() );
+                            break;
+                        case( REMOVE ):
+                            backup.removeFile( file );
+                            break;
+                    }
+                }
+                catch( InterruptedException | IOException e ) {
+                    e.printStackTrace();
+                }
+	        }
+	    }
+	    
+	    /**
+         * Removes the first element from the queue.
+        */
+        private QueueNode dequeue() throws InterruptedException
+        {
+            lock.lock();
+            
+            while(filesQueue.isEmpty()) {
+                if(shutDown.get()) { lock.unlock(); return null; }
+                notEmpty.awaitNanos( 500000 ); // 0.5 seconds.
+            }
+            
+            // Get and remove the first element of the queue.
+            QueueNode node = filesQueue.remove( 0 );
+            
+            lock.unlock();
+            
+            return node;
+        }
+	    
+	    /**
+	     * Inserts a file into the queue.
+	     * 
+	     * @param file     the file to add or remove.
+	     * @param content  the file's content. It may be {@code null} in case of a directory or in a delete or remove operation
+	     * @param opType   the operation to perform ({@link #PUT}, {@link #DELETE} or {@link #REMOVE})
+	    */
+	    public void enqueue( final DistributedFile file, final byte[] content, final byte opType )
+	    {
+	        lock.lock();
+	        
+	        filesQueue.put( file.getName(), new QueueNode( file, content, opType ) );
+	        if(filesQueue.size() == 1)
+	            notEmpty.signal();
+	        
+	        lock.unlock();
+	    }
+	    
+	    
+	    
+	    private class QueueNode
+	    {
+	        public final DistributedFile file;
+	        public final byte[] content;
+	        public final byte opType;
+	        
+	        public QueueNode( final DistributedFile file, final byte[] content, final byte opType )
+	        {
+	            this.file = file;
+	            this.content = content;
+	            this.opType = opType;
+	        }
+	    }
 	}
 }

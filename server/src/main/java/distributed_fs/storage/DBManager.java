@@ -35,7 +35,6 @@ import distributed_fs.storage.DBManager.DataAccess.DataLock;
 public abstract class DBManager
 {
     protected final String root;
-    protected String backupRoot;
     
     private List<DBListener> listeners = null;
     
@@ -47,11 +46,13 @@ public abstract class DBManager
     
     protected boolean disableAsyncWrites = false;
     protected boolean disableReconciliation = false;
+    protected boolean disableScanDB = false;
     
     private final DBCache cache;
     
     private final DataAccess dAccess = new DataAccess();
     
+    protected final AtomicBoolean launched = new AtomicBoolean( false );
     protected final AtomicBoolean shutDown = new AtomicBoolean( false );
     
     private static final String RESOURCES_LOCATION = "Resources/";
@@ -104,12 +105,12 @@ public abstract class DBManager
      *
      * <p/>
      * The main drawback rises during a disk-read request:
-     * you could waits for all the pending operations for that particular file.
+     * you could waits for all the pending operations for the requested file.
     */
     public void disableAsyncWrites()
     {
         if(!disableAsyncWrites) {
-            asyncWriter.setClosed();
+            if(asyncWriter != null) asyncWriter.setClosed();
             disableAsyncWrites = true;
         }
     }
@@ -126,6 +127,13 @@ public abstract class DBManager
             asyncWriter = new AsyncDiskWriter( this, enableParallelWorkers );
             disableAsyncWrites = false;
         }
+    }
+    
+    /**
+     * Disable the scanner database.
+    */
+    public void disableScanDB() {
+        disableScanDB = true;
     }
     
     /**
@@ -325,7 +333,7 @@ public abstract class DBManager
             DataLock dCond = dAccess.checkFileInUse( fileName, Message.PUT );
             
             // Test whether the path to the file already exists.
-            // If it not exists all the necessary directories are created.
+            // If it doesn't exist all the necessary directories are created.
             File file = new File( fileName );
             File parent = file.getParentFile();
             if(parent != null && !parent.exists())
@@ -483,7 +491,7 @@ public abstract class DBManager
      * Class used to implement a cache.<br>
      * It manages all the most recent files read from the application.
     */
-    public static final class DBCache
+    private static final class DBCache
     {
         private final Map<String, CacheEntry> files;
         private int spaceOccupancy = 0;
@@ -594,7 +602,7 @@ public abstract class DBManager
          * to properly manage the additional informations
          * about the stored values.
         */
-        public static class CacheEntry implements Comparator<CacheEntry>
+        private static class CacheEntry implements Comparator<CacheEntry>
         {
             private byte[] value;
             private Long timestamp;

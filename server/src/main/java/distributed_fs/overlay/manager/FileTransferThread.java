@@ -75,6 +75,8 @@ public class FileTransferThread extends Thread implements FileTransfer
 	@Override
 	public void run()
 	{
+	    try { database.newInstance(); }
+        catch( IOException e1 ) { e1.printStackTrace(); }
 	    aeService.start();
 	    
 	    LOGGER.info( "FileTransferThread launched." );
