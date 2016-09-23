@@ -562,7 +562,6 @@ public class Networking
         {
             InetAddress iAddress = InetAddress.getByName( localAddress );
             servSocket = new ReliableServerSocket( localPort, 0, iAddress );
-            System.out.println( "Creata socket " + servSocket.getLocalSocketAddress() );
         }
         
         /**
