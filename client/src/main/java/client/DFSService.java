@@ -86,14 +86,30 @@ public class DFSService extends DFSManager implements IDFSService
 	}
 	
 	/**
-	 * Disable the synchronization thread.
-	 * 
-	 * @return this builder
-	*/
-	public DFSService disableSyncThread() {
-		disableSyncThread = true;
-		return this;
-	}
+     * Enables or disables the synchronized thread.
+     * 
+     * @param enable   {@code true} if the syncronized thread must be enabled,
+     *                 {@code false} otherwise
+     * 
+     * @return this builder
+    */
+    public DFSService setSyncThread( final boolean enable )
+    {
+        disableSyncThread = !enable;
+        if(enable) {
+            syncClient = new ClientSynchronizer( this, database, lock );
+            syncClient.start();
+        }
+        else {
+            if(syncClient != null) {
+                syncClient.shutDown();
+                try { syncClient.join(); }
+                catch( InterruptedException e ) { e.printStackTrace(); }
+            }
+        }
+        
+        return this;
+    }
 	
 	/**
 	 * Starts the service.

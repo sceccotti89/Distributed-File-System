@@ -43,9 +43,10 @@ public class Client implements DBListener
 	
 	private static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
     
-	// Regular expressions.
+	// List of client's commands.
 	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list",
-	                                                       "enableLB", "disableLB", "help", "exit" };
+                                                           "enableLB", "disableLB", "enableSync", "disableSync",
+                                                           "help", "exit" };
 	//private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
 	
@@ -217,40 +218,40 @@ public class Client implements DBListener
 				if(file != null)
 					return new Operation( file, Message.PUT );
 			}
-			else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
-				if(command.length() <= 7) {
-					System.out.println( "[CLIENT] Command error: you must specify the file." );
-					continue;
-				}
-				
-				String file = getFile( command, 7 );
-				if(file != null)
-					return new Operation( file, Message.DELETE );
-			}
-			else if(command.trim().equals( "disableLB" )) {
-			    service.setUseLoadBalancers( false );
-			}
-			else if(command.trim().equals( "enableLB" )) {
-			    service.setUseLoadBalancers( true );
-            }
-			else if(command.trim().equals( "list" )) {
-				// Put an empty line between the command and the list of files.
-				System.out.println();
-				// List all the files present in the database.
-				List<DistributedFile> files = service.listFiles();
-				for(DistributedFile file : files) {
-					if(!file.isDeleted())
-						System.out.println( "  " + file.getName() );
-				}
-			}
-			else if(command.trim().equals( "help" ))
-				printHelp();
-			else if(command.trim().equals( "exit" ))
-				break;
 			else {
-				System.out.println( "[CLIENT] Command '" + command + "' unknown." );
-				System.out.println( "[CLIENT] Type 'help' for more informations." );
-			}
+                command = command.trim();
+                
+                if(command.equals( "disableLB" )) {
+                    service.setUseLoadBalancers( false );
+                }
+                else if(command.equals( "enableLB" )) {
+                    service.setUseLoadBalancers( true );
+                }
+                else if(command.equals( "disableSync" )) {
+                    service.setSyncThread( false );
+                }
+                else if(command.equals( "enableSync" )) {
+                    service.setSyncThread( true );
+                }
+                else if(command.equals( "list" )) {
+                    // Put an empty line between the command and the list of files.
+                    System.out.println();
+                    // List all the files present in the database.
+                    List<DistributedFile> files = service.listFiles();
+                    for(DistributedFile file : files) {
+                        if(!file.isDeleted())
+                            System.out.println( "  " + file.getName() );
+                    }
+                }
+                else if(command.equals( "help" ))
+                    printHelp();
+                else if(command.equals( "exit" ))
+                    break;
+                else {
+                    System.out.println( "[CLIENT] Command '" + command + "' unknown." );
+                    System.out.println( "[CLIENT] Type 'help' for more informations." );
+                }
+            }
 		}
 		
 		return null;
@@ -308,13 +309,6 @@ public class Client implements DBListener
 		    }
 		}
 		
-		/*if(file.matches( FILE_REGEX ))
-			return file;
-		else {
-			System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
-			System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
-		}*/
-		
 		return file;
 	}
 	
@@ -350,17 +344,19 @@ public class Client implements DBListener
 	
 	private void printHelp()
 	{
-		System.out.println( "[CLIENT] Usage:\n"
-				+ "  put \"file_name\" - send a file present in the database to a remote one.\n"
-				+ "  get \"file_name\" - get a file present in the remote nodes.\n"
-				+ "  delete \"file_name\" - delete a file present on database and in remote nodes.\n"
-				+ "  list - to print a list of all the files present in the database.\n"
-				+ "  enableLB - enable the utilization of the remote LoadBalancer nodes.\n"
-                + "  diableLB - disable the utilization of the remote LoadBalancer nodes.\n"
+	    System.out.println( "[CLIENT] Usage:\n"
+                + "  put \"file_name\" - send a file present in the database to a remote one.\n"
+                + "  get \"file_name\" - get a file present in the remote nodes.\n"
+                + "  delete \"file_name\" - delete a file present on database and in remote nodes.\n"
+                + "  list - to print a list of all the files present in the database.\n"
+                + "  enableLB - enable the utilization of the remote LoadBalancer nodes.\n"
+                + "  disableLB - disable the utilization of the remote LoadBalancer nodes.\n"
+                + "  enableSync - enable the utilization of the synchronizer thread.\n"
+                + "  disableSync - disable the utilization of the synchronizer thread.\n"
                 + "  help - to open this helper.\n"
-				+ "  exit - to close the service.\n\n"
-				+ "  You can also use the auto completion, to complete faster your commands.\n"
-				+ "  Try it with the [TAB] key." );
+                + "  exit - to close the service.\n\n"
+                + "  You can also use the auto completion, to complete faster your commands.\n"
+                + "  Try it with the [TAB] key." );
 	}
 	
 	private static class Operation
