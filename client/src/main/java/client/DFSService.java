@@ -51,8 +51,6 @@ public class DFSService extends DFSManager implements IDFSService
 	private String hintedHandoff = null;
 	
 	private boolean disableSyncThread = false;
-	
-	private boolean testing = false;
 	private boolean initialized = false;
 	
 	private final ReentrantLock lock = new ReentrantLock( true );
@@ -101,11 +99,8 @@ public class DFSService extends DFSManager implements IDFSService
             syncClient.start();
         }
         else {
-            if(syncClient != null) {
-                syncClient.shutDown();
-                try { syncClient.join(); }
-                catch( InterruptedException e ) { e.printStackTrace(); }
-            }
+            if(syncClient != null)
+                syncClient.shutDown( true );
         }
         
         return this;
@@ -680,12 +675,10 @@ public class DFSService extends DFSManager implements IDFSService
 	    super.shutDown();
 	    
 	    if(!disableSyncThread)
-	        syncClient.shutDown();
+	        syncClient.shutDown( true );
 		
 		net.close();
-		
-		if(!testing)
-			database.close();
+		database.close();
 		
 		LOGGER.info( "The service is closed." );
 	}
