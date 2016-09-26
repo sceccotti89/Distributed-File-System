@@ -666,10 +666,13 @@ public class DFSService extends DFSManager implements IDFSService
 		return closed.get();
 	}
 	
-	/***/
-	public boolean isReconciling() {
-	    return syncClient.getReconciliation();
-	}
+	/**
+     * Checks whether the system is trying
+     * to reconcile concurrent versions.
+    */
+    public boolean isReconciling() {
+        return syncClient != null && syncClient.getReconciliation();
+    }
 	
 	@Override
 	public void shutDown()
@@ -679,8 +682,6 @@ public class DFSService extends DFSManager implements IDFSService
 	    if(!disableSyncThread)
 	        syncClient.shutDown();
 		
-		//if(session != null && !session.isClosed())
-			//session.close();
 		net.close();
 		
 		if(!testing)
