@@ -108,7 +108,7 @@ public class SystemTest
             DFSService service = new DFSService( ipAddress, port + i, true, members,
                                                  "./Clients/ResourcesClient" + (i + 1),
                                                  "./Clients/DatabaseClient" + (i + 1), null );
-            service.disableSyncThread();
+            service.setSyncThread( false );
             clients.add( service );
             assertTrue( service.start() );
         }
@@ -150,7 +150,7 @@ public class SystemTest
     private void testNoLoadBalancers() throws IOException, DFSException, InterruptedException
 	{
 	    DFSService service = new DFSService( IpAddress, 9002, false, members, "./Clients/ResourcesClient/", "./Clients/DatabaseClient/", null );
-	    service.disableSyncThread();
+	    service.setSyncThread( false );
 	    service.start();
 	    
 	    Thread.sleep( 2000 );
