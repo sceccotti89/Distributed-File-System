@@ -368,6 +368,9 @@ public class Client implements DBListener
                 + "  Try it with the [TAB] key." );
 	}
 	
+	/**
+	 * Class used to represent a user input command.
+	*/
 	private static class Operation
 	{
 		String file;
