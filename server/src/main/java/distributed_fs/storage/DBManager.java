@@ -13,12 +13,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,6 +24,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
+import org.apache.commons.collections4.map.LinkedMap;
 import org.apache.log4j.Logger;
 
 import distributed_fs.exception.DFSException;
@@ -493,14 +492,16 @@ public abstract class DBManager
     */
     private static final class DBCache
     {
-        private final Map<String, CacheEntry> files;
+        private final LinkedMap<String, byte[]> files;
         private int spaceOccupancy = 0;
         
         private static final int MAX_SIZE = 1 << 21; // 64MBytes
         
+        
+        
         public DBCache()
         {
-            files = new HashMap<>( 64 );
+            files = new LinkedMap<>( 64 );
         }
         
         /**
@@ -521,24 +522,20 @@ public abstract class DBManager
         */
         private void put( final String key, final byte[] value )
         {
+            if(value == null)
+                return;
+            
             int length = value.length;
             if(length > MAX_SIZE) // Can't exceed the maximum size.
                 return;
             
-            if(length > getLeftSpace()) {
-                // Remove the old entry in the cache.
-                Entry<String, CacheEntry> oldestKey = null;
-                for(Entry<String, CacheEntry> entry : files.entrySet()) {
-                    if(oldestKey == null || entry.getValue().timestamp < oldestKey.getValue().timestamp)
-                        oldestKey = entry;
-                }
-                if(oldestKey != null) {
-                    byte[] data = files.remove( oldestKey.getKey() ).getValue();
-                    spaceOccupancy -= data.length;
-                }
+            while(length > getLeftSpace()) {
+                // Remove the oldest entry in the cache.
+                byte[] data = files.remove( 0 );
+                spaceOccupancy -= data.length;
             }
             
-            files.put( key, new CacheEntry( value ) );
+            files.put( key, value );
             spaceOccupancy += length;
         }
         
@@ -558,9 +555,9 @@ public abstract class DBManager
         */
         private void remove( final String key )
         {
-            CacheEntry val = files.remove( key );
+            byte[] val = files.remove( key );
             if(val != null)
-                spaceOccupancy -= val.getValue().length;
+                spaceOccupancy -= val.length;
         }
         
         /**
@@ -578,12 +575,10 @@ public abstract class DBManager
         */
         private byte[] get( final String key )
         {
-            CacheEntry val = files.get( key );
-            byte[] data = null;
-            if(val != null) {
-                val.refresh();
-                data = val.getValue();
-            }
+            // Remove the node and put it in the bottom of the list.
+            byte[] data = files.remove( key );
+            if(data != null)
+                files.put( key, data );
             
             return data;
         }
@@ -595,45 +590,6 @@ public abstract class DBManager
         private int getLeftSpace()
         {
             return MAX_SIZE - spaceOccupancy;
-        }
-        
-        /**
-         * Building block of the cache. It contains fields and methods
-         * to properly manage the additional informations
-         * about the stored values.
-        */
-        private static class CacheEntry implements Comparator<CacheEntry>
-        {
-            private byte[] value;
-            private Long timestamp;
-            
-            public CacheEntry( final byte[] value )
-            {
-                this.value = value;
-                refresh();
-            }
-            
-            /**
-             * Returns the associated key.
-            */
-            public byte[] getValue()
-            {
-                return value;
-            }
-            
-            /**
-             * Refreshes the actual timestamp.
-            */
-            public void refresh()
-            {
-                timestamp = System.currentTimeMillis();
-            }
-            
-            @Override
-            public int compare( final CacheEntry o1, final CacheEntry o2 )
-            {
-                return o1.timestamp.compareTo( o2.timestamp );
-            }
         }
     }
     
