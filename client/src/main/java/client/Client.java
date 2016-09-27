@@ -44,10 +44,11 @@ public class Client implements DBListener
 	private static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
     
 	// List of client's commands.
+	private static final String CMD_REGEX = "[\\t\\s]*";
 	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list",
                                                            "enableLB", "disableLB", "enableSync", "disableSync",
                                                            "help", "exit" };
-	//private static final String FILE_REGEX	 = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
+	//private static final String FILE_REGEX = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
 	
 	
 	
@@ -56,11 +57,11 @@ public class Client implements DBListener
 	        throws ParseException, IOException, DFSException, InterruptedException
     {
 	    ClientArgsParser.parseArgs( args );
-	    if(ClientArgsParser.hasOnlyHelpOptions())
+	    if(ClientArgsParser.hasOnlyHelpOption())
             return;
         
         JSONObject configFile = ClientArgsParser.getConfigurationFile();
-        if(configFile != null && !ClientArgsParser.hasOnlyFileOptions()) {
+        if(configFile != null && !ClientArgsParser.hasOnlyFileOption()) {
             throw new ParseException( "If you have defined a configuration file " +
                                       "the other options are not needed." );
         }
@@ -127,7 +128,7 @@ public class Client implements DBListener
 	    if(localEnv) {
 	        // Start some nodes to simulate the distributed system,
 	        // but performed in a local environment.
-	        System.out.println( "Starting the local environment..." );
+	        System.out.println( "Starting the pseudo-distributed environment..." );
 	        sim = new SystemSimulation( ipAddress, 1, members );
 	        if(members == null)
 	            members = sim.getNodes();
@@ -186,6 +187,9 @@ public class Client implements DBListener
 		System.exit( 0 );
 	}
 	
+	/**
+	 * Checks and retrieve the user input.
+	*/
 	private Operation checkInput() throws DFSException
 	{
 		String command = null;
@@ -218,45 +222,42 @@ public class Client implements DBListener
 				if(file != null)
 					return new Operation( file, Message.PUT );
 			}
-			else {
-                command = command.trim();
-                
-                if(command.equals( "disableLB" )) {
-                    service.setUseLoadBalancers( false );
+			else if(command.matches( CMD_REGEX + "disableLB" + CMD_REGEX ))
+                service.setUseLoadBalancers( false );
+            else if(command.matches( CMD_REGEX + "enableLB" + CMD_REGEX ))
+                service.setUseLoadBalancers( true );
+            else if(command.matches( CMD_REGEX + "disableSync" + CMD_REGEX ))
+                service.setSyncThread( false );
+            else if(command.matches( CMD_REGEX + "enableSync" + CMD_REGEX ))
+                service.setSyncThread( true );
+            else if(command.matches( CMD_REGEX + "list" + CMD_REGEX )) {
+                // Put an empty line between the command and the list of files.
+                System.out.println();
+                // List all the files present in the database.
+                List<DistributedFile> files = service.listFiles();
+                for(DistributedFile file : files) {
+                    if(!file.isDeleted())
+                        System.out.println( "  " + file.getName() );
                 }
-                else if(command.equals( "enableLB" )) {
-                    service.setUseLoadBalancers( true );
-                }
-                else if(command.equals( "disableSync" )) {
-                    service.setSyncThread( false );
-                }
-                else if(command.equals( "enableSync" )) {
-                    service.setSyncThread( true );
-                }
-                else if(command.equals( "list" )) {
-                    // Put an empty line between the command and the list of files.
-                    System.out.println();
-                    // List all the files present in the database.
-                    List<DistributedFile> files = service.listFiles();
-                    for(DistributedFile file : files) {
-                        if(!file.isDeleted())
-                            System.out.println( "  " + file.getName() );
-                    }
-                }
-                else if(command.equals( "help" ))
-                    printHelp();
-                else if(command.equals( "exit" ))
-                    break;
-                else {
-                    System.out.println( "[CLIENT] Command '" + command + "' unknown." );
-                    System.out.println( "[CLIENT] Type 'help' for more informations." );
-                }
+            }
+            else if(command.matches( CMD_REGEX + "help" + CMD_REGEX ))
+                printHelp();
+            else if(command.matches( CMD_REGEX + "exit" + CMD_REGEX ))
+                break;
+            else {
+                System.out.println( "[CLIENT] Command '" + command + "' unknown." );
+                System.out.println( "[CLIENT] Type 'help' for more informations." );
             }
 		}
 		
 		return null;
 	}
 	
+	/**
+	 * Returns the command inserted by the user.
+	 * 
+	 * @return the command, or {@code null} if the input reader has been closed
+	*/
 	private String readCommand() throws IOException
 	{
 	    String command = null;
@@ -281,6 +282,14 @@ public class Client implements DBListener
         return command;
 	}
 	
+	/**
+     * Returns the name of the file contained in the command.
+     * 
+     * @param command  the actual command
+     * @param offset   offset from which start the search
+     * 
+     * @return the name of the file, or {@code null} if some errors are present
+    */
 	private static String getFile( final String command, int offset )
 	{
 	    // Remove the initial white spaces and tabs.

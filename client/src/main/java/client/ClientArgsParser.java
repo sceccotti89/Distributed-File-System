@@ -127,11 +127,11 @@ public class ClientArgsParser
         return cmd.hasOption( LOCAL_ENV );
     }
     
-    public static boolean hasOnlyHelpOptions() {
+    public static boolean hasOnlyHelpOption() {
         return cmd.hasOption( HELP ) && cmd.getOptions().length == 1;
     }
     
-    public static boolean hasOnlyFileOptions() {
+    public static boolean hasOnlyFileOption() {
         return cmd.hasOption( FILE ) && cmd.getOptions().length == 1;
     }
     

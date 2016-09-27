@@ -228,8 +228,18 @@ public class ClientSynchronizer extends Thread
         return reconciliation;
     }
     
-    public void shutDown()
+    /**
+     * Closes the thread.
+     * 
+     * @param waitTermination   {@code true} if the calling thread must wait for the termination,
+     *                          {@code false} otherwise
+    */
+    public void shutDown( final boolean waitTermination )
     {
         interrupt();
+        if(waitTermination) {
+            try{ join(); }
+            catch( InterruptedException e ) { e.printStackTrace(); }
+        }
     }
 }
