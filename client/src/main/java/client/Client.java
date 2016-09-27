@@ -369,7 +369,7 @@ public class Client implements DBListener
 	}
 	
 	/**
-	 * Class used to represent a user input command.
+	 * Class used to represent user input commands.
 	*/
 	private static class Operation
 	{
