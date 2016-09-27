@@ -222,6 +222,16 @@ public class Client implements DBListener
 				if(file != null)
 					return new Operation( file, Message.PUT );
 			}
+			else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
+                if(command.length() <= 7) {
+                    System.out.println( "[CLIENT] Command error: you must specify the file." );
+                    continue;
+                }
+                
+                String file = getFile( command, 7 );
+                if(file != null)
+                    return new Operation( file, Message.DELETE );
+            }
 			else if(command.matches( CMD_REGEX + "disableLB" + CMD_REGEX ))
                 service.setUseLoadBalancers( false );
             else if(command.matches( CMD_REGEX + "enableLB" + CMD_REGEX ))
