@@ -45,7 +45,7 @@ public class VectorClockInconsistencyResolver<T> implements InconsistencyResolve
                         it2.set( v1 );
                 }
                 
-                if(compare != Occurred.CONCURRENTLY)
+                if(compare != Occurred.CONCURRENTLY && compare != Occurred.EQUALS)
                     found = true;
             }
             
@@ -59,7 +59,7 @@ public class VectorClockInconsistencyResolver<T> implements InconsistencyResolve
     @Override
     public boolean equals( final Object o )
     {
-        if (this == o) return true;
+        if(this == o) return true;
         return (o != null && getClass() == o.getClass());
     }
 
