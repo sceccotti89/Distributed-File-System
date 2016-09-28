@@ -31,7 +31,7 @@ public class ClientSynchronizer extends Thread
     
     private final ReentrantLock lock;
     
-    private boolean reconciliation = false;
+    private static boolean reconciliation = false;
     
     private static final Scanner SCAN = new Scanner( System.in );
     
@@ -192,7 +192,7 @@ public class ClientSynchronizer extends Thread
      * 
      * @return Index of the selected file
     */
-    public synchronized int makeReconciliation( final List<DistributedFile> versions )
+    public static synchronized int makeReconciliation( final List<DistributedFile> versions )
     {
         reconciliation = true;
         

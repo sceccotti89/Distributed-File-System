@@ -269,12 +269,12 @@ public class DFSService extends DFSManager implements IDFSService
             if(backToClient == null) {
                 // Choose the version among the only received files.
                 reconciled = (size > 1);
-                id = syncClient.makeReconciliation( files );
+                id = ClientSynchronizer.makeReconciliation( files );
             }
             else {
                 if(backToClient.getVersion().compare( clock ) == Occurred.CONCURRENTLY) {
                     files.add( backToClient );
-                    id = syncClient.makeReconciliation( files );
+                    id = ClientSynchronizer.makeReconciliation( files );
                     clock = clock.merge( backToClient.getVersion() );
                     reconciled = true;
                     size++;
