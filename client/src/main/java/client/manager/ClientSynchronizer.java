@@ -126,7 +126,7 @@ public class ClientSynchronizer extends Thread
                 VectorClock clock = file.getVersion();
                 if(myFile != null){
                     Occurred occ = reconcileVersions( myFile, file );
-                    if(occ != Occurred.AFTER) {
+                    if(occ != Occurred.AFTER && occ != Occurred.EQUALS) {
                         DistributedFile finalVersion;
                         if(occ == Occurred.CONCURRENTLY) {
                             // Ask the client for the version.
@@ -147,8 +147,8 @@ public class ClientSynchronizer extends Thread
                             service.put( fileName );
                         }
                         else {
-                            database.deleteFile( fileName, clock, file.isDirectory(), null );
                             service.delete( fileName );
+                            database.deleteFile( fileName, clock, file.isDirectory(), null );
                         }
                     }
                 }
