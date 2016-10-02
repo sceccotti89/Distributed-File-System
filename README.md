@@ -45,7 +45,7 @@ Alternatively you can manually built the project, following the commands present
 
 ### Gradle
 
-You don't need to download **gradle**, because you can use the gradle wrapper that provides for you all the necessary tools. It automatically starts when you launch one of the subsequent commands.
+You don't need to download **gradle**, because you can use the gradle wrapper that provides for you all the necessary tools. It automatically starts when you launch one of the subsequent commands. You have only to set the **JAVA_HOME** environment variable.
 
 The Client can be built with:
 ```bash
