@@ -137,6 +137,8 @@ The operations provided by the client, in addition to the **get**, **put and del
 - **list** print on screen a list of all the files present in the client’s database;
 - **enableLB** enable the utilization of the remote load balancer nodes;
 - **disableLB** disable the utilization of the remote load balancer nodes;
+- **enableSync** enable the utilization of the syncronizer thread;
+- **disableSync** disable the utilization of the syncronizer thread;
 - **help** to show the helper;
 - **exit** to close the service.
 
