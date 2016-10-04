@@ -25,6 +25,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 
+import distributed_fs.storage.DistributedFile;
 import distributed_fs.versioning.ClockEntry;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
@@ -132,7 +133,7 @@ public class VersioningUtils {
                 Versioned<T> curr = iter.next();
                 Occurred occurred = value.getVersion().compare( curr.getVersion() );
                 //System.out.println( "VALUE: " + value + ", CURR: " + curr + ", COMPARE: " + occurred );
-                if(occurred == Occurred.BEFORE) {
+                if(occurred == Occurred.BEFORE || occurred == Occurred.EQUALS) {
                     obsolete = true;
                     break;
                 } else if (occurred == Occurred.AFTER) {
@@ -146,6 +147,30 @@ public class VersioningUtils {
         }
         
         return resolvedVersions;
+    }
+    
+    /**
+     * Makes the reconciliation among different vector clocks.
+     * 
+     * @param files     list of files to compare
+     * 
+     * @return The list of uncorrelated versions.
+    */
+    public static List<DistributedFile> makeReconciliation( final List<DistributedFile> files )
+    {
+        List<Versioned<DistributedFile>> versions = new ArrayList<>();
+        for(DistributedFile file : files)
+            versions.add( new Versioned<DistributedFile>( file, file.getVersion() ) );
+        
+        // Resolve the versions..
+        List<Versioned<DistributedFile>> inconsistency = VersioningUtils.resolveVersions( versions );
+        
+        // Get the uncorrelated files.
+        List<DistributedFile> uncorrelatedVersions = new ArrayList<>();
+        for(Versioned<DistributedFile> version : inconsistency)
+            uncorrelatedVersions.add( version.getValue() );
+        
+        return uncorrelatedVersions;
     }
 
     /**
