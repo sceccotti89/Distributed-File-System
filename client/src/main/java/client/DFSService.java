@@ -53,8 +53,6 @@ public class DFSService extends DFSManager implements IDFSService
 	private boolean disableSyncThread = false;
 	private boolean initialized = false;
 	
-	private final ReentrantLock lock = new ReentrantLock( true );
-	
 	
 	
 	public DFSService( final String ipAddress,
@@ -95,7 +93,7 @@ public class DFSService extends DFSManager implements IDFSService
     {
         disableSyncThread = !enable;
         if(enable) {
-            syncClient = new ClientSynchronizer( this, database, lock );
+            syncClient = new ClientSynchronizer( this, database );
             syncClient.start();
         }
         else {
@@ -117,7 +115,7 @@ public class DFSService extends DFSManager implements IDFSService
 	    database.newInstance();
 	    
 		if(!disableSyncThread) {
-		    syncClient = new ClientSynchronizer( this, database, lock );
+		    syncClient = new ClientSynchronizer( this, database );
 		    syncClient.start();
 		}
 	    
@@ -219,19 +217,19 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		
 		LOGGER.info( "Starting GET operation: " + fileName );
-		DistributedFile backToClient;
-		boolean unlock = false;
 		
 		double startTime = System.currentTimeMillis();
 		
 		String normFileName = database.normalizeFileName( fileName );
+		DistributedFile backToClient = database.getFile( normFileName );
+		
 		Session session = null;
 		if((session = contactRemoteNode( normFileName, Message.GET )) == null)
 			return null;
 		
 		try {
 			// Send the request.
-			sendGetMessage( session, normFileName );
+			sendGetMessage( session, normFileName, backToClient );
 			
 			// Checks whether the load balancer has found an available node,
 			// or (with no balancers) if the quorum has been completed successfully.
@@ -239,30 +237,34 @@ public class DFSService extends DFSManager implements IDFSService
 				throw new IOException();
 			
 			if(useLoadBalancer) {
+			    session = waitRemoteConnection( session );
 			    // Checks whether the request has been forwarded to the storage node.
-			    if((session = waitRemoteConnection( session )) == null ||
-    			   !checkResponse( session, true ))
+			    if(!checkResponse( session, true ))
     				throw new IOException();
 			}
 			
-			// Receive one or more files.
-			List<DistributedFile> files = readGetResponse( session );
-			
-			int size = files.size();
-			if(size == 0) {
-				LOGGER.info( "File \"" + fileName + "\" not found." );
-				session.close();
-				return null;
-			}
+			// Receive the response and the associated files (if any).
+            byte[] result = session.receive();
+            List<DistributedFile> files = readGetResponse( session );
+            
+            int size = files.size();
+            if(size == 0) {
+                session.close();
+                if(result.equals( Message.NOT_FOUND )) {
+                    LOGGER.info( "File \"" + fileName + "\" not found." );
+                    return null;
+                }
+                else { // Message.UPDATED.
+                    LOGGER.info( "File \"" + fileName + "\" is already updated." );
+                    return backToClient;
+                }
+            }
 			
 			int id = 0;
 			VectorClock clock = new VectorClock();
 			// Generate only one clock, merging all the received versions.
 			for(DistributedFile file : files)
 				clock = clock.merge( file.getVersion() );
-			
-			lock.lock();
-            unlock = true;
             
             boolean reconciled = false;
             backToClient = database.getFile( fileName );
@@ -290,9 +292,6 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			backToClient = database.getFile( fileName );
 			
-			unlock = false;
-			lock.unlock();
-			
 			// Send back the reconciled version.
             if(size > 1 && reconciled) {
                 // If the operation is not performed an exception is thrown.
@@ -303,8 +302,6 @@ public class DFSService extends DFSManager implements IDFSService
 		}
 		catch( IOException e ) {
 			LOGGER.info( "Operation GET not performed. Try again later." );
-			if(unlock)
-			    lock.unlock();
 			//e.printStackTrace();
 			session.close();
 			return null;
@@ -357,12 +354,9 @@ public class DFSService extends DFSManager implements IDFSService
         
         boolean completed = true;
         
-        lock.lock();
-        
         String dbRoot = database.getFileSystemRoot();
         String normFileName = database.normalizeFileName( fileName );
         if(!database.existFile( dbRoot + normFileName, false )) {
-            lock.unlock();
             LOGGER.error( "Operation " + opCode + " not performed: file \"" + fileName + "\" not found. " );
             LOGGER.error( "The file must be present in one of the sub-directories starting from: " + dbRoot );
             return false;
@@ -376,10 +370,8 @@ public class DFSService extends DFSManager implements IDFSService
         
         double startTime = System.currentTimeMillis();
         Session session = null;
-        if((session = contactRemoteNode( normFileName, opType )) == null) {
-            lock.unlock();
+        if((session = contactRemoteNode( normFileName, opType )) == null)
             return false;
-        }
         
         try {
             if(opType == Message.DELETE)
@@ -397,9 +389,9 @@ public class DFSService extends DFSManager implements IDFSService
                 throw new IOException();
             
             if(useLoadBalancer) {
+                session = waitRemoteConnection( session );
                 // Checks whether the request has been forwarded to the storage node.
-                if((session = waitRemoteConnection( session )) == null ||
-                   !checkResponse( session, true ))
+                if(!checkResponse( session, true ))
                     throw new IOException();
             }
             
@@ -421,8 +413,6 @@ public class DFSService extends DFSManager implements IDFSService
             LOGGER.info( "Operation " + opCode + " for \"" + fileName + "\" not performed. Try again later." );
             completed = false;
         }
-        
-        lock.unlock();
         
         if(completed) {
             double completeTime = ((double) System.currentTimeMillis() - startTime) / 1000d;

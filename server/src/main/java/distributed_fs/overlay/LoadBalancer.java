@@ -378,10 +378,11 @@ public class LoadBalancer extends DFSNode
     	 * @param destId           the destination identifier
     	 * @param hintedHandoff    the hinted handoff address
     	 * @param fileName         the requested file
-    	 * @param fileContent      content of the file
+    	 * @param data             in {@code GET} operations contains the version of the file,
+         *                         in {@code PUT/DELETE} operations the content of the file
     	*/
     	private void forwardRequest( final Session session, final byte opType, final String destId,
-    	                             final String hintedHandoff, final String fileName, final byte[] fileContent )
+    	                             final String hintedHandoff, final String fileName, final byte[] data )
     	                                     throws IOException
     	{
     	    if(!replacedThread || actionsList.isEmpty()) {
@@ -389,13 +390,9 @@ public class LoadBalancer extends DFSNode
         		Metadata meta = new Metadata( clientAddress, hintedHandoff );
         		
         		if(opType == Message.GET_ALL)
-        			message = new MessageRequest( opType, "", null, false, null, meta );
-        		else {
-            		if(opType != Message.GET) // PUT and DELETE operations
-            		    message = new MessageRequest( opType, fileName, fileContent, true, destId, meta );
-            		else // GET operation
-            		    message = new MessageRequest( opType, fileName, null, true, destId, meta );
-        		}
+        		    message = new MessageRequest( opType, "", null, false, null, meta );
+                else
+                    message = new MessageRequest( opType, fileName, data, true, destId, meta );
         		
         		session.sendMessage( message, true );
         		actionsList.addLast( DONE );

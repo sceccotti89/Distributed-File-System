@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Logger;
 
@@ -29,8 +28,6 @@ public class ClientSynchronizer extends Thread
     private final DFSService service;
     private final DFSDatabase database;
     
-    private final ReentrantLock lock;
-    
     private static boolean reconciliation = false;
     
     private static final Scanner SCAN = new Scanner( System.in );
@@ -47,15 +44,12 @@ public class ClientSynchronizer extends Thread
     
     
     public ClientSynchronizer( final DFSService service,
-                               final DFSDatabase database,
-                               final ReentrantLock lock )
+                               final DFSDatabase database )
     {
         setName( "ClientSynchronizer" );
         
         this.service = service;
         this.database = database;
-        
-        this.lock = lock;
     }
     
     @Override
@@ -119,8 +113,6 @@ public class ClientSynchronizer extends Thread
         for(DistributedFile file : files) {
             String fileName = file.getName();
             
-            lock.lock();
-            
             DistributedFile myFile = database.getFile( fileName );
             try {
                 VectorClock clock = file.getVersion();
@@ -148,7 +140,7 @@ public class ClientSynchronizer extends Thread
                         }
                         else {
                             service.delete( fileName );
-                            database.deleteFile( fileName, clock, file.isDirectory(), null );
+                            //database.deleteFile( fileName, clock, file.isDirectory(), null );
                         }
                     }
                 }
@@ -164,8 +156,6 @@ public class ClientSynchronizer extends Thread
             catch( IOException e ) {
                 e.printStackTrace();
             }
-            
-            lock.unlock();
         }
     }
     

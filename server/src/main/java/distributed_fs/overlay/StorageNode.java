@@ -36,6 +36,7 @@ import distributed_fs.overlay.manager.ThreadMonitor.ThreadState;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
+import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
@@ -341,7 +342,11 @@ public class StorageNode extends DFSNode
     					break;
     					
     				case( Message.GET ):
-    					handleGET( isCoordinator, fileName, fileId );
+    				    VectorClock version = null;
+                        // Get the version of the file.
+                        if(isCoordinator && data.getPayload() != null)
+                            version = DFSUtils.deserializeObject( data.getPayload() );
+    					handleGET( isCoordinator, fileName, version, fileId );
     					break;
     					
     				case( Message.GET_ALL ): 
@@ -397,7 +402,7 @@ public class StorageNode extends DFSNode
     		sendClientResponse( clock );
     	}
     	
-    	private void handleGET( final boolean isCoordinator, final String fileName, final long fileId ) throws IOException
+    	private void handleGET( final boolean isCoordinator, final String fileName, final VectorClock userVersion, final long fileId ) throws IOException
     	{
     		if(isCoordinator) {
     			// Send the GET request to all the agreed nodes,
@@ -435,7 +440,18 @@ public class StorageNode extends DFSNode
         			List<DistributedFile> reconciledFiles = makeReconciliation( filesToSend );
         			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
         			
-        			// Send the files directly to the client.
+        			if(userVersion != null)
+                        compareVersions( userVersion, reconciledFiles );
+        			
+        			// Send the comparison result.
+                    byte[] result = Message.FOUND;
+                    if(reconciledFiles.isEmpty()){
+                        if(userVersion == null) result = Message.NOT_FOUND;
+                        else result = Message.UPDATED;
+                    }
+                    session.sendMessage( result, false );
+        			
+        			// Send the files (one at time) directly to the client.
         			int size = reconciledFiles.size();
                     session.sendMessage( DFSUtils.intToByteArray( size ), false );
                     
@@ -624,6 +640,25 @@ public class StorageNode extends DFSNode
     		
     		return uncorrelatedVersions;
     	}
+    	
+    	/**
+         * Compares the version hold by the user and the ones retrieved by the storage node.<br>
+         * The result list contains all the versions that are CONCURRENT or AFTER 
+         * respect the user version.
+         * 
+         * @param userVersion      version provided by the user
+         * @param reconciledFiles  list of actual reconciled versions.
+         *                         It will contains all the non superseded files.
+        */
+        private void compareVersions( final VectorClock userVersion, final List<DistributedFile> reconciledFiles )
+        {
+            for(int i = reconciledFiles.size() - 1; i >= 0; i--) {
+                DistributedFile file = reconciledFiles.get( i );
+                Occurred occurred = userVersion.compare( file.getVersion() );
+                if(occurred == Occurred.AFTER || occurred == Occurred.EQUALS)
+                    reconciledFiles.remove( i );
+            }
+        }
     	
     	private void handleGET_ALL( final String clientAddress ) throws IOException
         {

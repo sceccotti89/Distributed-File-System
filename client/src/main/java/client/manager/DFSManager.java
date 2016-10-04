@@ -239,18 +239,22 @@ public abstract class DFSManager
 		LOGGER.info( "Data sent." );
 	}
 	
-	protected void sendGetMessage( final Session session, final String fileName ) throws IOException
-	{
+	protected void sendGetMessage( final Session session, final String fileName, final DistributedFile file ) throws IOException
+    {
 		LOGGER.info( "Sending data..." );
+		
+		byte[] data = null;
+        if(file != null)
+            data = DFSUtils.serializeObject( file.getVersion() );
 		
 		MessageRequest message;
 		if(useLoadBalancer) {
-            message = new MessageRequest( Message.GET, fileName );
+            message = new MessageRequest( Message.GET, fileName, data );
             message.putMetadata( address + ":" + port, null );
 		}
         else {
             Metadata meta = new Metadata( null, null );
-            message = new MessageRequest( Message.GET, fileName, null, true, destId, meta );
+            message = new MessageRequest( Message.GET, fileName, data, true, destId, meta );
         }
 		
 		session.sendMessage( message, true );
