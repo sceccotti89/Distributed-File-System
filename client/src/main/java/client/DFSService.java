@@ -267,7 +267,6 @@ public class DFSService extends DFSManager implements IDFSService
 				clock = clock.merge( file.getVersion() );
             
             boolean reconciled = false;
-            backToClient = database.getFile( fileName );
             if(backToClient == null) {
                 // Choose the version among the only received files.
                 reconciled = (size > 1);
