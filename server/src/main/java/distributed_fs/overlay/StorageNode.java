@@ -38,7 +38,6 @@ import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
-import distributed_fs.versioning.Versioned;
 import gossiping.GossipMember;
 import gossiping.GossipNode;
 
@@ -437,7 +436,7 @@ public class StorageNode extends DFSNode
         			
         			// Try a first reconciliation.
         			LOGGER.debug( "Files: " + filesToSend.size() );
-        			List<DistributedFile> reconciledFiles = makeReconciliation( filesToSend );
+        			List<DistributedFile> reconciledFiles = VersioningUtils.makeReconciliation( filesToSend );
         			LOGGER.debug( "Files after reconciliation: " + reconciledFiles.size() );
         			
         			if(userVersion != null)
@@ -615,30 +614,6 @@ public class StorageNode extends DFSNode
                 index++;
                 session.close();
             }
-    	}
-    	
-    	/**
-    	 * Makes the reconciliation among different vector clocks.
-    	 * 
-    	 * @param files		list of files to compare
-    	 * 
-    	 * @return The list of uncorrelated versions.
-    	*/
-    	private List<DistributedFile> makeReconciliation( final List<DistributedFile> files )
-    	{
-    		List<Versioned<DistributedFile>> versions = new ArrayList<>();
-    		for(DistributedFile file : files)
-    			versions.add( new Versioned<DistributedFile>( file, file.getVersion() ) );
-    		
-    		// Resolve the versions..
-    		List<Versioned<DistributedFile>> inconsistency = VersioningUtils.resolveVersions( versions );
-    		
-    		// Get the uncorrelated files.
-    		List<DistributedFile> uncorrelatedVersions = new ArrayList<>();
-    		for(Versioned<DistributedFile> version : inconsistency)
-    			uncorrelatedVersions.add( version.getValue() );
-    		
-    		return uncorrelatedVersions;
     	}
     	
     	/**
