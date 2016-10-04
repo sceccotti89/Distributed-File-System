@@ -28,6 +28,7 @@ import distributed_fs.storage.DBManager.DBListener;
 import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.DFSUtils;
+import distributed_fs.utils.VersioningUtils;
 import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
@@ -262,40 +263,48 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			int id = 0;
 			VectorClock clock = new VectorClock();
-			// Generate only one clock, merging all the received versions.
-			for(DistributedFile file : files)
-				clock = clock.merge( file.getVersion() );
+            boolean reconciled = false, updated = false;
             
-            boolean reconciled = false;
+            backToClient = database.getFile( fileName );
             if(backToClient == null) {
                 // Choose the version among the only received files.
                 reconciled = (size > 1);
+                updated = true;
                 id = ClientSynchronizer.makeReconciliation( files );
             }
             else {
-                if(backToClient.getVersion().compare( clock ) == Occurred.CONCURRENTLY) {
-                    files.add( backToClient );
+                files.add( backToClient );
+                files = VersioningUtils.makeReconciliation( files );
+                if(files.size() > 1) {
+                    // Ask the user which is the correct version.
                     id = ClientSynchronizer.makeReconciliation( files );
-                    clock = clock.merge( backToClient.getVersion() );
+                    if(id < size) updated = true;
                     reconciled = true;
                     size++;
                 }
             }
-			
-			// Update the database.
-            DistributedFile file = files.get( id );
-			if(file.isDeleted())
-			    database.deleteFile( fileName, clock, file.isDirectory(), null );
-			else
-			    database.saveFile( file, clock, null, true );
-			
-			backToClient = database.getFile( fileName );
+            
+            if(updated) {
+                // Generate only one clock, merging all the received versions.
+                for(DistributedFile file : files)
+                    clock = clock.merge( file.getVersion() );
+                
+                // Update the database.
+                backToClient = files.get( id );
+                if(backToClient.isDeleted())
+                    database.deleteFile( fileName, clock, backToClient.isDirectory(), null );
+                else
+                    database.saveFile( backToClient, clock, null, true );
+            }
+            
+            if(backToClient == null)
+                backToClient = database.getFile( fileName );
 			
 			// Send back the reconciled version.
             if(size > 1 && reconciled) {
                 // If the operation is not performed an exception is thrown.
-                if((!file.isDeleted() && !put( fileName )) ||
-                    (file.isDeleted() && !delete( fileName )))
+                if((!backToClient.isDeleted() && !put( fileName )) ||
+                    (backToClient.isDeleted() && !delete( fileName )))
                     throw new IOException();
             }
 		}
