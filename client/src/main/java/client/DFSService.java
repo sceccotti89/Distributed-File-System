@@ -246,7 +246,7 @@ public class DFSService extends DFSManager implements IDFSService
 			
 			// Receive the response.
             byte[] result = session.receive();
-            if(!result.equals( Message.FOUND )) {
+            if(result.equals( Message.NOT_FOUND ) || result.equals( Message.UPDATED )) {
                 session.close();
                 if(result.equals( Message.NOT_FOUND )) {
                     LOGGER.info( "File \"" + fileName + "\" not found." );
