@@ -452,14 +452,15 @@ public class StorageNode extends DFSNode
         			
         			// Send the files (one at time) directly to the client.
         			int size = reconciledFiles.size();
-                    session.sendMessage( DFSUtils.intToByteArray( size ), false );
-                    
-                    for(int i = 0; i < size; i++) {
-                        LOGGER.debug( "Sending file \"" + dFile + "\"" );
-                        session.sendMessage( reconciledFiles.get( i ).read(), true );
-                        LOGGER.debug( "File \"" + reconciledFiles.get( i ).getName() + "\" sent." );
-                    }
-        			
+        			if(size > 0) {
+                        session.sendMessage( DFSUtils.intToByteArray( size ), false );
+                        
+                        for(int i = 0; i < size; i++) {
+                            LOGGER.debug( "Sending file \"" + dFile + "\"" );
+                            session.sendMessage( reconciledFiles.get( i ).read(), true );
+                            LOGGER.debug( "File \"" + reconciledFiles.get( i ).getName() + "\" sent." );
+                        }
+        			}
     			    
     			    actionsList.addLast( DONE );
     			    LOGGER.info( "Files sent to the client." );

@@ -244,12 +244,9 @@ public class DFSService extends DFSManager implements IDFSService
     				throw new IOException();
 			}
 			
-			// Receive the response and the associated files (if any).
+			// Receive the response.
             byte[] result = session.receive();
-            List<DistributedFile> files = readGetResponse( session );
-            
-            int size = files.size();
-            if(size == 0) {
+            if(!result.equals( Message.FOUND )) {
                 session.close();
                 if(result.equals( Message.NOT_FOUND )) {
                     LOGGER.info( "File \"" + fileName + "\" not found." );
@@ -260,6 +257,10 @@ public class DFSService extends DFSManager implements IDFSService
                     return backToClient;
                 }
             }
+            
+            // Receive the retrieved files.
+            List<DistributedFile> files = readGetResponse( session );
+            int size = files.size();
 			
 			int id = 0;
 			VectorClock clock = new VectorClock();
