@@ -12,7 +12,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.base.Preconditions;
 
@@ -29,7 +28,6 @@ import distributed_fs.storage.DFSDatabase;
 import distributed_fs.storage.DistributedFile;
 import distributed_fs.utils.DFSUtils;
 import distributed_fs.utils.VersioningUtils;
-import distributed_fs.versioning.Occurred;
 import distributed_fs.versioning.VectorClock;
 import gossiping.GossipMember;
 
