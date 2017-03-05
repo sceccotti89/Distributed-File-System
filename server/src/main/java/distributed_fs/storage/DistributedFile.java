@@ -21,29 +21,29 @@ import distributed_fs.versioning.Version;
 */
 public class DistributedFile implements Serializable, IOSerializable
 {
-	private String name;
-	private VectorClock version;
-	private boolean deleted = false;
-	private boolean isDirectory;
-	
-	// Content of the file on disk.
-	private transient byte[] content = null;
-	
-	private String fileId;
-	private String HintedHandoff;
-	
-	private transient byte[] signature;
-	
-	// Parameters used to check the life of a deleted file.
-	private long currTime, liveness;
-	private static transient final int TTL = 3600000; // 1 hour
-	
-	// Generated serial ID.
+    private String name;
+    private VectorClock version;
+    private boolean deleted = false;
+    private boolean isDirectory;
+    
+    // Content of the file on disk.
+    private transient byte[] content = null;
+    
+    private String fileId;
+    private String HintedHandoff;
+    
+    private transient byte[] signature;
+    
+    // Parameters used to check the life of a deleted file.
+    private long currTime, liveness;
+    private static transient final int TTL = 3600000; // 1 hour
+    
+    // Generated serial ID.
     private static final long serialVersionUID = 7522473187709784849L;
     
     
     
-	
+    
     /**
      * Constructor used to create the file from its serialized form.<br>
      * The serialization must be done using the {@link IOSerializable} interface.
@@ -52,36 +52,36 @@ public class DistributedFile implements Serializable, IOSerializable
     {
         write( data );
     }
-	
-	/**
+    
+    /**
      * Constructor.
     */
-	public DistributedFile( final String name, final boolean isDirectory, final VectorClock version, final String hintedHandoff )
-	{
-		this.name = name;
-		this.version = version;
-		this.HintedHandoff = hintedHandoff;
-		this.isDirectory = isDirectory;
-		
-		fileId = DFSUtils.getId( this.name );
-	}
-	
-	public void loadContent( final DBManager db )
+    public DistributedFile( final String name, final boolean isDirectory, final VectorClock version, final String hintedHandoff )
     {
-	    if(!deleted && !isDirectory) {
-	        try {
+        this.name = name;
+        this.version = version;
+        this.HintedHandoff = hintedHandoff;
+        this.isDirectory = isDirectory;
+        
+        fileId = DFSUtils.getId( this.name );
+    }
+    
+    public void loadContent( final DBManager db )
+    {
+        if(!deleted && !isDirectory) {
+            try {
                 byte[] file = db.readFileFromDisk( name );
                 // Store the content in compressed form.
                 content = DFSUtils.compressData( file );
-	        }
-	        catch( IOException e ) {
-	            e.printStackTrace();
-	            setDeleted( true );
-	        }
-	    }
+            }
+            catch( IOException e ) {
+                e.printStackTrace();
+                setDeleted( true );
+            }
+        }
     }
-	
-	/**
+    
+    /**
      * Returns the content of the file as a byte array.<br>
      * If the file has a content,
      * then it will be returned in decompressed form.
@@ -93,125 +93,125 @@ public class DistributedFile implements Serializable, IOSerializable
         else
             return DFSUtils.decompressData( content );
     }
-	
-	public void setHintedHandoff( final String address ) {
-		HintedHandoff = address;
-	}
-	
-	public String getHintedHandoff() {
-		return HintedHandoff;
-	}
-	
-	public String getName() {
-		return name;
-	}
-	
-	public String getId() {
-	    return fileId;
-	}
-	
-	public boolean isDirectory() {
-    	return isDirectory;
+    
+    public void setHintedHandoff( final String address ) {
+        HintedHandoff = address;
+    }
+    
+    public String getHintedHandoff() {
+        return HintedHandoff;
+    }
+    
+    public String getName() {
+        return name;
+    }
+    
+    public String getId() {
+        return fileId;
+    }
+    
+    public boolean isDirectory() {
+        return isDirectory;
     }
 
     public boolean isDeleted() {
-		return deleted;
-	}
-	
-	public void setDeleted( final boolean value )
-	{
-		if(deleted != value) {
-			deleted = value;
-			if(deleted) {
-				content = null;
-			    currTime = System.currentTimeMillis();
-			}
-			else
-				liveness = 0;
-		}
-	}
-	
-	/**
-	 * Method used to check whether a file has to be definitely removed.
-	 * If the file is marked as deleted, then it can be removed
-	 * when an internal TTL value is reached.
-	 * 
-	 * @return {@code true} if the file has to be removed,
-	 *		   {@code false} otherwise
-	*/
-	public boolean checkDelete()
-	{
-		if(isDeleted()) {
-			long timestamp = System.currentTimeMillis();
-			liveness += (timestamp - currTime);
-			currTime = timestamp;
-		}
-		
-		return liveness >= TTL;
-	}
-	
-	/**
-	 * Updated its current timestamp.<br>
-	 * It's useful when the file is transferred in another server.
-	*/
-	public void setCurrentTime() {
-	    currTime = System.currentTimeMillis();
-	}
-	
-	/**
+        return deleted;
+    }
+    
+    public void setDeleted( final boolean value )
+    {
+        if(deleted != value) {
+            deleted = value;
+            if(deleted) {
+                content = null;
+                currTime = System.currentTimeMillis();
+            }
+            else
+                liveness = 0;
+        }
+    }
+    
+    /**
+     * Method used to check whether a file has to be definitely removed.
+     * If the file is marked as deleted, then it can be removed
+     * when an internal TTL value is reached.
+     * 
+     * @return {@code true} if the file has to be removed,
+     *           {@code false} otherwise
+    */
+    public boolean checkDelete()
+    {
+        if(isDeleted()) {
+            long timestamp = System.currentTimeMillis();
+            liveness += (timestamp - currTime);
+            currTime = timestamp;
+        }
+        
+        return liveness >= TTL;
+    }
+    
+    /**
+     * Updated its current timestamp.<br>
+     * It's useful when the file is transferred in another server.
+    */
+    public void setCurrentTime() {
+        currTime = System.currentTimeMillis();
+    }
+    
+    /**
      * Returns the Time To Live of the file.<br>
      * It's meaningful only if the file has been marked as deleted.
     */
     public int getTimeToLive() {
         return (int) Math.max( 0, TTL - liveness );
     }
-	
-	/**
-	 * Returns the signature of the file.
-	*/
-	public byte[] getSignature()
-	{
-		if(signature == null)
-			signature = MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
-		return signature;
-	}
-	
-	public VectorClock getVersion()
-	{
-		return version;
-	}
-	
-	/** 
-	 * Sets a new version of the file.
-	 * 
-	 * @param version	the new version
-	*/
-	public void setVersion( final Version version )
-	{
-		if(version instanceof VectorClock)
-			this.version = (VectorClock) version;
-	}
-	
-	/** 
-	 * Increments the current version of the vector clock.
-	 * 
-	 * @param nodeId	the version to increment
-	*/
-	public void incrementVersion( final String nodeId )
-	{
-		version.incrementVersion( nodeId );
-	}
-	
-	@Override
-	public boolean equals( final Object o )
-	{
-		if(!(o instanceof DistributedFile))
-			return false;
-		
-		return o.toString().equals( toString() );
-	}
-	
-	@Override
+    
+    /**
+     * Returns the signature of the file.
+    */
+    public byte[] getSignature()
+    {
+        if(signature == null)
+            signature = MerkleTree.getSignature( name.getBytes( StandardCharsets.UTF_8 ) );
+        return signature;
+    }
+    
+    public VectorClock getVersion()
+    {
+        return version;
+    }
+    
+    /** 
+     * Sets a new version of the file.
+     * 
+     * @param version    the new version
+    */
+    public void setVersion( final Version version )
+    {
+        if(version instanceof VectorClock)
+            this.version = (VectorClock) version;
+    }
+    
+    /** 
+     * Increments the current version of the vector clock.
+     * 
+     * @param nodeId    the version to increment
+    */
+    public void incrementVersion( final String nodeId )
+    {
+        version.incrementVersion( nodeId );
+    }
+    
+    @Override
+    public boolean equals( final Object o )
+    {
+        if(!(o instanceof DistributedFile))
+            return false;
+        
+        return o.toString().equals( toString() );
+    }
+    
+    @Override
     public byte[] read()
     {
         int contentSize = (content == null) ? 0 : (content.length + Integer.BYTES);
@@ -262,10 +262,10 @@ public class DistributedFile implements Serializable, IOSerializable
     @Override
     public String toString()
     {
-    	return "{ Name: " + name +
-    			", Version: " + version.toString() +
-    			", Directory: " + isDirectory +
-    			", HintedHandoff: " + HintedHandoff +
-    			", Deleted: " + deleted + " }";
+        return "{ Name: " + name +
+                ", Version: " + version.toString() +
+                ", Directory: " + isDirectory +
+                ", HintedHandoff: " + HintedHandoff +
+                ", Deleted: " + deleted + " }";
     }
 }

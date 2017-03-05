@@ -1,8 +1,8 @@
 {
-	"network_interface": [ {"type":"eth1"}, {"IPversion":4} ],
- 	"members": [
-  		{"host":"192.168.5.3", "port":2000, "nodeType":0},
-  		{"host":"192.168.5.4", "port":2000, "nodeType":1},
-  		{"host":"192.168.5.5", "port":2000, "nodeType":1}
- 	]
+    "network_interface": [ {"type":"eth1"}, {"IPversion":4} ],
+     "members": [
+          {"host":"192.168.5.3", "port":2000, "nodeType":0},
+          {"host":"192.168.5.4", "port":2000, "nodeType":1},
+          {"host":"192.168.5.5", "port":2000, "nodeType":1}
+     ]
 }

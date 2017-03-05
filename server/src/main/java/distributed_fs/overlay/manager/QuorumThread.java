@@ -46,7 +46,7 @@ public class QuorumThread extends Thread
     private long id = -1L;
     private final Map<String, QuorumFile> fileLock = new HashMap<>( 64 );
     private final ReentrantLock QUORUM_LOCK = new ReentrantLock( true );
-	
+    
     private static final int PORT_OFFSET = 4;
     private static final short BLOCKED_TIME = 10000; // 10 seconds.
     private static final byte MAKE_QUORUM = 0, RELEASE_QUORUM = 1;
@@ -459,7 +459,7 @@ public class QuorumThread extends Thread
         boolean isLocked = true;
         
         QUORUM_LOCK.lock();
-    	
+        
         QuorumFile qFile = fileLock.get( fileName );
         
         if(toLock) {
@@ -500,128 +500,128 @@ public class QuorumThread extends Thread
     }
 
     /**
-	 * Class used to manage the agreed nodes of the quorum.
-	*/
-	public static class QuorumNode
-	{
-		private final GossipMember node;
-		private List<QuorumNode> nodes;
-		private final String fileName;
-		private final byte opType;
-		private final long id;
-		
-		public QuorumNode( final GossipMember node, final String fileName,
-		                   final byte opType, final long id )
-		{
-			this.node = node;
-			this.fileName = fileName;
-			this.opType = opType;
-			this.id = id;
-		}
-		
-		public GossipMember getNode() {
-			return node;
-		}
-		
-		/**
-		 * Method used, during the transmission of the files,
-		 * to set the list of agreed nodes.
-		*/
-		public void addAgreedNodes( final List<QuorumNode> nodes ) {
-			this.nodes = nodes;
-		}
-		
-		public byte getOpType() {
-        	return opType;
+     * Class used to manage the agreed nodes of the quorum.
+    */
+    public static class QuorumNode
+    {
+        private final GossipMember node;
+        private List<QuorumNode> nodes;
+        private final String fileName;
+        private final byte opType;
+        private final long id;
+        
+        public QuorumNode( final GossipMember node, final String fileName,
+                           final byte opType, final long id )
+        {
+            this.node = node;
+            this.fileName = fileName;
+            this.opType = opType;
+            this.id = id;
+        }
+        
+        public GossipMember getNode() {
+            return node;
+        }
+        
+        /**
+         * Method used, during the transmission of the files,
+         * to set the list of agreed nodes.
+        */
+        public void addAgreedNodes( final List<QuorumNode> nodes ) {
+            this.nodes = nodes;
+        }
+        
+        public byte getOpType() {
+            return opType;
         }
 
         public List<QuorumNode> getList() {
-			return nodes;
-		}
-		
-		public long getId() {
-        	return id;
+            return nodes;
+        }
+        
+        public long getId() {
+            return id;
         }
 
         public String getFileName() {
-        	return fileName;
+            return fileName;
         }
-	}
-	
-	/**
-	 * Class used to represent a file during the quorum phase.
-	 * This object remains in the Map as long as its TimeToLive
-	 * is less than a threshold.
-	*/
-	public static class QuorumFile implements TransferSpeed
-	{
-		/** Maximum waiting time of the file in the Map. */
-		private static final long DEFAULT_TTL = 60000; // 1 Minute.
-		
-		private long id;
-		private long ttl = 0, maxTTL;
-		private byte opType;
-		private int readers = 0;
-		private boolean isUpdated = false;
-		
-		public QuorumFile( final long id, final byte opType )
-		{
-			this.id = id;
-			this.opType = opType;
-			if(opType == Message.GET)
-				readers = 1;
-			
-			maxTTL = DEFAULT_TTL;
-		}
-		
-		/**
-		 * Updates the TimeToLive of the file.
-		 * 
-		 * @param delta   amount of time to add
-		*/
-		public void updateTTL( final int delta )
-		{
-		    if(!isUpdated())
-		        ttl += delta;
-		}
-		
-		public boolean toDelete()
-		{
-			return readers == 0 || ttl >= maxTTL;
-		}
-		
-		/**
-		 * Changes the number of readers.
-		 * 
-		 * @param value   +1/-1
-		*/
-		public void setReaders( final int value )
-		{
-			readers += value;
-			if(value == +1) // Restart the time to live.
-			    ttl = 0;
-		}
-		
-		public byte getOpType()
-		{
-			return opType;
-		}
-		
-		public long getId()
-		{
-			return id;
-		}
-		
-		private synchronized boolean isUpdated() {
-		    boolean updated = isUpdated;
-		    updated = false;
-		    return updated;
-		}
-		
-		private synchronized void setUpdated() {
-		    ttl = 0;
-		    isUpdated = true;
-		}
+    }
+    
+    /**
+     * Class used to represent a file during the quorum phase.
+     * This object remains in the Map as long as its TimeToLive
+     * is less than a threshold.
+    */
+    public static class QuorumFile implements TransferSpeed
+    {
+        /** Maximum waiting time of the file in the Map. */
+        private static final long DEFAULT_TTL = 60000; // 1 Minute.
+        
+        private long id;
+        private long ttl = 0, maxTTL;
+        private byte opType;
+        private int readers = 0;
+        private boolean isUpdated = false;
+        
+        public QuorumFile( final long id, final byte opType )
+        {
+            this.id = id;
+            this.opType = opType;
+            if(opType == Message.GET)
+                readers = 1;
+            
+            maxTTL = DEFAULT_TTL;
+        }
+        
+        /**
+         * Updates the TimeToLive of the file.
+         * 
+         * @param delta   amount of time to add
+        */
+        public void updateTTL( final int delta )
+        {
+            if(!isUpdated())
+                ttl += delta;
+        }
+        
+        public boolean toDelete()
+        {
+            return readers == 0 || ttl >= maxTTL;
+        }
+        
+        /**
+         * Changes the number of readers.
+         * 
+         * @param value   +1/-1
+        */
+        public void setReaders( final int value )
+        {
+            readers += value;
+            if(value == +1) // Restart the time to live.
+                ttl = 0;
+        }
+        
+        public byte getOpType()
+        {
+            return opType;
+        }
+        
+        public long getId()
+        {
+            return id;
+        }
+        
+        private synchronized boolean isUpdated() {
+            boolean updated = isUpdated;
+            updated = false;
+            return updated;
+        }
+        
+        private synchronized void setUpdated() {
+            ttl = 0;
+            isUpdated = true;
+        }
 
         @Override
         public void update( final int bytesToReceive, final double throughput )
@@ -633,65 +633,65 @@ public class QuorumThread extends Thread
             int time = ((int) (bytesToReceive / throughput) + DELAY) * 1000;
             maxTTL = time;
         }
-	}
-	
-	public static class QuorumSession
-	{
-	    // Parameters of the quorum protocol.
-	    private static final short N = 3; // Total number of nodes.
-	    private static final short W = 2; // Number of writers.
-	    private static final short R = 2; // Number of readers.
-	    
-	    /**
-	     * Gets the maximum number of nodes to contact
-	     * for the quorum protocol.
-	    */
-	    public static short getMaxNodes() {
-	        return N - 1;
-	    }
+    }
+    
+    public static class QuorumSession
+    {
+        // Parameters of the quorum protocol.
+        private static final short N = 3; // Total number of nodes.
+        private static final short W = 2; // Number of writers.
+        private static final short R = 2; // Number of readers.
+        
+        /**
+         * Gets the maximum number of nodes to contact
+         * for the quorum protocol.
+        */
+        public static short getMaxNodes() {
+            return N - 1;
+        }
 
-	    public static short getWriters() {
-	        return W - 1;
-	    }
-	    
-	    public static short getReaders() {
-	        return R - 1;
-	    }
-	    
-	    public static boolean isReadQuorum( final int readers ) {
-	        return readers >= getReaders();
-	    }
-	    
-	    public static boolean isWriteQuorum( final int writers ) {
-	        return writers >= getWriters();
-	    }
-	    
-	    public static boolean isDeleteQuorum( final int deleters ) {
-	        return deleters >= getWriters();
-	    }
-	    
-	    public static boolean isQuorum( final byte opType, final int replicaNodes )
-	    {
-	        if(opType == Message.PUT || opType == Message.DELETE)
-	            return isWriteQuorum( replicaNodes );
-	        else
-	            return isReadQuorum( replicaNodes );
-	    }
-	    
-	    public static boolean unmakeQuorum( final int errors, final byte opType )
-	    {
-	        if(opType == Message.PUT || opType == Message.DELETE)
-	            return (getMaxNodes() - errors) < getWriters();
-	        else
-	            return (getMaxNodes() - errors) < getReaders();
-	    }
-	    
-	    public static int getMinQuorum( final byte opType )
-	    {
-	        if(opType == Message.GET)
-	            return getReaders();
-	        else
-	            return getWriters();
-	    }
-	}
+        public static short getWriters() {
+            return W - 1;
+        }
+        
+        public static short getReaders() {
+            return R - 1;
+        }
+        
+        public static boolean isReadQuorum( final int readers ) {
+            return readers >= getReaders();
+        }
+        
+        public static boolean isWriteQuorum( final int writers ) {
+            return writers >= getWriters();
+        }
+        
+        public static boolean isDeleteQuorum( final int deleters ) {
+            return deleters >= getWriters();
+        }
+        
+        public static boolean isQuorum( final byte opType, final int replicaNodes )
+        {
+            if(opType == Message.PUT || opType == Message.DELETE)
+                return isWriteQuorum( replicaNodes );
+            else
+                return isReadQuorum( replicaNodes );
+        }
+        
+        public static boolean unmakeQuorum( final int errors, final byte opType )
+        {
+            if(opType == Message.PUT || opType == Message.DELETE)
+                return (getMaxNodes() - errors) < getWriters();
+            else
+                return (getMaxNodes() - errors) < getReaders();
+        }
+        
+        public static int getMinQuorum( final byte opType )
+        {
+            if(opType == Message.GET)
+                return getReaders();
+            else
+                return getWriters();
+        }
+    }
 }

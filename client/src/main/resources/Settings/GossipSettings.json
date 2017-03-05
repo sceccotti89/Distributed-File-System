@@ -1,13 +1,13 @@
 {
-	"port":2000,
- 	"log_level":"INFO",
- 	"gossip_interval":1000,
- 	"cleanup_interval":10000,
- 	"members": [
-  		{"host":"192.168.5.3", "port":"2000", "type":0},
-  		{"host":"192.168.5.4", "port":"2000", "type":1},
-  		{"host":"192.168.5.5", "port":"2000", "type":1},
-  		{"host":"192.168.5.6", "port":"2000", "type":1},
-  		{"host":"192.168.5.7", "port":"2000", "type":1}
- 	]
+    "port":2000,
+     "log_level":"INFO",
+     "gossip_interval":1000,
+     "cleanup_interval":10000,
+     "members": [
+          {"host":"192.168.5.3", "port":"2000", "type":0},
+          {"host":"192.168.5.4", "port":"2000", "type":1},
+          {"host":"192.168.5.5", "port":"2000", "type":1},
+          {"host":"192.168.5.6", "port":"2000", "type":1},
+          {"host":"192.168.5.7", "port":"2000", "type":1}
+     ]
 }

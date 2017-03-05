@@ -32,7 +32,7 @@ public class ArbitraryInconsistencyResolver<T> implements InconsistencyResolver<
      * @param values The list of objects
      * @return A single value, if one exists, taken from the input list.
      */
-	@Override
+    @Override
     public List<T> resolveConflicts(List<T> values) 
     {
         if (values.size() > 1)
@@ -45,7 +45,7 @@ public class ArbitraryInconsistencyResolver<T> implements InconsistencyResolver<
     public boolean equals(Object o) 
     {
         if (this == o) 
-        	return true;
+            return true;
         return (o != null && getClass() == o.getClass());
     }
 

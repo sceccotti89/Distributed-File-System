@@ -14,15 +14,15 @@ package distributed_fs.net;
 */
 public interface IOSerializable
 {
-	/**
-	 * Transforms the object in a byte array.
-	*/
-	public byte[] read();
-	
-	/**
-	 * Reads the object from a byte array.
-	 * 
-	 * @param data	object from which the informations are taken
-	*/
-	public void write( final byte[] data );
+    /**
+     * Transforms the object in a byte array.
+    */
+    public byte[] read();
+    
+    /**
+     * Reads the object from a byte array.
+     * 
+     * @param data    object from which the informations are taken
+    */
+    public void write( final byte[] data );
 }

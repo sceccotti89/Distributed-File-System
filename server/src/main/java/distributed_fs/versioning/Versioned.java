@@ -114,9 +114,9 @@ public final class Versioned<T> implements Serializable
     
     public static final class HappenedBeforeComparator<S> implements Comparator<Versioned<S>> 
     {
-    	@Override
+        @Override
         public int compare( final Versioned<S> v1, final Versioned<S> v2 )
-    	{
+        {
             Occurred occurred = v1.getVersion().compare( v2.getVersion() );
             if(occurred == Occurred.BEFORE)
                 return -1;

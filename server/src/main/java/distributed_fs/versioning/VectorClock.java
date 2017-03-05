@@ -76,7 +76,7 @@ public class VectorClock implements Version, Serializable
         this.timestampMap = new TreeMap<String, Long>();
         this.timestamp = timestamp;
         for(ClockEntry clockEntry: versions) {
-        	this.versionMap.put( clockEntry.getNodeId(), clockEntry.getVersion() );
+            this.versionMap.put( clockEntry.getNodeId(), clockEntry.getVersion() );
         }
     }
     
@@ -88,14 +88,14 @@ public class VectorClock implements Version, Serializable
      * @param timestamp
      */
     private VectorClock( final TreeMap<String, Long> versionMap, final TreeMap<String, Long> timestampMap,
-    					 final long timestamp ) 
+                         final long timestamp ) 
     {
         this.versionMap = Preconditions.checkNotNull( versionMap );
         this.timestampMap = Preconditions.checkNotNull( timestampMap );
         this.timestamp = timestamp;
     }
-	
-	/**
+    
+    /**
      * Increment the version info associated with the given node
      * 
      * @param node The node
@@ -109,21 +109,21 @@ public class VectorClock implements Version, Serializable
         this.lastNodeId = node;
         
         if(versionMap.size() == MAX_NUMBER_OF_VERSIONS) {
-        	// remove the oldest version based on the timestamp
-        	long min_ts = -1;
-        	String min_key = null;
-        	for(String key : timestampMap.keySet()) {
-        		long timestamp = timestampMap.get( key );
-        		if(min_ts == -1 || timestamp < min_ts) {
-        			min_ts = timestamp;
-        			min_key = key;
-        		}
-        	}
-        	
-        	if(min_key != null) {
-        		versionMap.remove( min_key );
-        		timestampMap.remove( min_key );
-        	}
+            // remove the oldest version based on the timestamp
+            long min_ts = -1;
+            String min_key = null;
+            for(String key : timestampMap.keySet()) {
+                long timestamp = timestampMap.get( key );
+                if(min_ts == -1 || timestamp < min_ts) {
+                    min_ts = timestamp;
+                    min_key = key;
+                }
+            }
+            
+            if(min_key != null) {
+                versionMap.remove( min_key );
+                timestampMap.remove( min_key );
+            }
         }
         
         this.timestamp = time;
@@ -147,35 +147,35 @@ public class VectorClock implements Version, Serializable
      */
     public VectorClock incremented( final String nodeId ) 
     {
-    	VectorClock copyClock = this.clone();
-    	copyClock.incrementVersion( this.lastNodeId = nodeId );
+        VectorClock copyClock = this.clone();
+        copyClock.incrementVersion( this.lastNodeId = nodeId );
         return copyClock;
     }
-	
-	public TreeMap<String, Long> getVersionMap() 
-	{
-	    return versionMap;
-	}
-	
-	public void setLastNodeId( final String node ) {
-	    this.lastNodeId = node;
-	}
-	
-	public String getLastNodeId() {
-	    return lastNodeId;
-	}
-	
-	@Override
+    
+    public TreeMap<String, Long> getVersionMap() 
+    {
+        return versionMap;
+    }
+    
+    public void setLastNodeId( final String node ) {
+        this.lastNodeId = node;
+    }
+    
+    public String getLastNodeId() {
+        return lastNodeId;
+    }
+    
+    @Override
     public VectorClock clone() 
     {
         VectorClock newClock = new VectorClock( new TreeMap<>( versionMap ),
-        						                new TreeMap<>( timestampMap ),
-        						                this.timestamp );
+                                                new TreeMap<>( timestampMap ),
+                                                this.timestamp );
         newClock.setLastNodeId( lastNodeId );
         
         return newClock;
     }
-	
+    
     @Override
     public boolean equals( final Object object )
     {

@@ -27,9 +27,9 @@ import java.util.List;
  */
 public class TimeBasedInconsistencyResolver<T> implements InconsistencyResolver<Versioned<T>>
 {
-	@Override
+    @Override
     public List<Versioned<T>> resolveConflicts( final List<Versioned<T>> items )
-	{
+    {
         if(items.size() <= 1) {
             return items;
         } else {

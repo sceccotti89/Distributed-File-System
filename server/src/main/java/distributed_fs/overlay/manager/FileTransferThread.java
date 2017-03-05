@@ -31,81 +31,81 @@ import gossiping.GossipMember;
 
 public class FileTransferThread extends Thread implements FileTransfer
 {
-	private final ExecutorService threadPoolSend; // Pool used to send the files in parallel.
-	private final ExecutorService threadPoolReceive; // Pool used to receive the files in parallel.
-	private final DFSDatabase database; // The database where the files are stored.
-	
-	private QuorumThread quorum_t;
-	private AntiEntropyService aeService;
-	
-	private AtomicBoolean shutDown = new AtomicBoolean( false );
-	
-	private final TCPnet net;
-	
-	private static final int MAX_CONN = 32; // Maximum number of accepted connections.
-	private static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
-	private static final int PORT_OFFSET = 2;
-	
-	
-	
-	
-	public FileTransferThread( final GossipMember node,
-							   final int port,
-							   final ConsistentHasher<GossipMember, String> cHasher,
-							   final QuorumThread quorum_t,
-							   final String resourcesLocation,
-							   final String databaseLocation ) throws IOException, DFSException
-	{
-	    setName( "FileTransfer" );
-	    
-		database = new DFSDatabase( resourcesLocation, databaseLocation, this );
-		
-		aeService = new AntiEntropyService( node, this, database, cHasher );
-		
-		net = new TCPnet( node.getHost(), port + PORT_OFFSET );
-		net.setSoTimeout( 500 );
-		
-		//threadPoolSend = Executors.newCachedThreadPool();
-		threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
-		threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
-		
-		this.quorum_t = quorum_t;
-	}
-	
-	@Override
-	public void run()
-	{
-	    try { database.newInstance(); }
+    private final ExecutorService threadPoolSend; // Pool used to send the files in parallel.
+    private final ExecutorService threadPoolReceive; // Pool used to receive the files in parallel.
+    private final DFSDatabase database; // The database where the files are stored.
+    
+    private QuorumThread quorum_t;
+    private AntiEntropyService aeService;
+    
+    private AtomicBoolean shutDown = new AtomicBoolean( false );
+    
+    private final TCPnet net;
+    
+    private static final int MAX_CONN = 32; // Maximum number of accepted connections.
+    private static final Logger LOGGER = Logger.getLogger( FileTransferThread.class );
+    private static final int PORT_OFFSET = 2;
+    
+    
+    
+    
+    public FileTransferThread( final GossipMember node,
+                               final int port,
+                               final ConsistentHasher<GossipMember, String> cHasher,
+                               final QuorumThread quorum_t,
+                               final String resourcesLocation,
+                               final String databaseLocation ) throws IOException, DFSException
+    {
+        setName( "FileTransfer" );
+        
+        database = new DFSDatabase( resourcesLocation, databaseLocation, this );
+        
+        aeService = new AntiEntropyService( node, this, database, cHasher );
+        
+        net = new TCPnet( node.getHost(), port + PORT_OFFSET );
+        net.setSoTimeout( 500 );
+        
+        //threadPoolSend = Executors.newCachedThreadPool();
+        threadPoolSend = Executors.newFixedThreadPool( MAX_CONN );
+        threadPoolReceive = Executors.newFixedThreadPool( MAX_CONN );
+        
+        this.quorum_t = quorum_t;
+    }
+    
+    @Override
+    public void run()
+    {
+        try { database.newInstance(); }
         catch( IOException e1 ) { e1.printStackTrace(); }
-	    aeService.start();
-	    
-	    LOGGER.info( "FileTransferThread launched." );
-		
-		try {
-		    while(!shutDown.get()) {
-				Session session = net.waitForConnection();
-				if(session == null)
-				    continue;
-				
-				LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
-				synchronized( threadPoolReceive ) {
-				    if(threadPoolReceive.isShutdown())
-				        break;
-				    
-				    threadPoolReceive.execute( new ReceiveFilesThread( session ) );
-				}
-			}
-		}
-		catch( IOException e ) {
-			e.printStackTrace();
-		}
-		
-		net.close();
-		
-		LOGGER.info( "FileTransferThread closed." );
-	}
-	
-	/**
+        aeService.start();
+        
+        LOGGER.info( "FileTransferThread launched." );
+        
+        try {
+            while(!shutDown.get()) {
+                Session session = net.waitForConnection();
+                if(session == null)
+                    continue;
+                
+                LOGGER.info( "Received a connection from \"" + session.getEndPointAddress() + "\"" );
+                synchronized( threadPoolReceive ) {
+                    if(threadPoolReceive.isShutdown())
+                        break;
+                    
+                    threadPoolReceive.execute( new ReceiveFilesThread( session ) );
+                }
+            }
+        }
+        catch( IOException e ) {
+            e.printStackTrace();
+        }
+        
+        net.close();
+        
+        LOGGER.info( "FileTransferThread closed." );
+    }
+    
+    /**
      * Enable/disable the anti-entropy mechanism.<br>
      * By default this value is setted to {@code true}.
      * 
@@ -116,11 +116,11 @@ public class FileTransferThread extends Thread implements FileTransfer
     {
         aeService.setAntiEntropy( enable );
     }
-	
-	@Override
-	public void receiveFiles( final Session session ) throws IOException
-	{
-	    ByteBuffer data = ByteBuffer.wrap( session.receive() );
+    
+    @Override
+    public void receiveFiles( final Session session ) throws IOException
+    {
+        ByteBuffer data = ByteBuffer.wrap( session.receive() );
         // Read the synch attribute.
         boolean toSynch = (data.get() == (byte) 0x1);
         // Read the quorum attribute.
@@ -136,163 +136,163 @@ public class FileTransferThread extends Thread implements FileTransfer
         
         // Get the number of files.
         int numFiles = data.getInt();
-	    
-		LOGGER.debug( "Receiving " + numFiles + " files..." );
-		
-		try {
-    		for(int i = 0; i < numFiles; i++) {
-    		    data = ByteBuffer.wrap( session.receive( qFile ) );
-    			DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
-    			LOGGER.debug( "File \"" + file + "\" downloaded." );
-    			if(file.isDeleted())
-    			    database.deleteFile( file, file.getHintedHandoff() );
-    			else
-    			    database.saveFile( file, file.getVersion(), null, true );
-    		}
-    		
-    		LOGGER.debug( "Files successfully downloaded." );
-    		
-    		// Send just 1 byte for the synchronization.
-    		if(toSynch)
-    		    session.sendMessage( Networking.TRUE, false );
-		}
-		catch( IOException e ) {
-		    e.printStackTrace();
-		}
-		
-		if(isQuorum) // Release the file.
+        
+        LOGGER.debug( "Receiving " + numFiles + " files..." );
+        
+        try {
+            for(int i = 0; i < numFiles; i++) {
+                data = ByteBuffer.wrap( session.receive( qFile ) );
+                DistributedFile file = new DistributedFile( DFSUtils.getNextBytes( data ) );
+                LOGGER.debug( "File \"" + file + "\" downloaded." );
+                if(file.isDeleted())
+                    database.deleteFile( file, file.getHintedHandoff() );
+                else
+                    database.saveFile( file, file.getVersion(), null, true );
+            }
+            
+            LOGGER.debug( "Files successfully downloaded." );
+            
+            // Send just 1 byte for the synchronization.
+            if(toSynch)
+                session.sendMessage( Networking.TRUE, false );
+        }
+        catch( IOException e ) {
+            e.printStackTrace();
+        }
+        
+        if(isQuorum) // Release the file.
             quorum_t.unlockFile( fileName, fileId );
-	}
-	
-	@Override
-	public boolean sendFiles( final String address,
-	                          final int port,
-							  final List<DistributedFile> files,
-							  final boolean wait_response,
-							  final String synchNodeId,
-							  final QuorumNode node )
-	{
-		SendFilesThread t = new SendFilesThread( port + PORT_OFFSET, files, address, synchNodeId, node );
-		synchronized( threadPoolSend ) {
-		    if(!threadPoolSend.isShutdown())
-		        threadPoolSend.execute( t );
-		    else
-		        return false;
-		}
-		
-		if(!wait_response)
-			return true;
-		
-		try{ t.join(); }
-		catch( InterruptedException e ){ return false; }
-		
-		return t.getResult();
-	}
-	
-	/**
-	 * Updates the quorum state.
-	 * 
-	 * @param node    the quorum node
-	*/
-	private synchronized void updateQuorum( final QuorumNode node )
-	{
-		List<QuorumNode> nodes = node.getList();
-		nodes.remove( node );
-	}
-	
-	/**
-	 * Returns the own database.
-	*/
-	public DFSDatabase getDatabase() {
-		return database;
-	}
-	
-	/**
-	 * Closes all the opened resources.
-	*/
-	public void shutDown()
-	{
-	    shutDown.set( true );
-	    
-	    synchronized( threadPoolSend ) {
-	        threadPoolSend.shutdown();
-	    }
-		synchronized( threadPoolReceive ) {
-		    threadPoolReceive.shutdown();
-		}
-		
-		try {
+    }
+    
+    @Override
+    public boolean sendFiles( final String address,
+                              final int port,
+                              final List<DistributedFile> files,
+                              final boolean wait_response,
+                              final String synchNodeId,
+                              final QuorumNode node )
+    {
+        SendFilesThread t = new SendFilesThread( port + PORT_OFFSET, files, address, synchNodeId, node );
+        synchronized( threadPoolSend ) {
+            if(!threadPoolSend.isShutdown())
+                threadPoolSend.execute( t );
+            else
+                return false;
+        }
+        
+        if(!wait_response)
+            return true;
+        
+        try{ t.join(); }
+        catch( InterruptedException e ){ return false; }
+        
+        return t.getResult();
+    }
+    
+    /**
+     * Updates the quorum state.
+     * 
+     * @param node    the quorum node
+    */
+    private synchronized void updateQuorum( final QuorumNode node )
+    {
+        List<QuorumNode> nodes = node.getList();
+        nodes.remove( node );
+    }
+    
+    /**
+     * Returns the own database.
+    */
+    public DFSDatabase getDatabase() {
+        return database;
+    }
+    
+    /**
+     * Closes all the opened resources.
+    */
+    public void shutDown()
+    {
+        shutDown.set( true );
+        
+        synchronized( threadPoolSend ) {
+            threadPoolSend.shutdown();
+        }
+        synchronized( threadPoolReceive ) {
+            threadPoolReceive.shutdown();
+        }
+        
+        try {
             threadPoolSend.awaitTermination( 1, TimeUnit.SECONDS );
             threadPoolReceive.awaitTermination( 1, TimeUnit.SECONDS );
         } catch( InterruptedException e1 ) {
             e1.printStackTrace();
         }
-		
-		database.close();
-		aeService.shutDown();
-	}
+        
+        database.close();
+        aeService.shutDown();
+    }
 
-	/**
-	 * Thread used to read incoming files, in an asynchronous way.
-	*/
-	private class ReceiveFilesThread extends Thread
-	{
-		private Session session;
-		
-		public ReceiveFilesThread( final Session session )
-		{
-		    setName( "ReceiverFile" );
-		    
-			this.session = session;
-		}
-		
-		@Override
-		public void run()
-		{
-			try {
-				receiveFiles( session );
-			}
-			catch( IOException e ) {
-				e.printStackTrace();
-			}
-			
-			session.close();
-		}
-	}
-	
-	/**
-	 * Thread used to send files, in an asynchronously way.
-	*/
-	private class SendFilesThread extends Thread
-	{
-		private int port;
-		private List<DistributedFile> files;
-		private String address;
-		private String synchNodeId;
-		private QuorumNode node;
-		
-		private boolean result;
-		
-		public SendFilesThread( final int port,
-								final List<DistributedFile> files,
-								final String address,
-								final String synchNodeId,
-								final QuorumNode node )
-		{
-		    setName( "SendFiles" );
-		    
-			this.port = port;
-			this.files = files;
-			this.address = address;
-			this.synchNodeId = synchNodeId;
-			this.node = node;
-		}
-		
-		@Override
-		public void run()
-		{
-		    result = true;
-			Session session = null;
+    /**
+     * Thread used to read incoming files, in an asynchronous way.
+    */
+    private class ReceiveFilesThread extends Thread
+    {
+        private Session session;
+        
+        public ReceiveFilesThread( final Session session )
+        {
+            setName( "ReceiverFile" );
+            
+            this.session = session;
+        }
+        
+        @Override
+        public void run()
+        {
+            try {
+                receiveFiles( session );
+            }
+            catch( IOException e ) {
+                e.printStackTrace();
+            }
+            
+            session.close();
+        }
+    }
+    
+    /**
+     * Thread used to send files, in an asynchronously way.
+    */
+    private class SendFilesThread extends Thread
+    {
+        private int port;
+        private List<DistributedFile> files;
+        private String address;
+        private String synchNodeId;
+        private QuorumNode node;
+        
+        private boolean result;
+        
+        public SendFilesThread( final int port,
+                                final List<DistributedFile> files,
+                                final String address,
+                                final String synchNodeId,
+                                final QuorumNode node )
+        {
+            setName( "SendFiles" );
+            
+            this.port = port;
+            this.files = files;
+            this.address = address;
+            this.synchNodeId = synchNodeId;
+            this.node = node;
+        }
+        
+        @Override
+        public void run()
+        {
+            result = true;
+            Session session = null;
             
             try {
                 LOGGER.debug( "Connecting to " + address + ":" + port );
@@ -341,14 +341,14 @@ public class FileTransferThread extends Thread implements FileTransfer
             
             if(session != null)
                 session.close();
-		}
-		
-		/** 
-		 * Returns the result of the operation.
-		*/
-		public boolean getResult()
-		{
-			return result;
-		}
-	}
+        }
+        
+        /** 
+         * Returns the result of the operation.
+        */
+        public boolean getResult()
+        {
+            return result;
+        }
+    }
 }

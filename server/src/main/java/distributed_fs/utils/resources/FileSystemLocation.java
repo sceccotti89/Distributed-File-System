@@ -15,53 +15,53 @@ import java.net.URL;
  */
 public class FileSystemLocation implements ResourceLocation
 {
-	/** The root of the file system to search. */
-	private File root;
-	
-	/**
-	 * Creates a new resoruce location based on the file system.
-	 * 
-	 * @param root The root of the file system to search
-	*/
-	public FileSystemLocation( final File root )
-	{
-		this.root = root;
-	}
-	
-	/**
-	 * @see ResourceLocation#getResource(String)
-	*/
-	public URL getResource( final String ref )
-	{
-		try {
-			File file = new File(root, ref);
-			if (!file.exists()) {
-				file = new File(ref);
-			}
-			if (!file.exists()) {
-				return null;
-			}
-			
-			return file.toURI().toURL();
-		} catch (IOException e) {
-			return null;
-		}
-	}
+    /** The root of the file system to search. */
+    private File root;
+    
+    /**
+     * Creates a new resoruce location based on the file system.
+     * 
+     * @param root The root of the file system to search
+    */
+    public FileSystemLocation( final File root )
+    {
+        this.root = root;
+    }
+    
+    /**
+     * @see ResourceLocation#getResource(String)
+    */
+    public URL getResource( final String ref )
+    {
+        try {
+            File file = new File(root, ref);
+            if (!file.exists()) {
+                file = new File(ref);
+            }
+            if (!file.exists()) {
+                return null;
+            }
+            
+            return file.toURI().toURL();
+        } catch (IOException e) {
+            return null;
+        }
+    }
 
-	/**
-	 * @see ResourceLocation#getResourceAsStream(String)
-	*/
-	public InputStream getResourceAsStream( final String ref )
-	{
-		try {
-			File file = new File(root, ref);
-			if (!file.exists()) {
-				file = new File(ref);
-			}
-			return new FileInputStream(file);
-		} catch (IOException e) {
-			return null;
-		}
-	}
+    /**
+     * @see ResourceLocation#getResourceAsStream(String)
+    */
+    public InputStream getResourceAsStream( final String ref )
+    {
+        try {
+            File file = new File(root, ref);
+            if (!file.exists()) {
+                file = new File(ref);
+            }
+            return new FileInputStream(file);
+        } catch (IOException e) {
+            return null;
+        }
+    }
 
 }

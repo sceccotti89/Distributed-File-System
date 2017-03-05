@@ -125,7 +125,7 @@ public class VersioningUtils {
         // Go over all the values and determine whether the version is
         // acceptable.
         for(Versioned<T> value: values) {
-        	ListIterator<Versioned<T>> iter = resolvedVersions.listIterator();
+            ListIterator<Versioned<T>> iter = resolvedVersions.listIterator();
             boolean obsolete = false;
             //System.out.println( "VALUE: " + value + ", RESOLVED: " + resolvedVersions );
             // Compare the current version with a set of accepted versions
@@ -176,14 +176,14 @@ public class VersioningUtils {
     /**
      * Generates a vector clock with the provided values.
      *
-     * @param serverIds		servers in the clock
-     * @param clockValue	value of the clock for each server entry
-     * @param timestamp		ts value to be set for the clock
+     * @param serverIds        servers in the clock
+     * @param clockValue    value of the clock for each server entry
+     * @param timestamp        ts value to be set for the clock
      * 
      * @return
     */
     @SuppressWarnings("deprecation")
-	public static VectorClock makeClock(Set<String> serverIds, long clockValue, long timestamp) 
+    public static VectorClock makeClock(Set<String> serverIds, long clockValue, long timestamp) 
     {
         List<ClockEntry> clockEntries = new ArrayList<ClockEntry>(serverIds.size());
         for (String serverId: serverIds) {

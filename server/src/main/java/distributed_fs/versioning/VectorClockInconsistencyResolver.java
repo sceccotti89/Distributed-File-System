@@ -26,9 +26,9 @@ import java.util.ListIterator;
 */
 public class VectorClockInconsistencyResolver<T> implements InconsistencyResolver<Versioned<T>>
 {
-	@Override
+    @Override
     public List<Versioned<T>> resolveConflicts( final List<Versioned<T>> items )
-	{
+    {
         if(items.size() <= 1)
             return items;
         

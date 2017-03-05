@@ -39,163 +39,163 @@ import gossiping.RemoteGossipMember;
 
 public abstract class DFSManager
 {
-	protected TCPnet net;
-	protected String address;
-	protected int port;
-	protected AtomicBoolean closed = new AtomicBoolean( false );
-	
-	protected boolean useLoadBalancer;
-	protected List<GossipMember> loadBalancers;
-	protected String destId;
-	
+    protected TCPnet net;
+    protected String address;
+    protected int port;
+    protected AtomicBoolean closed = new AtomicBoolean( false );
+    
+    protected boolean useLoadBalancer;
+    protected List<GossipMember> loadBalancers;
+    protected String destId;
+    
     protected final ConsistentHasher<GossipMember, String> cHasher;
     protected ClientMembershipManagerThread membMgr_t;
-	
-	private static final String DISTRIBUTED_FS_CONFIG = "Settings/ClientSettings.json";
-	protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
-	
-	
-	
-	public DFSManager( final String ipAddress,
-	                   final int port,
-					   final boolean useLoadBalancer,
-					   final List<GossipMember> members ) throws IOException, DFSException
-	{
-	    this.useLoadBalancer = useLoadBalancer;
-	    cHasher = new ConsistentHasherImpl<>();
-	    
-		setConfigure( ipAddress, port, members );
-	}
-	
-	/** 
-	 * Sets the initial configuration.
-	 * 
-	 * @param ipAddress  the ip address
-	 * @param port       the net port
-	 * @param members    list of initial members
-	 * 
-	 * @throws DFSException    when something wrong during the configuration.
-	*/
-	private void setConfigure( final String ipAddress, final int port,
-	                           final List<GossipMember> members )
-	                                   throws IOException, DFSException
-	{
-		if(!DFSUtils.initConfig) {
-		    DFSUtils.initConfig = true;
-		    PropertyConfigurator.configure( ResourceLoader.getResourceAsStream( DFSUtils.LOG_CONFIG ) );
-			BasicConfigurator.configure();
-		}
-		
-		LOGGER.info( "Starting the system..." );
-		
-		address = ipAddress;
-		JSONObject file = null;
-		// Read the informations from the configuration file.
-		try {
-    		file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
-    		if(address == null) {
-    		    JSONArray inetwork = file.getJSONArray( "network_interface" );
-        		String inet = inetwork.getJSONObject( 0 ).getString( "type" );
-        		int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
-        		address = getNetworkAddress( inet, IPversion );
-    		}
-		}
-		catch( IOException e ) {
-		    // The file is not found or not well-structured.
-		    throw e;
-		}
+    
+    private static final String DISTRIBUTED_FS_CONFIG = "Settings/ClientSettings.json";
+    protected static final Logger LOGGER = Logger.getLogger( DFSManager.class );
+    
+    
+    
+    public DFSManager( final String ipAddress,
+                       final int port,
+                       final boolean useLoadBalancer,
+                       final List<GossipMember> members ) throws IOException, DFSException
+    {
+        this.useLoadBalancer = useLoadBalancer;
+        cHasher = new ConsistentHasherImpl<>();
         
-		this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
-		
-		net = new TCPnet( address, this.port );
+        setConfigure( ipAddress, port, members );
+    }
+    
+    /** 
+     * Sets the initial configuration.
+     * 
+     * @param ipAddress  the ip address
+     * @param port       the net port
+     * @param members    list of initial members
+     * 
+     * @throws DFSException    when something wrong during the configuration.
+    */
+    private void setConfigure( final String ipAddress, final int port,
+                               final List<GossipMember> members )
+                                       throws IOException, DFSException
+    {
+        if(!DFSUtils.initConfig) {
+            DFSUtils.initConfig = true;
+            PropertyConfigurator.configure( ResourceLoader.getResourceAsStream( DFSUtils.LOG_CONFIG ) );
+            BasicConfigurator.configure();
+        }
+        
+        LOGGER.info( "Starting the system..." );
+        
+        address = ipAddress;
+        JSONObject file = null;
+        // Read the informations from the configuration file.
+        try {
+            file = DFSUtils.parseJSONFile( DISTRIBUTED_FS_CONFIG );
+            if(address == null) {
+                JSONArray inetwork = file.getJSONArray( "network_interface" );
+                String inet = inetwork.getJSONObject( 0 ).getString( "type" );
+                int IPversion = inetwork.getJSONObject( 1 ).getInt( "IPversion" );
+                address = getNetworkAddress( inet, IPversion );
+            }
+        }
+        catch( IOException e ) {
+            // The file is not found or not well-structured.
+            throw e;
+        }
+        
+        this.port = (port <= 0) ? DFSUtils.SERVICE_PORT : port;
+        
+        net = new TCPnet( address, this.port );
         net.setSoTimeout( 5000 );
         
         if(!useLoadBalancer)
             membMgr_t = new ClientMembershipManagerThread( net, this, cHasher );
-		
-		if(members != null) {
-		    // Get the remote nodes from the input list.
-			loadBalancers = new ArrayList<>( members.size() );
-			
-			for(GossipMember member : members) {
-				if(member.getNodeType() == GossipMember.LOAD_BALANCER)
-				    loadBalancers.add( member );
-				else {
-				    String id = DFSUtils.getNodeId( 1, member.getAddress() );
-	                member.setId( id );
-				    cHasher.addBucket( member, 1 );
-				}
-				
-				LOGGER.debug( "Added remote node: " + member.getAddress() + ":" + member.getNodeType() );
-			}
-		}
-		else {
-			if(file != null) {
-			    // Get the remote nodes from the configuration file.
-			    JSONArray nodes = file.getJSONArray( "members" );
-    			loadBalancers = new ArrayList<>( nodes.length() );
-    			for(int i = nodes.length()-1; i >= 0; i--) {
-    				JSONObject data = nodes.getJSONObject( i );
-    				int nodeType = data.getInt( "nodeType" );
-    				String address = data.getString( "host" );
-    				int Port = data.getInt( "port" );
-    				String id = DFSUtils.getNodeId( 1, address + ":" + port );
-    				GossipMember node = new RemoteGossipMember( address, Port, id, 0, nodeType );
-    				if(nodeType == GossipMember.LOAD_BALANCER)
-    				    loadBalancers.add( node );
-    				else
-    				    cHasher.addBucket( node, 1 );
-    				
-    				LOGGER.debug( "Added remote node: " + node.getAddress() + ":" + nodeType );
-    			}
-		    }
-		}
-		
-		// Some checks...
-		if(!useLoadBalancer && cHasher.isEmpty()) {
-		    LOGGER.info( "The list of nodes is empty. We are now using LoadBalancer nodes." );
-		    setUseLoadBalancers( true );
-		}
-	}
-	
-	private String getNetworkAddress( final String inet, final int IPversion ) throws IOException
-	{
-		String _address = null;
-		// Enumerate all the network interfaces.
-		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-		for(NetworkInterface netint : Collections.list( nets )) {
-			if(netint.getName().equals( inet )) {
-				// Enumerate all the IP address associated with it.
-				for(InetAddress inetAddress : Collections.list( netint.getInetAddresses() )) {
-					if(!inetAddress.isLoopbackAddress() &&
-					  ((IPversion == 4 && inetAddress instanceof Inet4Address) ||
-					  (IPversion == 6 && inetAddress instanceof Inet6Address))) {
-						_address = inetAddress.getHostAddress();
-						if(inetAddress instanceof Inet6Address) {
-							int index = _address.indexOf( '%' );
-							_address = _address.substring( 0, index );
-						}
-						
-						break;
-					}
-				}
-			}
-			
-			if(_address != null)
-				break;
-		}
-		
-		if(_address == null) {
-			throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
-									DISTRIBUTED_FS_CONFIG );
-		}
-		
-		LOGGER.info( "Address: " + _address );
-		
-		return _address;
-	}
-	
-	/**
+        
+        if(members != null) {
+            // Get the remote nodes from the input list.
+            loadBalancers = new ArrayList<>( members.size() );
+            
+            for(GossipMember member : members) {
+                if(member.getNodeType() == GossipMember.LOAD_BALANCER)
+                    loadBalancers.add( member );
+                else {
+                    String id = DFSUtils.getNodeId( 1, member.getAddress() );
+                    member.setId( id );
+                    cHasher.addBucket( member, 1 );
+                }
+                
+                LOGGER.debug( "Added remote node: " + member.getAddress() + ":" + member.getNodeType() );
+            }
+        }
+        else {
+            if(file != null) {
+                // Get the remote nodes from the configuration file.
+                JSONArray nodes = file.getJSONArray( "members" );
+                loadBalancers = new ArrayList<>( nodes.length() );
+                for(int i = nodes.length()-1; i >= 0; i--) {
+                    JSONObject data = nodes.getJSONObject( i );
+                    int nodeType = data.getInt( "nodeType" );
+                    String address = data.getString( "host" );
+                    int Port = data.getInt( "port" );
+                    String id = DFSUtils.getNodeId( 1, address + ":" + port );
+                    GossipMember node = new RemoteGossipMember( address, Port, id, 0, nodeType );
+                    if(nodeType == GossipMember.LOAD_BALANCER)
+                        loadBalancers.add( node );
+                    else
+                        cHasher.addBucket( node, 1 );
+                    
+                    LOGGER.debug( "Added remote node: " + node.getAddress() + ":" + nodeType );
+                }
+            }
+        }
+        
+        // Some checks...
+        if(!useLoadBalancer && cHasher.isEmpty()) {
+            LOGGER.info( "The list of nodes is empty. We are now using LoadBalancer nodes." );
+            setUseLoadBalancers( true );
+        }
+    }
+    
+    private String getNetworkAddress( final String inet, final int IPversion ) throws IOException
+    {
+        String _address = null;
+        // Enumerate all the network interfaces.
+        Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+        for(NetworkInterface netint : Collections.list( nets )) {
+            if(netint.getName().equals( inet )) {
+                // Enumerate all the IP address associated with it.
+                for(InetAddress inetAddress : Collections.list( netint.getInetAddresses() )) {
+                    if(!inetAddress.isLoopbackAddress() &&
+                      ((IPversion == 4 && inetAddress instanceof Inet4Address) ||
+                      (IPversion == 6 && inetAddress instanceof Inet6Address))) {
+                        _address = inetAddress.getHostAddress();
+                        if(inetAddress instanceof Inet6Address) {
+                            int index = _address.indexOf( '%' );
+                            _address = _address.substring( 0, index );
+                        }
+                        
+                        break;
+                    }
+                }
+            }
+            
+            if(_address != null)
+                break;
+        }
+        
+        if(_address == null) {
+            throw new IOException( "IP address not found: check your Internet connection or the configuration file " +
+                                    DISTRIBUTED_FS_CONFIG );
+        }
+        
+        LOGGER.info( "Address: " + _address );
+        
+        return _address;
+    }
+    
+    /**
      * Enable/disable the using of LoadBalancer nodes.
      * 
      * @param useLB    {@code true} to enable the load balancer usage,
@@ -220,56 +220,56 @@ public abstract class DFSManager
             }
         }
     }
-	
-	protected void sendPutMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
-	{
-	    LOGGER.info( "Sending data..." );
-		
-	    MessageRequest message;
-		if(useLoadBalancer) {
-		    message = new MessageRequest( Message.PUT, file.getName(), file.read() );
-		    message.putMetadata( address + ":" + port, null );
-		}
-		else {
-	        Metadata meta = new Metadata( null, hintedHandoff );
-	        message = new MessageRequest( Message.PUT, file.getName(), file.read(), true, destId, meta );
-		}
-		
-		session.sendMessage( message, true );
-		LOGGER.info( "Data sent." );
-	}
-	
-	protected void sendGetMessage( final Session session, final String fileName, final DistributedFile file ) throws IOException
+    
+    protected void sendPutMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
     {
-		LOGGER.info( "Sending data..." );
-		
-		byte[] data = null;
+        LOGGER.info( "Sending data..." );
+        
+        MessageRequest message;
+        if(useLoadBalancer) {
+            message = new MessageRequest( Message.PUT, file.getName(), file.read() );
+            message.putMetadata( address + ":" + port, null );
+        }
+        else {
+            Metadata meta = new Metadata( null, hintedHandoff );
+            message = new MessageRequest( Message.PUT, file.getName(), file.read(), true, destId, meta );
+        }
+        
+        session.sendMessage( message, true );
+        LOGGER.info( "Data sent." );
+    }
+    
+    protected void sendGetMessage( final Session session, final String fileName, final DistributedFile file ) throws IOException
+    {
+        LOGGER.info( "Sending data..." );
+        
+        byte[] data = null;
         if(file != null)
             data = DFSUtils.serializeObject( file.getVersion() );
-		
-		MessageRequest message;
-		if(useLoadBalancer) {
+        
+        MessageRequest message;
+        if(useLoadBalancer) {
             message = new MessageRequest( Message.GET, fileName, data );
             message.putMetadata( address + ":" + port, null );
-		}
+        }
         else {
             Metadata meta = new Metadata( null, null );
             message = new MessageRequest( Message.GET, fileName, data, true, destId, meta );
         }
-		
-		session.sendMessage( message, true );
-		LOGGER.info( "Data sent." );
-	}
-	
-	protected List<DistributedFile> readGetResponse( final Session session ) throws IOException
-    {
-	    return readGetAllResponse( session );
+        
+        session.sendMessage( message, true );
+        LOGGER.info( "Data sent." );
     }
-	
-	protected void sendGetAllMessage( final Session session, final String fileName ) throws IOException
+    
+    protected List<DistributedFile> readGetResponse( final Session session ) throws IOException
     {
-	    MessageRequest message;
-	    
+        return readGetAllResponse( session );
+    }
+    
+    protected void sendGetAllMessage( final Session session, final String fileName ) throws IOException
+    {
+        MessageRequest message;
+        
         LOGGER.info( "Sending data..." );
         if(useLoadBalancer) {
             message = new MessageRequest( Message.GET_ALL, fileName );
@@ -283,32 +283,32 @@ public abstract class DFSManager
         session.sendMessage( message, true );
         LOGGER.info( "Data sent." );
     }
-	
-	protected List<DistributedFile> readGetAllResponse( final Session session ) throws IOException
-	{
-	    LOGGER.info( "Waiting for the incoming files..." );
-	    
+    
+    protected List<DistributedFile> readGetAllResponse( final Session session ) throws IOException
+    {
+        LOGGER.info( "Waiting for the incoming files..." );
+        
         ByteBuffer msg = ByteBuffer.wrap( session.receive() );
-	    int numFiles = msg.getInt();
-	    List<DistributedFile> files = new ArrayList<>( numFiles );
-	    if(numFiles > 0) {
-	        for(int i = 0; i < numFiles; i++) {
-	            DistributedFile file = new DistributedFile( session.receive() );
+        int numFiles = msg.getInt();
+        List<DistributedFile> files = new ArrayList<>( numFiles );
+        if(numFiles > 0) {
+            for(int i = 0; i < numFiles; i++) {
+                DistributedFile file = new DistributedFile( session.receive() );
                 LOGGER.debug( "File \"" + file.getName() + "\" downloaded." );
                 files.add( file );
-	        }
-	    }
+            }
+        }
         
         LOGGER.info( "Received " + files.size() + " files." );
         
         return files;
-	}
-	
-	protected void sendDeleteMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
-	{
-		LOGGER.info( "Sending data..." );
-		
-		MessageRequest message;
+    }
+    
+    protected void sendDeleteMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
+    {
+        LOGGER.info( "Sending data..." );
+        
+        MessageRequest message;
         if(useLoadBalancer) {
             message = new MessageRequest( Message.DELETE, file.getName(), file.read() );
             message.putMetadata( address + ":" + port, null );
@@ -317,49 +317,49 @@ public abstract class DFSManager
             Metadata meta = new Metadata( null, hintedHandoff );
             message = new MessageRequest( Message.DELETE, file.getName(), file.read(), true, destId, meta );
         }
-		
+        
         session.sendMessage( message, true );
-		
-		LOGGER.info( "Data sent." );
-	}
-	
-	protected boolean checkResponse( final Session session, final boolean toPrint ) throws IOException
-	{
-		MessageResponse message = session.receiveMessage();
-		byte opType = message.getType();
-		if(toPrint)
-			LOGGER.debug( "Received: " + getStringCode( opType ) );
-		
-		return (opType != Message.TRANSACTION_FAILED);
-	}
-	
-	private String getStringCode( final byte code )
-	{
-		if(code == Message.TRANSACTION_OK)
-			return "TRANSACTION OK";
-		else
-			return "TRANSACTION FAILED";
-	}
-	
-	protected String getOpCode( final byte opType )
-	{
-	    switch( opType ) {
-    	    case( Message.PUT ): return "PUT";
-    	    case( Message.GET ): return "GET";
-    	    case( Message.DELETE ): return "DELETE";
-	    }
-	    
-	    return null;
-	}
-	
-	public void shutDown()
-	{
-	    closed.set( true );
-	    
-	    if(membMgr_t != null) {
-	        membMgr_t.close();
-    	    try { membMgr_t.join(); }
-    	    catch( InterruptedException e ) {}
-	    }
-	}
+        
+        LOGGER.info( "Data sent." );
+    }
+    
+    protected boolean checkResponse( final Session session, final boolean toPrint ) throws IOException
+    {
+        MessageResponse message = session.receiveMessage();
+        byte opType = message.getType();
+        if(toPrint)
+            LOGGER.debug( "Received: " + getStringCode( opType ) );
+        
+        return (opType != Message.TRANSACTION_FAILED);
+    }
+    
+    private String getStringCode( final byte code )
+    {
+        if(code == Message.TRANSACTION_OK)
+            return "TRANSACTION OK";
+        else
+            return "TRANSACTION FAILED";
+    }
+    
+    protected String getOpCode( final byte opType )
+    {
+        switch( opType ) {
+            case( Message.PUT ): return "PUT";
+            case( Message.GET ): return "GET";
+            case( Message.DELETE ): return "DELETE";
+        }
+        
+        return null;
+    }
+    
+    public void shutDown()
+    {
+        closed.set( true );
+        
+        if(membMgr_t != null) {
+            membMgr_t.close();
+            try { membMgr_t.join(); }
+            catch( InterruptedException e ) {}
+        }
+    }
 }

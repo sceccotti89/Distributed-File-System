@@ -1,5 +1,5 @@
 {
-	"network_interface": [
-		{"type":"eth1"}, {"IPversion":4}
-	]
+    "network_interface": [
+        {"type":"eth1"}, {"IPversion":4}
+    ]
 }

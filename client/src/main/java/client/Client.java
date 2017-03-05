@@ -32,32 +32,32 @@ import jline.SimpleCompletor;
 
 public class Client implements DBListener
 {
-	private final Set<String> dbFiles = new HashSet<>( 64 );
-	private ConsoleReader reader;
-	private LinkedList<Completor> completors;
-	private ArgumentCompletor completor;
-	
-	private SystemSimulation sim;
-	
-	private DFSService service = null;
-	
-	private static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
+    private final Set<String> dbFiles = new HashSet<>( 64 );
+    private ConsoleReader reader;
+    private LinkedList<Completor> completors;
+    private ArgumentCompletor completor;
     
-	// List of client's commands.
-	private static final String CMD_REGEX = "[\\t\\s]*";
-	private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list",
+    private SystemSimulation sim;
+    
+    private DFSService service = null;
+    
+    private static final BufferedReader SCAN = new BufferedReader( new InputStreamReader( System.in ) );
+    
+    // List of client's commands.
+    private static final String CMD_REGEX = "[\\t\\s]*";
+    private static final String[] COMMANDS = new String[]{ "put", "get", "delete", "list",
                                                            "enableLB", "disableLB", "enableSync", "disableSync",
                                                            "help", "exit" };
-	//private static final String FILE_REGEX = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
-	
-	
-	
-	
-	public static void main( final String args[] )
-	        throws ParseException, IOException, DFSException, InterruptedException
+    //private static final String FILE_REGEX = "([^ !$`&*()+]|(\\[ !$`&*()+]))+";
+    
+    
+    
+    
+    public static void main( final String args[] )
+            throws ParseException, IOException, DFSException, InterruptedException
     {
-	    ClientArgsParser.parseArgs( args );
-	    if(ClientArgsParser.hasOnlyHelpOption())
+        ClientArgsParser.parseArgs( args );
+        if(ClientArgsParser.hasOnlyHelpOption())
             return;
         
         JSONObject configFile = ClientArgsParser.getConfigurationFile();
@@ -78,10 +78,10 @@ public class Client implements DBListener
             new Client( ipAddress, port, resourceLocation, databaseLocation, members, localEnv );
         }
     }
-	
-	private static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
-	{
-	    String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
+    
+    private static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
+    {
+        String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
         int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
         String resourcesLocation = configFile.has( "ResourcesLocation" ) ? configFile.getString( "ResourcesLocation" ) : null;
         String databaseLocation = configFile.has( "DatabaseLocation" ) ? configFile.getString( "DatabaseLocation" ) : null;
@@ -90,8 +90,8 @@ public class Client implements DBListener
         
         new Client( address, port, resourcesLocation, databaseLocation, members, localEnv );
     }
-	
-	/**
+    
+    /**
      * Gets the list of members present in the configuration file.
      * 
      * @param configFile    the configuration file
@@ -117,28 +117,28 @@ public class Client implements DBListener
         
         return members;
     }
-	
-	public Client( final String ipAddress,
-	               final int port,
-	               final String resourceLocation,
-	               final String databaseLocation,
-	               List<GossipMember> members,
-	               final boolean localEnv ) throws ParseException, IOException, DFSException, InterruptedException
-	{
-	    if(localEnv) {
-	        // Start some nodes to simulate the distributed system,
-	        // but performed in a local environment.
-	        System.out.println( "Starting the pseudo-distributed environment..." );
-	        sim = new SystemSimulation( ipAddress, 1, members );
-	        if(members == null)
-	            members = sim.getNodes();
-	    }
-	    
-		try {
-			service = new DFSService( ipAddress, port, true, members,
-			                          resourceLocation, databaseLocation, this );
-			
-			for(DistributedFile file : service.listFiles())
+    
+    public Client( final String ipAddress,
+                   final int port,
+                   final String resourceLocation,
+                   final String databaseLocation,
+                   List<GossipMember> members,
+                   final boolean localEnv ) throws ParseException, IOException, DFSException, InterruptedException
+    {
+        if(localEnv) {
+            // Start some nodes to simulate the distributed system,
+            // but performed in a local environment.
+            System.out.println( "Starting the pseudo-distributed environment..." );
+            sim = new SystemSimulation( ipAddress, 1, members );
+            if(members == null)
+                members = sim.getNodes();
+        }
+        
+        try {
+            service = new DFSService( ipAddress, port, true, members,
+                                      resourceLocation, databaseLocation, this );
+            
+            for(DistributedFile file : service.listFiles())
                 dbFiles.add( file.getName() );
             
             // Load the files in the completor.
@@ -153,76 +153,76 @@ public class Client implements DBListener
             reader.addCompletor( completor );
             reader.setDefaultPrompt( "[CLIENT] " );
             
-			if(service.start()) {
-				System.out.println( "[CLIENT] Type 'help' for commands informations." );
-				while(!service.isClosed()) {
-					Operation op = checkInput();
-					if(op == null || service.isClosed())
-						break;
-					
-					switch( op.opType ) {
-						case( Message.GET ):
-							service.get( op.file );
-							break;
-						case( Message.PUT ):
-							service.put( op.file );
-							break;
-						case( Message.DELETE ):
-						    if(checkDeleteConfirm())
-						        service.delete( op.file );
-							break;
-					}
-				}
-			}
-		}
-		catch( Exception e ) {
-			e.printStackTrace();
-		}
-		
-		if(service != null)
-			service.shutDown();
-		if(sim != null)
-		    sim.close();
-		
-		System.exit( 0 );
-	}
-	
-	/**
-	 * Checks and retrieve the user input.
-	*/
-	private Operation checkInput() throws DFSException
-	{
-		String command = null;
-		
-		while(true) {
-			try{
-			    command = readCommand();
-			} catch( IOException e ){
-				e.printStackTrace();
-				break;
-			}
-			
-			if(command.startsWith( "get" ) || command.startsWith( "get " )) {
-				if(command.length() <= 4) {
-					System.out.println( "[CLIENT] Command error: you must specify the file." );
-					continue;
-				}
-				
-				String file = getFile( command, 4 );
-				if(file != null)
-					return new Operation( file, Message.GET );
-			}
-			else if(command.startsWith( "put" ) || command.startsWith( "put " )) {
-				if(command.length() <= 4) {
-					System.out.println( "[CLIENT] Command error: you must specify the file." );
-					continue;
-				}
-				
-				String file = getFile( command, 4 );
-				if(file != null)
-					return new Operation( file, Message.PUT );
-			}
-			else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
+            if(service.start()) {
+                System.out.println( "[CLIENT] Type 'help' for commands informations." );
+                while(!service.isClosed()) {
+                    Operation op = checkInput();
+                    if(op == null || service.isClosed())
+                        break;
+                    
+                    switch( op.opType ) {
+                        case( Message.GET ):
+                            service.get( op.file );
+                            break;
+                        case( Message.PUT ):
+                            service.put( op.file );
+                            break;
+                        case( Message.DELETE ):
+                            if(checkDeleteConfirm())
+                                service.delete( op.file );
+                            break;
+                    }
+                }
+            }
+        }
+        catch( Exception e ) {
+            e.printStackTrace();
+        }
+        
+        if(service != null)
+            service.shutDown();
+        if(sim != null)
+            sim.close();
+        
+        System.exit( 0 );
+    }
+    
+    /**
+     * Checks and retrieve the user input.
+    */
+    private Operation checkInput() throws DFSException
+    {
+        String command = null;
+        
+        while(true) {
+            try{
+                command = readCommand();
+            } catch( IOException e ){
+                e.printStackTrace();
+                break;
+            }
+            
+            if(command.startsWith( "get" ) || command.startsWith( "get " )) {
+                if(command.length() <= 4) {
+                    System.out.println( "[CLIENT] Command error: you must specify the file." );
+                    continue;
+                }
+                
+                String file = getFile( command, 4 );
+                if(file != null)
+                    return new Operation( file, Message.GET );
+            }
+            else if(command.startsWith( "put" ) || command.startsWith( "put " )) {
+                if(command.length() <= 4) {
+                    System.out.println( "[CLIENT] Command error: you must specify the file." );
+                    continue;
+                }
+                
+                String file = getFile( command, 4 );
+                if(file != null)
+                    return new Operation( file, Message.PUT );
+            }
+            else if(command.startsWith( "delete" ) || command.startsWith( "delete " )) {
                 if(command.length() <= 7) {
                     System.out.println( "[CLIENT] Command error: you must specify the file." );
                     continue;
@@ -232,7 +232,7 @@ public class Client implements DBListener
                 if(file != null)
                     return new Operation( file, Message.DELETE );
             }
-			else if(command.matches( CMD_REGEX + "disableLB" + CMD_REGEX ))
+            else if(command.matches( CMD_REGEX + "disableLB" + CMD_REGEX ))
                 service.setUseLoadBalancers( false );
             else if(command.matches( CMD_REGEX + "enableLB" + CMD_REGEX ))
                 service.setUseLoadBalancers( true );
@@ -258,22 +258,22 @@ public class Client implements DBListener
                 System.out.println( "[CLIENT] Command '" + command + "' unknown." );
                 System.out.println( "[CLIENT] Type 'help' for more informations." );
             }
-		}
-		
-		return null;
-	}
-	
-	/**
-	 * Returns the command inserted by the user.
-	 * 
-	 * @return the command, or {@code null} if the input reader has been closed
-	*/
-	private String readCommand() throws IOException
-	{
-	    String command = null;
-	    
-	    while(true) {
-    	    if(service.isReconciling() || !SCAN.ready()) {
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Returns the command inserted by the user.
+     * 
+     * @return the command, or {@code null} if the input reader has been closed
+    */
+    private String readCommand() throws IOException
+    {
+        String command = null;
+        
+        while(true) {
+            if(service.isReconciling() || !SCAN.ready()) {
                 try { Thread.sleep( 50 ); }
                 catch( InterruptedException e ) {}
                 continue;
@@ -287,12 +287,12 @@ public class Client implements DBListener
                 // Exception raised when the service is closed.
                 break;
             }
-	    }
+        }
         
         return command;
-	}
-	
-	/**
+    }
+    
+    /**
      * Returns the name of the file contained in the command.
      * 
      * @param command  the actual command
@@ -300,16 +300,16 @@ public class Client implements DBListener
      * 
      * @return the name of the file, or {@code null} if some errors are present
     */
-	private static String getFile( final String command, int offset )
-	{
-	    // Remove the initial white spaces and tabs.
-	    while(offset < command.length() &&
-	         (command.charAt( offset ) == ' ' ||
-	          command.charAt( offset ) == '\t')) {
-	        offset++;
-	    }
-	    
-	    // Remove the last white spaces and tabs.
+    private static String getFile( final String command, int offset )
+    {
+        // Remove the initial white spaces and tabs.
+        while(offset < command.length() &&
+             (command.charAt( offset ) == ' ' ||
+              command.charAt( offset ) == '\t')) {
+            offset++;
+        }
+        
+        // Remove the last white spaces and tabs.
         int index = command.length() - 1;
         while(index >= offset &&
              (command.charAt( index ) == ' ' ||
@@ -318,52 +318,52 @@ public class Client implements DBListener
         }
         
         String file = command.substring( offset, index + 1 );
-		if(file.startsWith( "\"" ) && file.endsWith( "\"" ))
-		    file = file.substring( 1, file.length() - 1 );
-		else {
-		    if(file.contains( " " ) || file.contains( "\t" )) {
-		        System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
-	            System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
-	            return null;
-		    }
-		}
-		
-		return file;
-	}
-	
-	/**
-	 * Checks the confirm to remove a file.
-	 * 
-	 * @return {@code true} to confirm, {@code false} otherwise
-	*/
-	private boolean checkDeleteConfirm() throws IOException
-	{
-	    System.out.print( "[CLIENT] Do you really want to delete the file (y/n)? " );
-	    String line = reader.readLine( "" );
-	    return line.isEmpty() || line.equalsIgnoreCase( "y" ) || line.equalsIgnoreCase( "yes" );
-	}
-	
-	@Override
-	public void dbEvent( final String fileName, final byte code )
-	{
-		if(code == Message.GET)
-			dbFiles.add( fileName );
-		else // DELETE
-			dbFiles.remove( fileName );
-		
-		// Put the name of file present in the database.
-		completors.removeLast();
-		completors.addLast( new SimpleCompletor( dbFiles.toArray( new String[]{} ) ) );
-		
-		ArgumentCompletor aComp = new ArgumentCompletor( completors );
-		reader.addCompletor( aComp );
-		reader.removeCompletor( completor );
-		completor = aComp;
-	}
-	
-	private void printHelp()
-	{
-	    System.out.println( "[CLIENT] Usage:\n"
+        if(file.startsWith( "\"" ) && file.endsWith( "\"" ))
+            file = file.substring( 1, file.length() - 1 );
+        else {
+            if(file.contains( " " ) || file.contains( "\t" )) {
+                System.out.println( "[CLIENT] Command error: you can specify only one file at the time." );
+                System.out.println( "[CLIENT] If the file contains one or more spaces, put it inside the \"\" boundaries." );
+                return null;
+            }
+        }
+        
+        return file;
+    }
+    
+    /**
+     * Checks the confirm to remove a file.
+     * 
+     * @return {@code true} to confirm, {@code false} otherwise
+    */
+    private boolean checkDeleteConfirm() throws IOException
+    {
+        System.out.print( "[CLIENT] Do you really want to delete the file (y/n)? " );
+        String line = reader.readLine( "" );
+        return line.isEmpty() || line.equalsIgnoreCase( "y" ) || line.equalsIgnoreCase( "yes" );
+    }
+    
+    @Override
+    public void dbEvent( final String fileName, final byte code )
+    {
+        if(code == Message.GET)
+            dbFiles.add( fileName );
+        else // DELETE
+            dbFiles.remove( fileName );
+        
+        // Put the name of file present in the database.
+        completors.removeLast();
+        completors.addLast( new SimpleCompletor( dbFiles.toArray( new String[]{} ) ) );
+        
+        ArgumentCompletor aComp = new ArgumentCompletor( completors );
+        reader.addCompletor( aComp );
+        reader.removeCompletor( completor );
+        completor = aComp;
+    }
+    
+    private void printHelp()
+    {
+        System.out.println( "[CLIENT] Usage:\n"
                 + "  put \"file_name\" - send a file present in the database to a remote one.\n"
                 + "  get \"file_name\" - get a file present in the remote nodes.\n"
                 + "  delete \"file_name\" - delete a file present on database and in remote nodes.\n"
@@ -376,20 +376,20 @@ public class Client implements DBListener
                 + "  exit - to close the service.\n\n"
                 + "  You can also use the auto completion, to complete faster your commands.\n"
                 + "  Try it with the [TAB] key." );
-	}
-	
-	/**
-	 * Class used to represent user input commands.
-	*/
-	private static class Operation
-	{
-		String file;
-		byte opType;
-		
-		public Operation( final String file, final byte opType )
-		{
-			this.file = file;
-			this.opType = opType;
-		}
-	}
+    }
+    
+    /**
+     * Class used to represent user input commands.
+    */
+    private static class Operation
+    {
+        String file;
+        byte opType;
+        
+        public Operation( final String file, final byte opType )
+        {
+            this.file = file;
+            this.opType = opType;
+        }
+    }
 }
