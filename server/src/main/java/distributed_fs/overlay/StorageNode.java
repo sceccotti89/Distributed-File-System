@@ -254,13 +254,13 @@ public class StorageNode extends DFSNode
          * @param netMonitor            the network monitor
         */
         private StorageWorker( final long id,
-                             final boolean replacedThread,
-                             final FileTransferThread fMgr,
-                             final QuorumThread quorum_t,
-                             final ConsistentHasher<GossipMember, String> cHasher,
-                             final TCPnet net,
-                             final Session session,
-                             final NetworkMonitorThread netMonitor ) throws IOException
+                               final boolean replacedThread,
+                               final FileTransferThread fMgr,
+                               final QuorumThread quorum_t,
+                               final ConsistentHasher<GossipMember, String> cHasher,
+                               final TCPnet net,
+                               final Session session,
+                               final NetworkMonitorThread netMonitor ) throws IOException
         {
             super( net, fMgr, cHasher );
             setName( "StorageNode" );
