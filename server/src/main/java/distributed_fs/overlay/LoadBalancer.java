@@ -199,10 +199,10 @@ public class LoadBalancer extends DFSNode
          * @param netMonitor       the network monitor   
         */
         private LoadBalancerWorker( final boolean replacedThread,
-                              final TCPnet net,
-                              final Session srcSession,
-                              final ConsistentHasher<GossipMember, String> cHasher,
-                              final NetworkMonitorThread netMonitor ) throws IOException
+                                    final TCPnet net,
+                                    final Session srcSession,
+                                    final ConsistentHasher<GossipMember, String> cHasher,
+                                    final NetworkMonitorThread netMonitor ) throws IOException
         {
             super( net, null, cHasher );
             setName( "LoadBalancer" );
