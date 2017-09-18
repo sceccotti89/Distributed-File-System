@@ -6,5 +6,5 @@ call mvn install:install-file -Dfile=libs/mr-udp-1.0.jar -DgroupId=rudp -Dartifa
                               -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true
 call mvn install
 
-cd../client
+cd ../client
 mvn package
