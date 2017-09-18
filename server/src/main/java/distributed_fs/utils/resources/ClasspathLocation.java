@@ -12,18 +12,14 @@ import java.net.URL;
 */
 public class ClasspathLocation implements ResourceLocation
 {
-    /**
-     * @see org.newdawn.slick.util.ResourceLocation#getResource(java.lang.String)
-    */
+    @Override
     public URL getResource( final String ref )
     {
         String cpRef = ref.replace( '\\', '/' );
         return ResourceLoader.class.getClassLoader().getResource( cpRef );
     }
 
-    /**
-     * @see org.newdawn.slick.util.ResourceLocation#getResourceAsStream(java.lang.String)
-    */
+    @Override
     public InputStream getResourceAsStream( final String ref )
     {
         String cpRef = ref.replace( '\\', '/' );
