@@ -117,7 +117,7 @@ Optional parameters:
 
 ### Client Node
 
-The Client an be launched with:
+The Client can be launched with:
 ```bash
 java -jar Client-<version>.jar [parameters]
 ```
