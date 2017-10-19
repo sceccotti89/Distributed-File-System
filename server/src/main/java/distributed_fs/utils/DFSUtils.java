@@ -185,8 +185,8 @@ public class DFSUtils
     */
     public static <T extends Serializable> byte[] serializeObject( final T obj )
     {
-        if(obj instanceof String)
-            return ((String) obj).getBytes( StandardCharsets.UTF_8 );
+        //if(obj instanceof String)
+        //    return ((String) obj).getBytes( StandardCharsets.UTF_8 );
         
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
