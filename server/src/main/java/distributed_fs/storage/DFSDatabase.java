@@ -294,10 +294,11 @@ public class DFSDatabase extends DBManager implements Closeable
                          boolean saveOnDisk ) throws IOException
     {
         if(saveOnDisk) {
-            if(disableAsyncWrites)
+            if(disableAsyncWrites) {
                 writeFileOnDisk( root + file.getName(), content );
-            else
+            } else {
                 asyncWriter.enqueue( content, root + file.getName(), Message.PUT );
+            }
         }
         
         addParentFile( new File( file.getName() ).getParentFile(), saveOnDisk );
@@ -309,7 +310,9 @@ public class DFSDatabase extends DBManager implements Closeable
     /**
      * Adds the parent of a file on database (if it doesn't exist).
      * 
-     * @param f    the current file
+     * @param f             the current file.
+     * @param saveOnDisk    {@code true} if the file have to be saved on disk,
+     *                      {@code false} otherwise.
     */
     private void addParentFile( File f, boolean saveOnDisk ) throws IOException
     {
