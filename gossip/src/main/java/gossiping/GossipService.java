@@ -26,8 +26,8 @@ public class GossipService
 	 * @throws InterruptedException
 	 * @throws UnknownHostException
 	 */
-	public GossipService( final StartupSettings startupSettings,
-						  final GossipListener listener ) throws InterruptedException, UnknownHostException 
+	public GossipService( StartupSettings startupSettings,
+						  GossipListener listener ) throws InterruptedException, UnknownHostException 
 	{
 		this( startupSettings.getAddress(),
 			 startupSettings.getPort(),
@@ -47,9 +47,9 @@ public class GossipService
 	 * @throws InterruptedException
 	 * @throws UnknownHostException
 	 */
-	public GossipService( final String ipAddress, final int port, final String id, final int virtualNodes, final int nodeType, 
+	public GossipService( String ipAddress, int port, String id, int virtualNodes, int nodeType, 
 						  final List<GossipMember> gossipMembers, final GossipSettings settings,
-						  final GossipListener listener )
+						  GossipListener listener )
 								  throws InterruptedException, UnknownHostException 
 	{
 		_gossipManager = new RandomGossipManager( ipAddress, port, id, virtualNodes, nodeType, settings, gossipMembers, listener );
@@ -70,7 +70,7 @@ public class GossipService
 		return _gossipManager;
 	}
 
-	public void setGossipManager( final GossipManager _gossipManager ) 
+	public void setGossipManager( GossipManager _gossipManager ) 
 	{
 		this._gossipManager = _gossipManager;
 	}

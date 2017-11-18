@@ -28,7 +28,7 @@ public class NodeStatistics implements Serializable
      * 
      * @param field
     */
-    public synchronized void increaseValue( final Integer field )
+    public synchronized void increaseValue( Integer field )
     {
         Double value = values.get( field );
         if(value == null) value = 0d;
@@ -40,7 +40,7 @@ public class NodeStatistics implements Serializable
      * 
      * @param field
     */
-    public synchronized void decreaseValue( final Integer field )
+    public synchronized void decreaseValue( Integer field )
     {
         Double value = values.get( field );
         if(value == null) value = 0d;
@@ -53,8 +53,7 @@ public class NodeStatistics implements Serializable
      * @param field
      * @param value
     */
-    public synchronized void setValue( final Integer field, final double value )
-    {
+    public synchronized void setValue( Integer field, double value ) {
         values.put( field, value );
     }
     
@@ -63,8 +62,7 @@ public class NodeStatistics implements Serializable
      * 
      * @param field
     */
-    public double getValue( final int field )
-    {
+    public double getValue( int field ) {
         return values.get( field );
     }
     

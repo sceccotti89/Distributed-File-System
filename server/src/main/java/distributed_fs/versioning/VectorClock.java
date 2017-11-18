@@ -58,7 +58,7 @@ public class VectorClock implements Version, Serializable
         this( System.currentTimeMillis() );
     }
     
-    public VectorClock( final long timestamp ) 
+    public VectorClock( long timestamp ) 
     {
         this.versionMap = new TreeMap<String, Long>();
         this.timestampMap = new TreeMap<String, Long>();
@@ -70,7 +70,7 @@ public class VectorClock implements Version, Serializable
      * clock entries should be sorted by nodeId 
      */
     @Deprecated
-    public VectorClock( final List<ClockEntry> versions, final long timestamp ) 
+    public VectorClock( List<ClockEntry> versions, long timestamp ) 
     {
         this.versionMap = new TreeMap<String, Long>();
         this.timestampMap = new TreeMap<String, Long>();
@@ -87,8 +87,8 @@ public class VectorClock implements Version, Serializable
      * @param timestampMap
      * @param timestamp
      */
-    private VectorClock( final TreeMap<String, Long> versionMap, final TreeMap<String, Long> timestampMap,
-                         final long timestamp ) 
+    private VectorClock( TreeMap<String, Long> versionMap, TreeMap<String, Long> timestampMap,
+                         long timestamp ) 
     {
         this.versionMap = Preconditions.checkNotNull( versionMap );
         this.timestampMap = Preconditions.checkNotNull( timestampMap );
@@ -100,7 +100,7 @@ public class VectorClock implements Version, Serializable
      * 
      * @param node The node
      */
-    public void incrementVersion( final String node ) 
+    public void incrementVersion( String node ) 
     {
         if(node == null)
             throw new IllegalArgumentException( node + " id can't be null." );
@@ -145,7 +145,7 @@ public class VectorClock implements Version, Serializable
      * 
      * @return A vector clock equal on each element except that indexed by nodeId
      */
-    public VectorClock incremented( final String nodeId ) 
+    public VectorClock incremented( String nodeId ) 
     {
         VectorClock copyClock = this.clone();
         copyClock.incrementVersion( this.lastNodeId = nodeId );
@@ -157,7 +157,7 @@ public class VectorClock implements Version, Serializable
         return versionMap;
     }
     
-    public void setLastNodeId( final String node ) {
+    public void setLastNodeId( String node ) {
         this.lastNodeId = node;
     }
     
@@ -177,7 +177,7 @@ public class VectorClock implements Version, Serializable
     }
     
     @Override
-    public boolean equals( final Object object )
+    public boolean equals( Object object )
     {
         if(this == object)
             return true;
@@ -230,7 +230,7 @@ public class VectorClock implements Version, Serializable
      * 
      * @return a new clock.
     */
-    public VectorClock merge( final VectorClock clock ) 
+    public VectorClock merge( VectorClock clock ) 
     {
         VectorClock newClock = new VectorClock();
         
@@ -250,7 +250,7 @@ public class VectorClock implements Version, Serializable
     }
     
     @Override
-    public Occurred compare( final Version v )
+    public Occurred compare( Version v )
     {
         if(!(v instanceof VectorClock))
             throw new IllegalArgumentException( "Cannot compare Versions of different types." );

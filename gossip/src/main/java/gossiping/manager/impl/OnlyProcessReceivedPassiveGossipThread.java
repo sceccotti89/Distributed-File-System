@@ -12,7 +12,7 @@ import gossiping.manager.PassiveGossipThread;
 
 public class OnlyProcessReceivedPassiveGossipThread extends PassiveGossipThread 
 {
-	public OnlyProcessReceivedPassiveGossipThread( final GossipManager gossipManager ) 
+	public OnlyProcessReceivedPassiveGossipThread( GossipManager gossipManager ) 
 	{
 		super( gossipManager );
 	}
@@ -27,9 +27,9 @@ public class OnlyProcessReceivedPassiveGossipThread extends PassiveGossipThread
    * @param remoteList
    */
 	@Override
-	protected void mergeLists( final GossipManager gossipManager, 
+	protected void mergeLists( GossipManager gossipManager, 
 							   final RemoteGossipMember senderMember,
-		  					   final List<GossipMember> remoteList )
+		  					   List<GossipMember> remoteList )
 	{
 	    List<GossipNode> upNodes = gossipManager.getMemberList();
 	    List<GossipNode> deadNodes = gossipManager.getDeadList();

@@ -135,7 +135,7 @@ abstract public class PassiveGossipThread implements Runnable
 	 * 
 	 * @return the decompressed bytes array
 	*/
-	private byte[] decompressData( final byte[] data )
+	private byte[] decompressData( byte[] data )
 	{
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		ByteArrayInputStream bais = new ByteArrayInputStream( data );
@@ -169,7 +169,7 @@ abstract public class PassiveGossipThread implements Runnable
 	 * @param remoteList
 	 *          The list of members known at the remote side.
 	*/
-	abstract protected void mergeLists( final GossipManager gossipManager,
-	                                    final RemoteGossipMember senderMember,
-										final List<GossipMember> remoteList );
+	abstract protected void mergeLists( GossipManager gossipManager,
+	                                    RemoteGossipMember senderMember,
+										List<GossipMember> remoteList );
 }

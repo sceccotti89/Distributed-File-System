@@ -48,7 +48,7 @@ public class AsyncDiskWriter
     
     
     
-    public AsyncDiskWriter( final DBManager db, final boolean enableParalellWorkers )
+    public AsyncDiskWriter( DBManager db, boolean enableParalellWorkers )
     {
         _db = db;
         filesQueue = new LinkedMap<>( 64 );
@@ -109,7 +109,7 @@ public class AsyncDiskWriter
          * 
          * @param fileName    name of file to check
         */
-        private void checkActiveFile( final String fileName )
+        private void checkActiveFile( String fileName )
         {
             if(!activeFiles.containsKey( fileName ))
                 activeFiles.put( fileName, lock.newCondition() );
@@ -171,7 +171,7 @@ public class AsyncDiskWriter
          * @return {@code true} if the waiting phase has been performed,
          *         {@code false} otherwise
         */
-        private boolean checkWrittenFile( final String fileName )
+        private boolean checkWrittenFile( String fileName )
         {
             boolean hasWaited = false;
             QueueNode qNode = null;
@@ -247,7 +247,7 @@ public class AsyncDiskWriter
      * @param path     the file's location. It may be a relative or absolute path to the file
      * @param opType   the operation to perform ({@link Message#PUT} or {@link Message#DELETE})
     */
-    public void enqueue( final byte[] file, final String path, final byte opType )
+    public void enqueue( byte[] file, String path, byte opType )
     {
         lock.lock();
         
@@ -265,7 +265,7 @@ public class AsyncDiskWriter
      * 
      * @param fileName     name of the file
     */
-    public void checkWrittenFile( final String fileName )
+    public void checkWrittenFile( String fileName )
     {
         for(int i = 0; i < numThreads; i++) {
             if(threads.get( i ).checkWrittenFile( fileName ))
@@ -310,7 +310,7 @@ public class AsyncDiskWriter
         public final ReentrantLock lockFile = new ReentrantLock();
         public final Condition waitFile = lockFile.newCondition();
         
-        public QueueNode( final byte[] file, final String path, final byte opType )
+        public QueueNode( byte[] file, String path, byte opType )
         {
             this.file = file;
             this.path = path;

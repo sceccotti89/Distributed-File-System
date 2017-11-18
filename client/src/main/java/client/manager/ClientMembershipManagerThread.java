@@ -40,9 +40,9 @@ public class ClientMembershipManagerThread extends Thread
     
     
     
-    public ClientMembershipManagerThread( final TCPnet net,
-                                    final DFSManager service,
-                                    final ConsistentHasher<GossipMember, String> cHasher )
+    public ClientMembershipManagerThread( TCPnet net,
+                                    DFSManager service,
+                                    ConsistentHasher<GossipMember, String> cHasher )
     {
         setName( "ClientMembershipManager" );
         
@@ -123,7 +123,7 @@ public class ClientMembershipManagerThread extends Thread
      * 
      * @param remoteNodes   the remote list
     */
-    private void mergeLists( final List<GossipNode> remoteNodes )
+    private void mergeLists( List<GossipNode> remoteNodes )
     {
         Set<GossipNode> nodeSet = new HashSet<>( members );
         nodeSet.addAll( remoteNodes );
@@ -137,7 +137,7 @@ public class ClientMembershipManagerThread extends Thread
      * Removes a node from the consistent hashing structure,
      * since it's not more reachable.
     */
-    private void removeNode( final GossipMember node )
+    private void removeNode( GossipMember node )
     {
         LOGGER.debug( "[CLIENT] Node: " + node + " is unreachable." );
         synchronized( cHasher ) {

@@ -32,7 +32,7 @@ public abstract class NetworkMonitorThread extends Thread
     
     protected static final Logger LOGGER = Logger.getLogger( DFSNode.class.getName() );
     
-    public NetworkMonitorThread( final String address ) throws IOException
+    public NetworkMonitorThread( String address ) throws IOException
     {
         net = new UDPnet();
         net.joinMulticastGroup( InetAddress.getByName( address ) );
@@ -43,14 +43,14 @@ public abstract class NetworkMonitorThread extends Thread
      * 
      * @param address
     */
-    public abstract NodeStatistics getStatisticsFor( final String address );
+    public abstract NodeStatistics getStatisticsFor( String address );
     
     /**
      * Encrypts the input message.
      * 
      * @param message
     */
-    protected byte[] encryptMessage( final byte[] message ) throws Exception
+    protected byte[] encryptMessage( byte[] message ) throws Exception
     {
         final Cipher cipher = Cipher.getInstance( "AES/CBC/PKCS5Padding" );
         cipher.init( Cipher.ENCRYPT_MODE, keySpec, ivSpec );
@@ -62,7 +62,7 @@ public abstract class NetworkMonitorThread extends Thread
      * 
      * @param message
     */
-    protected byte[] decryptMessage( final byte[] message ) throws Exception
+    protected byte[] decryptMessage( byte[] message ) throws Exception
     {
         final Cipher cipher = Cipher.getInstance( "AES/CBC/PKCS5Padding" );
         cipher.init( Cipher.DECRYPT_MODE, keySpec, ivSpec );

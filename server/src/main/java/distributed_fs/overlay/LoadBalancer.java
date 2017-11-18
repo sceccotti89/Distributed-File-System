@@ -46,9 +46,9 @@ public class LoadBalancer extends DFSNode
      *                             then the default one will be chosed ({@link DFSUtils#SERVICE_PORT});
      * @param startupMembers    list of nodes
     */
-    public LoadBalancer( final String ipAddress,
-                         final int port,
-                         final List<GossipMember> startupMembers ) throws IOException, InterruptedException
+    public LoadBalancer( String ipAddress,
+                         int port,
+                         List<GossipMember> startupMembers ) throws IOException, InterruptedException
     {
         super( ipAddress, port, 1, GossipMember.LOAD_BALANCER, startupMembers );
         setName( "StorageNode" );
@@ -80,7 +80,7 @@ public class LoadBalancer extends DFSNode
      * 
      * @param configFile   the configuration file
     */
-    public static LoadBalancer fromJSONFile( final JSONObject configFile ) throws IOException, InterruptedException, DFSException
+    public static LoadBalancer fromJSONFile( JSONObject configFile ) throws IOException, InterruptedException, DFSException
     {
         String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
         int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
@@ -94,7 +94,7 @@ public class LoadBalancer extends DFSNode
      * 
      * @param member    member to add
     */
-    public void removeNode( final GossipMember member ) throws InterruptedException
+    public void removeNode( GossipMember member ) throws InterruptedException
     {
         cHasher.removeBucket( member );
         gManager.removeMember( member );
@@ -105,7 +105,7 @@ public class LoadBalancer extends DFSNode
      * 
      * @param member    member to remove
     */
-    public void addNode( final GossipMember member )
+    public void addNode( GossipMember member )
     {
         cHasher.addBucket( member, member.getVirtualNodes() );
         gManager.addMember( member );
@@ -119,7 +119,7 @@ public class LoadBalancer extends DFSNode
      * @param launchAsynch   {@code true} to launch the process asynchronously,
      *                       {@code false} otherwise
     */
-    public void launch( final boolean launchAsynch )
+    public void launch( boolean launchAsynch )
     {
         if(launchAsynch) {
             // Create a new Thread.
@@ -198,11 +198,11 @@ public class LoadBalancer extends DFSNode
          * @param cHasher          the consistent hashing
          * @param netMonitor       the network monitor   
         */
-        private LoadBalancerWorker( final boolean replacedThread,
-                                    final TCPnet net,
-                                    final Session srcSession,
-                                    final ConsistentHasher<GossipMember, String> cHasher,
-                                    final NetworkMonitorThread netMonitor ) throws IOException
+        private LoadBalancerWorker( boolean replacedThread,
+                                    TCPnet net,
+                                    Session srcSession,
+                                    ConsistentHasher<GossipMember, String> cHasher,
+                                    NetworkMonitorThread netMonitor ) throws IOException
         {
             super( net, null, cHasher );
             setName( "LoadBalancer" );
@@ -330,7 +330,7 @@ public class LoadBalancer extends DFSNode
          * 
          * @return list of nodes taken from the given node's preference list.
         */
-        private List<GossipMember> getNodesFromPreferenceList( final String id, final GossipMember sourceNode )
+        private List<GossipMember> getNodesFromPreferenceList( String id, GossipMember sourceNode )
         {
             final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
             List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
@@ -350,7 +350,7 @@ public class LoadBalancer extends DFSNode
          * 
          * @return the most balanced node, if present, {@code null} otherwise
         */
-        private GossipMember getBalancedNode( final List<GossipMember> nodes )
+        private GossipMember getBalancedNode( List<GossipMember> nodes )
         {
             double minWorkLoad = Double.MAX_VALUE;
             Integer targetNode = null;
@@ -381,8 +381,8 @@ public class LoadBalancer extends DFSNode
          * @param data             in {@code GET} operations contains the version of the file,
          *                         in {@code PUT/DELETE} operations the content of the file
         */
-        private void forwardRequest( final Session session, final byte opType, final String destId,
-                                     final String hintedHandoff, final String fileName, final byte[] data )
+        private void forwardRequest( Session session, byte opType, String destId,
+                                     String hintedHandoffl String fileNamel byte[] data )
                                              throws IOException
         {
             if(!replacedThread || actionsList.isEmpty()) {
@@ -406,7 +406,7 @@ public class LoadBalancer extends DFSNode
          * 
          * @param state
         */
-        private void sendClientResponse( final byte state ) throws IOException
+        private void sendClientResponse( byte state ) throws IOException
         {
             if(state == Message.TRANSACTION_FAILED)
                 LOGGER.info( "There are no available nodes. The transaction will be closed." );
@@ -427,7 +427,7 @@ public class LoadBalancer extends DFSNode
      * @param threadPool    the thread pool executor
      * @param state         the thread state used to load the new one
     */
-    public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException
+    public static DFSNode startThread( ExecutorService threadPool, ThreadState state ) throws IOException
     {
         LoadBalancerWorker node =
         new LoadBalancerWorker( true,

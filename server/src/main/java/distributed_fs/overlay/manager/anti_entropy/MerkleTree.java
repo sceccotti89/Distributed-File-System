@@ -66,7 +66,7 @@ public class MerkleTree
      * 
      * @param leafKeys        byte representation of the files
     */
-    public MerkleTree( final List<byte[]> leafKeys )
+    public MerkleTree( List<byte[]> leafKeys )
     {
         int size = leafKeys.size();
         List<byte[]> leafSignatures = new ArrayList<>( size );
@@ -84,7 +84,7 @@ public class MerkleTree
      * @param height
      * @param leafSignatures
      */
-    public MerkleTree( final Node treeRoot, final int numNodes, final int height, final List<byte[]> leafSignatures)
+    public MerkleTree( Node treeRoot, int numNodes, int height, List<byte[]> leafSignatures)
     {
         root = treeRoot;
         nnodes = numNodes;
@@ -141,7 +141,7 @@ public class MerkleTree
      * 
      * @param buf
     */
-    private void serializeBreadthFirst( final ByteBuffer buf )
+    private void serializeBreadthFirst( ByteBuffer buf )
     {
         Queue<Node> q = new ArrayDeque<Node>( (nnodes / 2) + 1 );
         q.add( root );
@@ -163,7 +163,7 @@ public class MerkleTree
      * 
      * @param signatures
     */
-    private void constructTree( final List<byte[]> signatures )
+    private void constructTree( List<byte[]> signatures )
     {
         //if (signatures.size() <= 1) {
             //throw new IllegalArgumentException( "Must be at least two signatures to construct a Merkle tree" );
@@ -220,7 +220,7 @@ public class MerkleTree
      * 
      * @return list of leaves reached from the given node
     */
-    public Deque<Node> getLeavesFrom( final Node n )
+    public Deque<Node> getLeavesFrom( Node n )
     {
         LinkedList<Node> leaves = new LinkedList<>();
         Deque<Node> nodes = new ArrayDeque<>();
@@ -242,7 +242,7 @@ public class MerkleTree
     /**
      * Constructs an internal level of the tree
     */
-    private List<Node> internalLevel( final List<Node> children )
+    private List<Node> internalLevel( List<Node> children )
     {
         List<Node> parents = new ArrayList<>( children.size() / 2 );
         
@@ -267,7 +267,7 @@ public class MerkleTree
      * Constructs the bottom part of the tree - the leaf nodes and their
      * immediate parents.  Returns a list of the parent nodes.
     */
-    private List<Node> bottomLevel( final List<byte[]> signatures )
+    private List<Node> bottomLevel( List<byte[]> signatures )
     {
         List<Node> parents = new ArrayList<Node>( signatures.size() / 2 );
         int position = 0;
@@ -292,7 +292,7 @@ public class MerkleTree
         return parents;
     }
     
-    private Node constructInternalNode( final Node child1, final Node child2 )
+    private Node constructInternalNode( Node child1, Node child2 )
     {
         Node parent = new Node();
         parent.type = INTERNAL_SIG_TYPE;
@@ -308,7 +308,7 @@ public class MerkleTree
         return parent;
     }
     
-    private Node constructLeafNode( final byte[] signature, final int position )
+    private Node constructLeafNode( byte[] signature, int position )
     {
         Node leaf = new Node();
         leaf.type = LEAF_SIG_TYPE;
@@ -317,7 +317,7 @@ public class MerkleTree
         return leaf;
     }
     
-    private byte[] internalHash( final byte[] leftChildSig, final byte[] rightChildSig )
+    private byte[] internalHash( byte[] leftChildSig, byte[] rightChildSig )
     {
         String leftSig = DFSUtils.bytesToHex( leftChildSig );
         String rightSig = DFSUtils.bytesToHex( rightChildSig );
@@ -327,7 +327,7 @@ public class MerkleTree
         return _hash.hashString( leftSig + rightSig, StandardCharsets.UTF_8 ).asBytes();
     }
     
-    private byte[] leaveHash( final byte[] leaveSig )
+    private byte[] leaveHash( byte[] leaveSig )
     {
         return getSignature( leaveSig );
     }
@@ -337,7 +337,7 @@ public class MerkleTree
      * 
      * @param object        the byte array of an object
     */
-    public static byte[] getSignature( final byte[] object )
+    public static byte[] getSignature( byte[] object )
     {
         return _hash.hashBytes( object ).asBytes();
     }

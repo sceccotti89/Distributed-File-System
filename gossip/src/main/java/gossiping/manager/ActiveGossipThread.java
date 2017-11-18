@@ -19,7 +19,7 @@ abstract public class ActiveGossipThread implements Runnable
 
 	private final AtomicBoolean keepRunning;
 
-	public ActiveGossipThread( final GossipManager gossipManager ) 
+	public ActiveGossipThread( GossipManager gossipManager ) 
 	{
 		this.gossipManager = gossipManager;
 		this.keepRunning = new AtomicBoolean( true );
@@ -52,7 +52,7 @@ abstract public class ActiveGossipThread implements Runnable
 	 * @param me			The local member of the thread, used to update its heartbeat.
 	 * @param memberList	The list of members which are stored in the local list of members.
 	 */
-	abstract protected void sendMembershipList( final LocalGossipMember me, final List<GossipNode> memberList );
+	abstract protected void sendMembershipList( LocalGossipMember me, List<GossipNode> memberList );
 
 	/**
 	 * Abstract method which should be implemented by a subclass. This method
@@ -62,5 +62,5 @@ abstract public class ActiveGossipThread implements Runnable
 	 * 
 	 * @return The chosen LocalGossipMember to gossip with.
 	 */
-	abstract protected LocalGossipMember selectPartner( final List<GossipNode> memberList );
+	abstract protected LocalGossipMember selectPartner( List<GossipNode> memberList );
 }

@@ -12,7 +12,7 @@ public class LogLevel
 	public static final int INFO  = 2;
 	public static final int DEBUG = 3;
 
-	public static int fromString( final String logLevel ) 
+	public static int fromString( String logLevel ) 
 	{
 		if (logLevel.equals( CONFIG_ERROR ))
 			return ERROR;
@@ -24,7 +24,7 @@ public class LogLevel
 			return INFO;
 	}
 	
-	public static Level getLogLevel( final int logLevel )
+	public static Level getLogLevel( int logLevel )
 	{
 		switch( logLevel ) {
 			case( ERROR ): return Level.ERROR;

@@ -53,7 +53,7 @@ public class Client implements DBListener
     
     
     
-    public static void main( final String args[] )
+    public static void main( String args[] )
             throws ParseException, IOException, DFSException, InterruptedException
     {
         ClientArgsParser.parseArgs( args );
@@ -79,7 +79,7 @@ public class Client implements DBListener
         }
     }
     
-    private static void fromJSONFile( final JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
+    private static void fromJSONFile( JSONObject configFile ) throws ParseException, IOException, DFSException, InterruptedException
     {
         String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
         int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
@@ -96,7 +96,7 @@ public class Client implements DBListener
      * 
      * @param configFile    the configuration file
     */
-    private static List<GossipMember> getStartupMembers( final JSONObject configFile )
+    private static List<GossipMember> getStartupMembers( JSONObject configFile )
     {
         List<GossipMember> members = null;
         if(!configFile.has( "members" ))
@@ -118,12 +118,12 @@ public class Client implements DBListener
         return members;
     }
     
-    public Client( final String ipAddress,
-                   final int port,
-                   final String resourceLocation,
-                   final String databaseLocation,
+    public Client( String ipAddress,
+                   int port,
+                   String resourceLocation,
+                   String databaseLocation,
                    List<GossipMember> members,
-                   final boolean localEnv ) throws ParseException, IOException, DFSException, InterruptedException
+                   boolean localEnv ) throws ParseException, IOException, DFSException, InterruptedException
     {
         if(localEnv) {
             // Start some nodes to simulate the distributed system,
@@ -300,7 +300,7 @@ public class Client implements DBListener
      * 
      * @return the name of the file, or {@code null} if some errors are present
     */
-    private static String getFile( final String command, int offset )
+    private static String getFile( String command, int offset )
     {
         // Remove the initial white spaces and tabs.
         while(offset < command.length() &&
@@ -344,7 +344,7 @@ public class Client implements DBListener
     }
     
     @Override
-    public void dbEvent( final String fileName, final byte code )
+    public void dbEvent( String fileName, byte code )
     {
         if(code == Message.GET)
             dbFiles.add( fileName );
@@ -386,7 +386,7 @@ public class Client implements DBListener
         String file;
         byte opType;
         
-        public Operation( final String file, final byte opType )
+        public Operation( String file, byte opType )
         {
             this.file = file;
             this.opType = opType;

@@ -45,7 +45,7 @@ public final class ClockEntry implements Cloneable, Serializable
      * @param nodeId The node id
      * @param version The current version
      */
-    public ClockEntry( final String nodeId, final long version ) 
+    public ClockEntry( String nodeId, long version ) 
     {
         if(version < 1)
             throw new IllegalArgumentException( "Version " + version + " is not in the range (1, " + Long.MAX_VALUE + ")." );
@@ -86,7 +86,7 @@ public final class ClockEntry implements Cloneable, Serializable
     }
 
     @Override
-    public boolean equals( final Object o ) 
+    public boolean equals( Object o ) 
     {
         if (this == o)
             return true;
@@ -108,12 +108,12 @@ public final class ClockEntry implements Cloneable, Serializable
         return nodeId + ":" + version;
     }
 
-    public void setNodeId( final String nodeId ) 
+    public void setNodeId( String nodeId ) 
     {
         this.nodeId = nodeId;
     }
 
-    public void setVersion( final long version ) 
+    public void setVersion( long version ) 
     {
         if(version < 1)
             throw new IllegalArgumentException( "Version " + version + " is not in the range (1, " + Long.MAX_VALUE + ")." );

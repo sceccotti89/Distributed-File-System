@@ -52,10 +52,10 @@ public class AntiEntropySenderThread extends AntiEntropyThread
     
     
     
-    public AntiEntropySenderThread( final GossipMember _me,
-                                    final DFSDatabase _database,
-                                    final FileTransfer fMgr,
-                                    final ConsistentHasher<GossipMember, String> cHasher )
+    public AntiEntropySenderThread( GossipMember _me,
+                                    DFSDatabase _database,
+                                    FileTransfer fMgr,
+                                    ConsistentHasher<GossipMember, String> cHasher )
     {
         super( _me, _database, fMgr, cHasher );
         setName( "AntiEntropySender" );
@@ -125,8 +125,8 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * @return {@code true} if the mechanism has been completed successfully,
      *         {@code false} otherwise
     */
-    private boolean startAntiEntropy( final GossipMember node,
-                                      final String vNodeId ) throws IOException
+    private boolean startAntiEntropy( GossipMember node,
+                                      String vNodeId ) throws IOException
     {
         String prevId = cHasher.getPreviousBucket( vNodeId );
         List<DistributedFile> files = database.getKeysInRange( prevId, vNodeId );
@@ -179,7 +179,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * @return {@code true} if the connection has been completed successfully,
      *         {@code false} otherwise
     */
-    private boolean handShake( final GossipMember node, final String sourceId, final String prevId ) throws IOException
+    private boolean handShake( GossipMember node, String sourceId, String prevId ) throws IOException
     {
         session = net.tryConnect( node.getHost(), node.getPort() + PORT_OFFSET, 2000 );
         
@@ -275,7 +275,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * 
      * @param nodes        current nodes in the tree
     */
-    private void sendCurrentLevel( final Deque<Node> nodes ) throws IOException
+    private void sendCurrentLevel( Deque<Node> nodes ) throws IOException
     {
         int nNodes = nodes.size();
         int maxSize = Integer.BYTES + MerkleTree.sigLength * nNodes;
@@ -296,7 +296,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * 
      * @param files        list of files
     */
-    private void sendVersions( final List<DistributedFile> files ) throws IOException
+    private void sendVersions( List<DistributedFile> files ) throws IOException
     {
         int fileSize = files.size();
         byte[] msg = null;
@@ -320,7 +320,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * 
      * @param files     list of files in the range
     */
-    private void getMissingFiles( final List<DistributedFile> files )
+    private void getMissingFiles( List<DistributedFile> files )
     {
         if(m_tree != null) {
             // Flip the values to get all the not-in-common files.
@@ -345,7 +345,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * 
      * @param set  contains all the bits for the requested files
     */
-    private void sendFiles( final BitSet set )
+    private void sendFiles( BitSet set )
     {
         for(int i = set.nextSetBit( 0 ); i >= 0; i = set.nextSetBit( i+1 )) {
             DistributedFile file = filesExchanged.get( i );
@@ -363,7 +363,7 @@ public class AntiEntropySenderThread extends AntiEntropyThread
      * 
      * @return the list of successor nodes. It could contains less than num_nodes elements.
     */
-    private List<String> getSuccessorNodes( final String id, final int numNodes )
+    private List<String> getSuccessorNodes( String id, int numNodes )
     {
         List<String> successors = new ArrayList<>( 16 );
         int size = 0;

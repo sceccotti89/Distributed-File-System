@@ -100,7 +100,7 @@ public class SystemTest
         }
     }
     
-    private void runClients( final String ipAddress, final int numClients ) throws IOException, DFSException
+    private void runClients( String ipAddress, int numClients ) throws IOException, DFSException
     {
         int port = 9000;
         clients = new ArrayList<>( numClients );
@@ -232,7 +232,7 @@ public class SystemTest
             t.join();
     }
     
-    private void testMultipleClients( final int index ) throws IOException, DFSException, InterruptedException
+    private void testMultipleClients( int index ) throws IOException, DFSException, InterruptedException
     {
         DFSService service = clients.get( index );
         
@@ -294,7 +294,7 @@ public class SystemTest
             ((LoadBalancer) servers.get( i )).addNode( member );
     }
     
-    private void modifyTextFile( final String file ) throws IOException
+    private void modifyTextFile( String file ) throws IOException
     {
         PrintWriter writer = new PrintWriter( file, StandardCharsets.UTF_8.name() );
         writer.println( new Date().toString() );
@@ -323,12 +323,12 @@ public class SystemTest
         assertEquals( servers.get( 1 + NUMBER_OF_BALANCERS ).getFile( file ).getHintedHandoff(), hh );
     }
     
-    private static boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException
+    private static boolean existFile( String filePath, boolean createIfNotExists ) throws IOException
     {
         return existFile( new File( filePath ), createIfNotExists );
     }
     
-    private static boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
+    private static boolean existFile( File file, boolean createIfNotExists ) throws IOException
     {
         boolean exists = file.exists();
         if(!exists && createIfNotExists) {
@@ -340,7 +340,7 @@ public class SystemTest
         return exists;
     }
     
-    private static void deleteDirectory( final File dir )
+    private static void deleteDirectory( File dir )
     {
         if(dir.exists()) {
             for(File f : dir.listFiles()) {

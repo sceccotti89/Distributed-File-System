@@ -18,19 +18,19 @@ public class MessageResponse extends Message
         this( (byte) 0x0 );
     }
 
-    public MessageResponse( final byte response )
+    public MessageResponse( byte response )
     {
         this( response, null );
     }
     
-    public MessageResponse( final byte response, final List<byte[]> objects )
+    public MessageResponse( byte response, List<byte[]> objects )
     {
         super( response );
         
         this.objects = objects;
     }
     
-    public void addObject( final byte[] object )
+    public void addObject( byte[] object )
     {
         if(objects == null)
             objects = new ArrayList<>( 4 );

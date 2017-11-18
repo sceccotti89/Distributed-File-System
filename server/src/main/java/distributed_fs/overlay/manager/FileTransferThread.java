@@ -49,12 +49,12 @@ public class FileTransferThread extends Thread implements FileTransfer
     
     
     
-    public FileTransferThread( final GossipMember node,
-                               final int port,
-                               final ConsistentHasher<GossipMember, String> cHasher,
-                               final QuorumThread quorum_t,
-                               final String resourcesLocation,
-                               final String databaseLocation ) throws IOException, DFSException
+    public FileTransferThread( GossipMember node,
+                               int port,
+                               ConsistentHasher<GossipMember, String> cHasher,
+                               QuorumThread quorum_t,
+                               String resourcesLocation,
+                               String databaseLocation ) throws IOException, DFSException
     {
         setName( "FileTransfer" );
         
@@ -112,13 +112,13 @@ public class FileTransferThread extends Thread implements FileTransfer
      * @param enable    {@code true} to enable the anti-entropy mechanism,
      *                  {@code false} otherwise
     */
-    public void setAntiEntropy( final boolean enable )
+    public void setAntiEntropy( boolean enable )
     {
         aeService.setAntiEntropy( enable );
     }
     
     @Override
-    public void receiveFiles( final Session session ) throws IOException
+    public void receiveFiles( Session session ) throws IOException
     {
         ByteBuffer data = ByteBuffer.wrap( session.receive() );
         // Read the synch attribute.
@@ -165,12 +165,12 @@ public class FileTransferThread extends Thread implements FileTransfer
     }
     
     @Override
-    public boolean sendFiles( final String address,
-                              final int port,
-                              final List<DistributedFile> files,
-                              final boolean wait_response,
-                              final String synchNodeId,
-                              final QuorumNode node )
+    public boolean sendFiles( String address,
+                              int port,
+                              List<DistributedFile> files,
+                              boolean wait_response,
+                              String synchNodeId,
+                              QuorumNode node )
     {
         SendFilesThread t = new SendFilesThread( port + PORT_OFFSET, files, address, synchNodeId, node );
         synchronized( threadPoolSend ) {
@@ -194,7 +194,7 @@ public class FileTransferThread extends Thread implements FileTransfer
      * 
      * @param node    the quorum node
     */
-    private synchronized void updateQuorum( final QuorumNode node )
+    private synchronized void updateQuorum( QuorumNode node )
     {
         List<QuorumNode> nodes = node.getList();
         nodes.remove( node );
@@ -239,7 +239,7 @@ public class FileTransferThread extends Thread implements FileTransfer
     {
         private Session session;
         
-        public ReceiveFilesThread( final Session session )
+        public ReceiveFilesThread( Session session )
         {
             setName( "ReceiverFile" );
             
@@ -273,11 +273,11 @@ public class FileTransferThread extends Thread implements FileTransfer
         
         private boolean result;
         
-        public SendFilesThread( final int port,
-                                final List<DistributedFile> files,
-                                final String address,
-                                final String synchNodeId,
-                                final QuorumNode node )
+        public SendFilesThread( int port,
+                                List<DistributedFile> files,
+                                String address,
+                                String synchNodeId,
+                                QuorumNode node )
         {
             setName( "SendFiles" );
             

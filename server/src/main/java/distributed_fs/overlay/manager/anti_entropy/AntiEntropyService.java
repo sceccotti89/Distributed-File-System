@@ -27,10 +27,10 @@ public class AntiEntropyService
     
     
     
-    public AntiEntropyService( final GossipMember node,
-                               final FileTransfer fTransfer,
-                               final DFSDatabase db,
-                               final ConsistentHasher<GossipMember, String> cHasher )
+    public AntiEntropyService( GossipMember node,
+                               FileTransfer fTransfer,
+                               DFSDatabase db,
+                               ConsistentHasher<GossipMember, String> cHasher )
     {
         _cHasher = cHasher;
         _node = node;
@@ -48,7 +48,7 @@ public class AntiEntropyService
      * @param enable    {@code true} to enable the anti-entropy mechanism,
      *                  {@code false} otherwise
     */
-    public void setAntiEntropy( final boolean enable )
+    public void setAntiEntropy( boolean enable )
     {
         if(disabledAntiEntropy == !enable)
             return;

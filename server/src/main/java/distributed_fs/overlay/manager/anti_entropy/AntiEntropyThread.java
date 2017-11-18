@@ -46,10 +46,10 @@ public abstract class AntiEntropyThread extends Thread
     
     
     
-    public AntiEntropyThread( final GossipMember _me,
-                              final DFSDatabase database,
-                              final FileTransfer fMgr,
-                              final ConsistentHasher<GossipMember, String> _cHasher )
+    public AntiEntropyThread( GossipMember _me,
+                              DFSDatabase database,
+                              FileTransfer fMgr,
+                              ConsistentHasher<GossipMember, String> _cHasher )
     {
         setName( "AntiEntropy" );
         
@@ -66,7 +66,7 @@ public abstract class AntiEntropyThread extends Thread
      * 
      * @param files        files used to create the Merkle tree
     */
-    protected MerkleTree createMerkleTree( final List<DistributedFile> files )
+    protected MerkleTree createMerkleTree( List<DistributedFile> files )
     {
         if(files == null || files.size() == 0)
             return null;
@@ -84,7 +84,7 @@ public abstract class AntiEntropyThread extends Thread
      * @param levels    number of levels to reduce
      * @param nodes        list of nodes
     */
-    protected void reduceTree( final int levels, final Deque<Node> nodes )
+    protected void reduceTree( int levels, Deque<Node> nodes )
     {
         for(int i = 0; i < levels; i++) {
             int size = nodes.size();
@@ -103,7 +103,7 @@ public abstract class AntiEntropyThread extends Thread
      *
      * @return Index of the random member if list is greater than 1, -1 otherwise
     */
-    protected int selectPartner( final List<String> memberList ) 
+    protected int selectPartner( List<String> memberList ) 
     {
         int randomNeighborIndex = -1;
         if (memberList.size() > 0)

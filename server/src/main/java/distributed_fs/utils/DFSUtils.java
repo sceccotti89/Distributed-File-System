@@ -52,7 +52,7 @@ public class DFSUtils
      * @param virtualNode    the virtual node instance
      * @param address        the network address of the object
     */
-    public static String getNodeId( final int virtualNode, final String address )
+    public static String getNodeId( int virtualNode, String address )
     {
         byte[] hostInBytes = address.getBytes( StandardCharsets.UTF_8 );
         ByteBuffer bb = ByteBuffer.allocate( Integer.BYTES + hostInBytes.length );
@@ -68,7 +68,7 @@ public class DFSUtils
      * @param object    the given object. It, and all of its superclasses,
      *                     must implement the {@link java.io.Serializable} interface
     */
-    public static <S extends Serializable> String getId( final S object )
+    public static <S extends Serializable> String getId( S object )
     {
         byte[] bucketNameInBytes = serializeObject( object );
         return bytesToHex( _hash.hashBytes( bucketNameInBytes ).asBytes() );
@@ -183,7 +183,7 @@ public class DFSUtils
      * 
      * @return the byte serialization of the object, if no error happens, null otherwise
     */
-    public static <T extends Serializable> byte[] serializeObject( final T obj )
+    public static <T extends Serializable> byte[] serializeObject( T obj )
     {
         //if(obj instanceof String)
         //    return ((String) obj).getBytes( StandardCharsets.UTF_8 );
@@ -209,7 +209,7 @@ public class DFSUtils
      * @return the deserialization of the object,
      *            casted to the type specified in {@link T}
     */
-    public static <T extends Serializable> T deserializeObject( final byte data[] )
+    public static <T extends Serializable> T deserializeObject( byte data[] )
     {
         try {
             ByteArrayInputStream in = new ByteArrayInputStream( data );
@@ -247,7 +247,7 @@ public class DFSUtils
      * 
      * @return the compressed bytes array
     */
-    public static byte[] compressData( final byte[] data )
+    public static byte[] compressData( byte[] data )
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         
@@ -270,7 +270,7 @@ public class DFSUtils
      * 
      * @return the decompressed bytes array
     */
-    public static byte[] decompressData( final byte[] data ) throws IOException
+    public static byte[] decompressData( byte[] data ) throws IOException
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ByteArrayInputStream bais = new ByteArrayInputStream( data );
@@ -290,7 +290,7 @@ public class DFSUtils
      * 
      * @param buffer    the input buffer
     */
-    public static byte[] getNextBytes( final ByteBuffer buffer )
+    public static byte[] getNextBytes( ByteBuffer buffer )
     {
         byte[] data = new byte[buffer.getInt()];
         buffer.get( data );
@@ -302,7 +302,7 @@ public class DFSUtils
      * 
      * @param buffer     the ByteBuffer object
     */
-    public static String byteBufferToHex( final ByteBuffer buffer )
+    public static String byteBufferToHex( ByteBuffer buffer )
     {
         return bytesToHex( buffer.array() );
     }
@@ -312,7 +312,7 @@ public class DFSUtils
      * 
      * @param b        the byte array
     */
-    public static String bytesToHex( final byte[] b )
+    public static String bytesToHex( byte[] b )
     {
         final char hexDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         StringBuffer buf = new StringBuffer( 64 );
@@ -329,7 +329,7 @@ public class DFSUtils
      * 
      * @param s   the hexadecimal representation of the object
     */
-    public static ByteBuffer hexToByteBuffer( final String s )
+    public static ByteBuffer hexToByteBuffer( String s )
     {
         return ByteBuffer.wrap( hexToBytes( s ) );
     }
@@ -339,7 +339,7 @@ public class DFSUtils
      * 
      * @param s   the hexadecimal representation of the object
     */
-    public static byte[] hexToBytes( final String s )
+    public static byte[] hexToBytes( String s )
     {
         assert( s.length() >= 2 );
         
@@ -358,7 +358,7 @@ public class DFSUtils
      * 
      * @param value        the int value
     */
-    public static byte[] intToByteArray( final int value )
+    public static byte[] intToByteArray( int value )
     {
         return new byte[] {
                 (byte) (value >>> 24),
@@ -373,7 +373,7 @@ public class DFSUtils
      * 
      * @param data        the byte array
     */
-    public static int byteArrayToInt( final byte[] data )
+    public static int byteArrayToInt( byte[] data )
     {
         int value = 0;
         for(int i = 0; i < 4; i++) {
@@ -389,7 +389,7 @@ public class DFSUtils
      * 
      * @param value        the long value
     */
-    public static byte[] longToByteArray( final long value )
+    public static byte[] longToByteArray( long value )
     {
         return new byte[] {
                 (byte) (value >> 56),
@@ -408,7 +408,7 @@ public class DFSUtils
      * 
      * @param key    the input key
     */
-    public static long bytesToLong( final byte[] key )
+    public static long bytesToLong( byte[] key )
     {
         ByteBuffer wrapper = ByteBuffer.wrap( key );
         return wrapper.getLong();
@@ -419,7 +419,7 @@ public class DFSUtils
      * 
      * @param path    file location
     */
-    public static JSONObject parseJSONFile( final String path ) throws IOException
+    public static JSONObject parseJSONFile( String path ) throws IOException
     {
         InputStream in = ResourceLoader.getResourceAsStream( path );
         BufferedReader file = new BufferedReader( new InputStreamReader( in ) );

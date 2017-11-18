@@ -57,7 +57,7 @@ public class VersioningUtils {
      * @param v1 The first VectorClock
      * @param v2 The second VectorClock
      */
-    public static Occurred compare( final VectorClock v1, final VectorClock v2 ) 
+    public static Occurred compare( VectorClock v1, VectorClock v2 ) 
     {
         if(v1 == null || v2 == null)
             throw new IllegalArgumentException( "Can't compare null vector clocks!" );
@@ -119,7 +119,7 @@ public class VersioningUtils {
      * 
      * @return list of values after resolution
     */
-    public static <T> List<Versioned<T>> resolveVersions( final List<Versioned<T>> values ) 
+    public static <T> List<Versioned<T>> resolveVersions( List<Versioned<T>> values ) 
     {
         List<Versioned<T>> resolvedVersions = new ArrayList<Versioned<T>>( values.size() );
         // Go over all the values and determine whether the version is
@@ -156,7 +156,7 @@ public class VersioningUtils {
      * 
      * @return The list of uncorrelated versions.
     */
-    public static List<DistributedFile> makeReconciliation( final List<DistributedFile> files )
+    public static List<DistributedFile> makeReconciliation( List<DistributedFile> files )
     {
         List<Versioned<DistributedFile>> versions = new ArrayList<>();
         for(DistributedFile file : files)
@@ -201,7 +201,7 @@ public class VersioningUtils {
      * 
      * @param serverIds servers in the clock
     */
-    public static VectorClock makeClockWithCurrentTime( final Set<String> serverIds ) 
+    public static VectorClock makeClockWithCurrentTime( Set<String> serverIds ) 
     {
         return makeClock( serverIds, System.currentTimeMillis(), System.currentTimeMillis() );
     }
@@ -218,7 +218,7 @@ public class VersioningUtils {
      * Note that this method does not "deeply" compare the fields of the
      * objects.
     */
-    public static boolean deepEquals( final Object o1, final Object o2 )
+    public static boolean deepEquals( Object o1, Object o2 )
     {
         if(o1 == o2) {
             return true;

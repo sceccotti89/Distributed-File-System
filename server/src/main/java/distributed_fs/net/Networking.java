@@ -43,7 +43,7 @@ public class Networking
      * @param addLength            {@code true} if the length of the toAdd message have to be added,
      *                             {@code false} otherwise
     */
-    public byte[] createMessage( final byte[] currentData, final byte[] toAdd, final boolean addLength )
+    public byte[] createMessage( byte[] currentData, byte[] toAdd, boolean addLength )
     {
         ByteBuffer buffer;
         
@@ -85,16 +85,16 @@ public class Networking
         
         
         
-        public Session( final BufferedInputStream in,
-                        final BufferedOutputStream out,
-                           final Socket socket ) {
+        public Session( BufferedInputStream in,
+                        BufferedOutputStream out,
+                        Socket socket ) {
             this( in, out, socket, "" );
         }
         
-        public Session( final BufferedInputStream in,
-                        final BufferedOutputStream out,
-                        final Socket socket,
-                        final String srcAddress ) {
+        public Session( BufferedInputStream in,
+                        BufferedOutputStream out,
+                        Socket socket,
+                        String srcAddress ) {
             this.in = in;
             this.out = out;
             this.socket = socket;
@@ -115,7 +115,7 @@ public class Networking
          * The option must be enabled prior to entering the blocking operation to have effect.
          * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
         */
-        public void setSoTimeout( final int timeout ) throws IOException {
+        public void setSoTimeout( int timeout ) throws IOException {
             socket.setSoTimeout( timeout );
         }
         
@@ -126,7 +126,7 @@ public class Networking
          * @param tryCompress    {@code true} if the data could be sent compressed,
          *                         {@code false} otherwise
         */
-        public void sendMessage( final Message message, final boolean tryCompress ) throws IOException
+        public void sendMessage( Message message, boolean tryCompress ) throws IOException
         {
             sendMessage( DFSUtils.serializeObject( message ), tryCompress );
         }
@@ -138,7 +138,7 @@ public class Networking
          * @param tryCompress    {@code true} if the data could be sent compressed,
          *                         {@code false} otherwise
         */
-        public void sendMessage( final byte[] data, final boolean tryCompress ) throws IOException
+        public void sendMessage( byte[] data, boolean tryCompress ) throws IOException
         {
             byte[] message;
             
@@ -160,7 +160,7 @@ public class Networking
             doWrite( buffer.array() );
         }
         
-        private void doWrite( final byte[] data ) throws IOException
+        private void doWrite( byte[] data ) throws IOException
         {
             try{ 
                 out.write( data );
@@ -183,7 +183,7 @@ public class Networking
         /** 
          * Receives a new message.
         */
-        public <T extends Message> T receiveMessage( final TransferSpeed callback ) throws IOException
+        public <T extends Message> T receiveMessage( TransferSpeed callback ) throws IOException
         {
             T message = DFSUtils.deserializeObject( receive( callback ) );
             return message;
@@ -202,7 +202,7 @@ public class Networking
          * 
          * @param callback    object used to be notified about the download time of the file
         */
-        public byte[] receive( final TransferSpeed callback ) throws IOException
+        public byte[] receive( TransferSpeed callback ) throws IOException
         {
             try {
                 final int size = readInt();
@@ -281,7 +281,7 @@ public class Networking
          * @param localAddress    
          * @param localPort        
         */
-        public TCPnet( final String localAddress, final int localPort ) throws IOException
+        public TCPnet( String localAddress, int localPort ) throws IOException
         {
             InetAddress iAddress = InetAddress.getByName( localAddress );
             servSocket = new ServerSocket( localPort, 0, iAddress );
@@ -294,7 +294,8 @@ public class Networking
          * The option must be enabled prior to entering the blocking operation to have effect.
          * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
         */
-        public void setSoTimeout( final int timeout ) {
+        public void setSoTimeout( int timeout )
+        {
             soTimeout = timeout;
             if(servSocket != null) {
                 try { servSocket.setSoTimeout( timeout ); }
@@ -321,7 +322,7 @@ public class Networking
          * @param localAddress
          * @param localPort
         */
-        public Session waitForConnection( final String localAddress, final int localPort ) throws IOException
+        public Session waitForConnection( String localAddress, int localPort ) throws IOException
         {
             if(servSocket == null) {
                 InetAddress iAddress = InetAddress.getByName( localAddress );
@@ -348,8 +349,7 @@ public class Networking
          * Tries a connection with the remote host address.
          * This has the same effect as invoking: {@code tryConnect( address, port, 0 )}.
         */
-        public Session tryConnect( final String address, final int port ) throws IOException
-        {
+        public Session tryConnect( String address, int port ) throws IOException {
             return tryConnect( address, port, 0 );
         }
         
@@ -362,7 +362,7 @@ public class Networking
          *                     for a maximum of {@code timeOut} milliseconds.
          *                     0 means infinite time.
         */
-        public Session tryConnect( final String address, final int port, final int timeOut ) throws IOException
+        public Session tryConnect( String address, int port, int timeOut ) throws IOException
         {
             Socket socket = new Socket();
             
@@ -422,14 +422,14 @@ public class Networking
             mAddress = InetAddress.getByName( multicastIP );
         }
         
-        public UDPnet( final String localAddress, final int localPort ) throws IOException
+        public UDPnet( String localAddress, int localPort ) throws IOException
         {
             udpSocket = new MulticastSocket( new InetSocketAddress( localAddress, localPort ) );
             udpSocket.setLoopbackMode( true );
             mAddress = InetAddress.getByName( multicastIP );
         }
         
-        public void setSoTimeout( final int timeout ) throws IOException
+        public void setSoTimeout( int timeout ) throws IOException
         {
             //soTimeout = timeout;
             udpSocket.setSoTimeout( timeout );
@@ -441,7 +441,7 @@ public class Networking
          * @param address    the remote address
          * @param port        the remote port
         */
-        public void tryConnect( final String address, final int port ) throws IOException
+        public void tryConnect( String address, int port ) throws IOException
         {
             udpSocket.connect( new InetSocketAddress( address, port ) );
             //udpSocket.setSoTimeout( soTimeout );
@@ -452,7 +452,7 @@ public class Networking
          * 
          * @param _address        interface used for the multicast send/receive
         */
-        public void joinMulticastGroup( final InetAddress _address ) throws IOException
+        public void joinMulticastGroup( InetAddress _address ) throws IOException
         {
             close();
             
@@ -478,7 +478,7 @@ public class Networking
          * @param address    
          * @param port        
         */
-        public void sendMessage( final byte[] message, final InetAddress address, final int port ) throws IOException
+        public void sendMessage( byte[] message, InetAddress address, int port ) throws IOException
         {
             ByteBuffer buffer = ByteBuffer.allocate( Integer.BYTES + message.length );
             buffer.putInt( message.length );
@@ -558,7 +558,7 @@ public class Networking
          * @param localAddress  
          * @param localPort     
         */
-        public RUDPnet( final String localAddress, final int localPort ) throws IOException
+        public RUDPnet( String localAddress, int localPort ) throws IOException
         {
             InetAddress iAddress = InetAddress.getByName( localAddress );
             servSocket = new ReliableServerSocket( localPort, 0, iAddress );
@@ -571,7 +571,8 @@ public class Networking
          * The option must be enabled prior to entering the blocking operation to have effect.
          * The timeout must be > 0. A timeout of zero is interpreted as an infinite timeout.
         */
-        public void setSoTimeout( final int timeout ) {
+        public void setSoTimeout( int timeout )
+        {
             soTimeout = timeout;
             if(servSocket != null)
                 servSocket.setSoTimeout( timeout );
@@ -596,7 +597,7 @@ public class Networking
          * @param localAddress
          * @param localPort
         */
-        public Session waitForConnection( final String localAddress, final int localPort ) throws IOException
+        public Session waitForConnection( String localAddress, int localPort ) throws IOException
         {
             if(servSocket == null) {
                 InetAddress iAddress = InetAddress.getByName( localAddress );
@@ -622,8 +623,7 @@ public class Networking
          * Tries a connection with the remote host address.
          * This has the same effect as invoking: {@code tryConnect( address, port, 0 )}.
         */
-        public Session tryConnect( final String address, final int port ) throws IOException
-        {
+        public Session tryConnect( String address, int port ) throws IOException {
             return tryConnect( address, port, 0 );
         }
         
@@ -636,7 +636,7 @@ public class Networking
          *                  for a maximum of {@code timeOut} milliseconds.
          *                  0 means infinite time.
         */
-        public Session tryConnect( final String address, final int port, final int timeOut ) throws IOException
+        public Session tryConnect( String address, int port, int timeOut ) throws IOException
         {
             ReliableSocket socket = new ReliableSocket();
             
@@ -679,7 +679,7 @@ public class Networking
         public long startTime;
         public int bytesReceived;
         
-        public FileSpeed( final int fileSize, final TransferSpeed callback )
+        public FileSpeed( int fileSize, TransferSpeed callback )
         {
             this.fileSize = fileSize;
             this.callback = callback;
@@ -703,14 +703,14 @@ public class Networking
             setDaemon( true );
         }
         
-        public void addFile( final FileSpeed file )
+        public void addFile( FileSpeed file )
         {
             synchronized( files) {
                 files.add( file );
             }
         }
         
-        private void removeFile( final int index )
+        private void removeFile( int index )
         {
             synchronized( files) {
                 files.remove( index );
@@ -739,7 +739,7 @@ public class Networking
          * @return {@code true} if the file has been completely download,
          *         {@code false} otherwise
         */
-        private boolean computeThroughput( final FileSpeed file )
+        private boolean computeThroughput( FileSpeed file )
         {
             if(file.bytesReceived >= file.fileSize) // File completely downloaded.
                 return true;

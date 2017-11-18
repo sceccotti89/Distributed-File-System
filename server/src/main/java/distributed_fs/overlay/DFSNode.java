@@ -90,11 +90,11 @@ public abstract class DFSNode extends Thread implements GossipListener
     
     
     
-    public DFSNode( final String address,
-                    final int port,
-                    final int virtualNodes,
-                    final int nodeType,
-                    final List<GossipMember> startupMembers ) throws IOException
+    public DFSNode( String address,
+                    int port,
+                    int virtualNodes,
+                    int nodeType,
+                    List<GossipMember> startupMembers ) throws IOException
     {
         _address = address;
         this.port = (port <= 0) ? GossipManager.GOSSIPING_PORT : port;
@@ -134,9 +134,9 @@ public abstract class DFSNode extends Thread implements GossipListener
      * Constructor used to handle an instance of the Distributed node,
      * due to an incoming request.
     */
-    public DFSNode( final TCPnet net,
-                    final FileTransferThread fMgr,
-                    final ConsistentHasher<GossipMember, String> cHasher )
+    public DFSNode( TCPnet net,
+                    FileTransferThread fMgr,
+                    ConsistentHasher<GossipMember, String> cHasher )
     {
         this._net = net;
         this.fMgr = fMgr;
@@ -150,7 +150,7 @@ public abstract class DFSNode extends Thread implements GossipListener
      * @param enable    {@code true} to enable the anti-entropy mechanism,
      *                  {@code false} otherwise
     */
-    public void setGossipingMechanism( final boolean enable )
+    public void setGossipingMechanism( boolean enable )
     {
         if(!isAlive())
             startGossiping = enable;
@@ -161,7 +161,7 @@ public abstract class DFSNode extends Thread implements GossipListener
      * 
      * @param configFile    the configuration file
     */
-    protected static List<GossipMember> getStartupMembers( final JSONObject configFile )
+    protected static List<GossipMember> getStartupMembers( JSONObject configFile )
     {
         List<GossipMember> members = null;
         if(!configFile.has( "members" ))
@@ -199,7 +199,7 @@ public abstract class DFSNode extends Thread implements GossipListener
     }
     
     @Override
-    public void gossipEvent( final GossipMember member, final GossipState state )
+    public void gossipEvent( GossipMember member, GossipState state )
     {
         boolean contained = cHasher.containsBucket( member );
         if(contained) {
@@ -256,7 +256,7 @@ public abstract class DFSNode extends Thread implements GossipListener
      * @param inet            the address interface
      * @param IPversion        the ip version (4 or 6)
     */
-    private String getNetworkAddress( final String inet, final int IPversion ) throws IOException
+    private String getNetworkAddress( String inet, int IPversion ) throws IOException
     {
         String _address = null;
         // enumerate all the network intefaces
@@ -300,7 +300,7 @@ public abstract class DFSNode extends Thread implements GossipListener
      * 
      * @return the file, if present, {@code null} otherwise
     */
-    public DistributedFile getFile( final String fileName ) throws InterruptedException
+    public DistributedFile getFile( String fileName ) throws InterruptedException
     {
         if(fMgr == null)
             return null;
@@ -323,7 +323,7 @@ public abstract class DFSNode extends Thread implements GossipListener
      * @return the list of successor nodes;
      *            it could contains less than {@code numNodes} elements.
     */
-    public List<GossipMember> getSuccessorNodes( final String id, final String addressToRemove, final int numNodes )
+    public List<GossipMember> getSuccessorNodes( String id, String addressToRemove, int numNodes )
     {
         List<GossipMember> nodes = new ArrayList<>( numNodes );
         Set<String> filterAddress = new HashSet<>();
@@ -366,7 +366,7 @@ public abstract class DFSNode extends Thread implements GossipListener
         return id;
     }
     
-    public void setId( final long id ) {
+    public void setId( long id ) {
         this.id = id;
     }
     
@@ -374,7 +374,7 @@ public abstract class DFSNode extends Thread implements GossipListener
         return nextThreadID = (nextThreadID + 1) % Long.MAX_VALUE;
     }
     
-    protected String getCodeString( final byte opType )
+    protected String getCodeString( byte opType )
     {
         switch( opType ) {
             case( Message.GET ):     return "GET";

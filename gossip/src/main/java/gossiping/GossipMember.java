@@ -45,7 +45,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 	 * @param nodeType		Type of the node (LoadBalancer or Storage node).
 	 * @param heartbeat		The current heartbeat.
 	*/
-	public GossipMember( final String host, final int port, final String id, final int virtualNodes, final int nodeType, final int heartbeat ) 
+	public GossipMember( String host, int port, String id, int virtualNodes, int nodeType, int heartbeat ) 
 	{
 		_host = host;
 		_port = port;
@@ -95,7 +95,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 	 * Set the number of virtual nodes.
 	 * @param vNodes	
 	*/
-	public void setVirtualNodes( final int vNodes )
+	public void setVirtualNodes( int vNodes )
 	{
 		_virtualNodes = vNodes;
 	}
@@ -122,7 +122,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 	 * Set the heartbeat of this gossip member.
 	 * @param heartbeat The new heartbeat.
 	*/
-	public void setHeartbeat( final int heartbeat ) 
+	public void setHeartbeat( int heartbeat ) 
 	{
 		this._heartbeat = heartbeat;
 	}
@@ -132,7 +132,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 		return _id;
 	}
 
-	public void setId( final String id ) 
+	public void setId( String id ) 
 	{
 		_id = id;
 	}
@@ -161,7 +161,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 	 * @see java.lang.Object#equals(java.lang.Object)
 	 */
 	@Override
-	public boolean equals( final Object obj ) 
+	public boolean equals( Object obj ) 
 	{
 		if (this == obj) {
 			return true;
@@ -202,7 +202,7 @@ public abstract class GossipMember implements Comparable<GossipMember>, Serializ
 	}
 
 	@Override
-	public int compareTo( final GossipMember other )
+	public int compareTo( GossipMember other )
 	{
 		return this.getAddress().compareTo( other.getAddress() );
 	}

@@ -36,12 +36,12 @@ public final class Versioned<T> implements Serializable
     private final VectorClock version;
     private volatile T object;
     
-    public Versioned( final T object )
+    public Versioned( T object )
     {
         this( object, new VectorClock() );
     }
     
-    public Versioned( final T object, final Version version )
+    public Versioned( T object, Version version )
     {
         this.version = (version == null) ? new VectorClock() : (VectorClock) version;
         this.object = object;
@@ -57,13 +57,13 @@ public final class Versioned<T> implements Serializable
         return object;
     }
     
-    public void setObject( final T object )
+    public void setObject( T object )
     {
         this.object = object;
     }
     
     @Override
-    public boolean equals( final Object o )
+    public boolean equals( Object o )
     {
         if(o == this)
             return true;
@@ -102,12 +102,12 @@ public final class Versioned<T> implements Serializable
         return new Versioned<T>( this.getValue(), this.version.clone() );
     }
     
-    public static <S> Versioned<S> value( final S s )
+    public static <S> Versioned<S> value( S s )
     {
         return new Versioned<S>( s, new VectorClock() );
     }
     
-    public static <S> Versioned<S> value( final S s, final Version v )
+    public static <S> Versioned<S> value( S s, Version v )
     {
         return new Versioned<S>( s, v );
     }
@@ -115,7 +115,7 @@ public final class Versioned<T> implements Serializable
     public static final class HappenedBeforeComparator<S> implements Comparator<Versioned<S>> 
     {
         @Override
-        public int compare( final Versioned<S> v1, final Versioned<S> v2 )
+        public int compare( Versioned<S> v1, Versioned<S> v2 )
         {
             Occurred occurred = v1.getVersion().compare( v2.getVersion() );
             if(occurred == Occurred.BEFORE)

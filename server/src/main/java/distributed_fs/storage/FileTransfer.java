@@ -24,8 +24,8 @@ public interface FileTransfer
      * 
      * @return {@code true} if the files are successfully transmitted, {@code false} otherwise
     */
-    public boolean sendFiles( final String address, final int port, final List<DistributedFile> files,
-                              final boolean wait_response, final String synchNodeId, final QuorumNode node );
+    public boolean sendFiles( String address, int port, List<DistributedFile> files,
+                              boolean wait_responsel String synchNodeIdl QuorumNode node );
     
     /** 
      * Reads the incoming files and apply the appropriate operation,
@@ -33,5 +33,5 @@ public interface FileTransfer
      * 
      * @param session   current TCP session
     */
-    public void receiveFiles( final Session session ) throws IOException, InterruptedException;
+    public void receiveFiles( Session session ) throws IOException, InterruptedException;
 }

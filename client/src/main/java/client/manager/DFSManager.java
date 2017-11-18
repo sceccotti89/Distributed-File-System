@@ -56,10 +56,10 @@ public abstract class DFSManager
     
     
     
-    public DFSManager( final String ipAddress,
-                       final int port,
-                       final boolean useLoadBalancer,
-                       final List<GossipMember> members ) throws IOException, DFSException
+    public DFSManager( String ipAddress,
+                       int port,
+                       boolean useLoadBalancer,
+                       List<GossipMember> members ) throws IOException, DFSException
     {
         this.useLoadBalancer = useLoadBalancer;
         cHasher = new ConsistentHasherImpl<>();
@@ -76,8 +76,8 @@ public abstract class DFSManager
      * 
      * @throws DFSException    when something wrong during the configuration.
     */
-    private void setConfigure( final String ipAddress, final int port,
-                               final List<GossipMember> members )
+    private void setConfigure( String ipAddress, int port,
+                               List<GossipMember> members )
                                        throws IOException, DFSException
     {
         if(!DFSUtils.initConfig) {
@@ -158,7 +158,7 @@ public abstract class DFSManager
         }
     }
     
-    private String getNetworkAddress( final String inet, final int IPversion ) throws IOException
+    private String getNetworkAddress( String inet, int IPversion ) throws IOException
     {
         String _address = null;
         // Enumerate all the network interfaces.
@@ -201,7 +201,7 @@ public abstract class DFSManager
      * @param useLB    {@code true} to enable the load balancer usage,
      *                 {@code false} to disable it
     */
-    public void setUseLoadBalancers( final boolean useLB )
+    public void setUseLoadBalancers( boolean useLB )
     {
         if(useLoadBalancer == useLB)
             return;
@@ -221,7 +221,7 @@ public abstract class DFSManager
         }
     }
     
-    protected void sendPutMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
+    protected void sendPutMessage( Session session, DistributedFile file, String hintedHandoff ) throws IOException
     {
         LOGGER.info( "Sending data..." );
         
@@ -239,7 +239,7 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
     
-    protected void sendGetMessage( final Session session, final String fileName, final DistributedFile file ) throws IOException
+    protected void sendGetMessage( Session session, String fileName, DistributedFile file ) throws IOException
     {
         LOGGER.info( "Sending data..." );
         
@@ -261,12 +261,12 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
     
-    protected List<DistributedFile> readGetResponse( final Session session ) throws IOException
+    protected List<DistributedFile> readGetResponse( Session session ) throws IOException
     {
         return readGetAllResponse( session );
     }
     
-    protected void sendGetAllMessage( final Session session, final String fileName ) throws IOException
+    protected void sendGetAllMessage( Session session, String fileName ) throws IOException
     {
         MessageRequest message;
         
@@ -284,7 +284,7 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
     
-    protected List<DistributedFile> readGetAllResponse( final Session session ) throws IOException
+    protected List<DistributedFile> readGetAllResponse( Session session ) throws IOException
     {
         LOGGER.info( "Waiting for the incoming files..." );
         
@@ -304,7 +304,7 @@ public abstract class DFSManager
         return files;
     }
     
-    protected void sendDeleteMessage( final Session session, final DistributedFile file, final String hintedHandoff ) throws IOException
+    protected void sendDeleteMessage( Session session, DistributedFile file, String hintedHandoff ) throws IOException
     {
         LOGGER.info( "Sending data..." );
         
@@ -323,7 +323,7 @@ public abstract class DFSManager
         LOGGER.info( "Data sent." );
     }
     
-    protected boolean checkResponse( final Session session, final boolean toPrint ) throws IOException
+    protected boolean checkResponse( Session session, boolean toPrint ) throws IOException
     {
         MessageResponse message = session.receiveMessage();
         byte opType = message.getType();
@@ -333,7 +333,7 @@ public abstract class DFSManager
         return (opType != Message.TRANSACTION_FAILED);
     }
     
-    private String getStringCode( final byte code )
+    private String getStringCode( byte code )
     {
         if(code == Message.TRANSACTION_OK)
             return "TRANSACTION OK";
@@ -341,7 +341,7 @@ public abstract class DFSManager
             return "TRANSACTION FAILED";
     }
     
-    protected String getOpCode( final byte opType )
+    protected String getOpCode( byte opType )
     {
         switch( opType ) {
             case( Message.PUT ): return "PUT";

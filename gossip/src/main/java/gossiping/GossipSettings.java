@@ -27,7 +27,7 @@ public class GossipSettings
 	 * @param cleanupInterval
 	 *            The cleanup interval in ms.
 	 */
-	public GossipSettings( final int gossipInterval, final int cleanupInterval ) 
+	public GossipSettings( int gossipInterval, int cleanupInterval ) 
 	{
 		_gossipInterval = gossipInterval;
 		_cleanupInterval = cleanupInterval;
@@ -40,7 +40,7 @@ public class GossipSettings
 	 * @param gossipInterval
 	 *            The gossip interval in ms.
 	 */
-	public void setGossipTimeout( final int gossipInterval ) 
+	public void setGossipTimeout( int gossipInterval ) 
 	{
 		_gossipInterval = gossipInterval;
 	}
@@ -52,7 +52,7 @@ public class GossipSettings
 	 * @param cleanupInterval
 	 *            The cleanup interval in ms.
 	 */
-	public void setCleanupInterval( final int cleanupInterval ) 
+	public void setCleanupInterval( int cleanupInterval ) 
 	{
 		_cleanupInterval = cleanupInterval;
 	}

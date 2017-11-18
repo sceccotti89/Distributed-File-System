@@ -54,7 +54,7 @@ public class DatabaseTest
         database.close();
     }
     
-    private static void deleteDirectory( final File dir )
+    private static void deleteDirectory( File dir )
     {
         if(dir.exists()) {
             for(File f : dir.listFiles()) {

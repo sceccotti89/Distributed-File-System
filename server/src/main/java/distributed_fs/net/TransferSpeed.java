@@ -15,5 +15,5 @@ public interface TransferSpeed
      * @param bytesToReceive    number of bytes to receive
      * @param throughput        the actual throughput, expressed as bytes per second
     */
-    public void update( final int bytesToReceive, final double throughput );
+    public void update( int bytesToReceive, double throughput );
 }

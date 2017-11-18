@@ -62,7 +62,7 @@ public abstract class DBManager
     
     
     
-    public DBManager( final String resourcesLocation ) throws DFSException
+    public DBManager( String resourcesLocation ) throws DFSException
     {
         cache = new DBCache();
         root = createResourcePath( resourcesLocation, RESOURCES_LOCATION );
@@ -82,7 +82,7 @@ public abstract class DBManager
      * 
      * @return the normalized path
     */
-    protected String createResourcePath( final String path, final String defaultPath )
+    protected String createResourcePath( String path, String defaultPath )
     {
         String root = (path != null) ? path.replace( "\\", "/" ) : defaultPath;
         if(root.startsWith( "./" ))
@@ -120,7 +120,7 @@ public abstract class DBManager
      * @param enableParallelWorkers    setting it to {@code true} starts a number of threads that works on queue.
      *                                 It will speedup the queue operations, with a more expensive memory cost.
     */
-    public void enableAsyncWrites( final boolean enableParallelWorkers )
+    public void enableAsyncWrites( boolean enableParallelWorkers )
     {
         if(disableAsyncWrites) {
             asyncWriter = new AsyncDiskWriter( this, enableParallelWorkers );
@@ -158,7 +158,7 @@ public abstract class DBManager
      * @return {@code true} if the directory has been created,
      *         {@code false} otherwise.
     */
-    protected boolean createDirectory( final String dirPath ) {
+    protected boolean createDirectory( String dirPath ) {
         return createDirectory( new File( dirPath ) );
     }
     
@@ -170,7 +170,7 @@ public abstract class DBManager
      * @return {@code true} if the directory has been created,
      *         {@code false} otherwise.
     */
-    protected boolean createDirectory( final File dirFile )
+    protected boolean createDirectory( File dirFile )
     {
         if(dirFile == null || dirFile.getPath().equals( root ))
             return true;
@@ -199,7 +199,7 @@ public abstract class DBManager
      * @param createIfNotExists     setting it to {@code true} the file will be created if it shouldn't exists,
      *                              {@code false} otherwise
     */
-    public boolean existFile( final String filePath, final boolean createIfNotExists ) throws IOException {
+    public boolean existFile( String filePath, boolean createIfNotExists ) throws IOException {
         return existFile( new File( filePath ), createIfNotExists );
     }
     
@@ -210,7 +210,7 @@ public abstract class DBManager
      * @param createIfNotExists     setting it to {@code true} the file will be created if it doesn't exist,
      *                              {@code false} otherwise
     */
-    protected boolean existFile( final File file, final boolean createIfNotExists ) throws IOException
+    protected boolean existFile( File file, boolean createIfNotExists ) throws IOException
     {
         boolean exists = false;
         String fileName = root + normalizeFileName( file.getPath() );
@@ -244,13 +244,13 @@ public abstract class DBManager
      * @return {@code true} if the file is present,
      *         {@code false} otherwise
     */
-    public boolean checkExistsInFileSystem( final String filePath )
+    public boolean checkExistsInFileSystem( String filePath )
     {
         String rootPath = root + normalizeFileName( filePath );
         return checkExistsFile( new File( root ), rootPath );
     }
     
-    private boolean checkExistsFile( final File filePath, final String fileName )
+    private boolean checkExistsFile( File filePath, String fileName )
     {
         File[] files = filePath.listFiles();
         if(files == null)
@@ -282,7 +282,7 @@ public abstract class DBManager
      * 
      * @return the byte serialization of the object
     */
-    public byte[] readFileFromDisk( final String filePath ) throws IOException
+    public byte[] readFileFromDisk( String filePath ) throws IOException
     {
         String fileName = root + normalizeFileName( filePath );
         
@@ -323,7 +323,7 @@ public abstract class DBManager
      * @param filePath  path where the file have to be write
      * @param content   bytes of the serialized object
     */
-    public void writeFileOnDisk( final String filePath, final byte content[] ) throws IOException
+    public void writeFileOnDisk( String filePath, byte content[] ) throws IOException
     {
         if(content == null)
             createDirectory( filePath );
@@ -365,7 +365,7 @@ public abstract class DBManager
      * 
      * @param dir  the current directory
     */
-    protected void deleteDirectory( final String dirPath ) {
+    protected void deleteDirectory( String dirPath ) {
         deleteDirectory( new File( dirPath ) );
     }
     
@@ -376,7 +376,7 @@ public abstract class DBManager
      * 
      * @param dir  the current directory
     */
-    protected void deleteDirectory( final File dir )
+    protected void deleteDirectory( File dir )
     {
         String fileName = root + normalizeFileName( dir.getPath() );
         DataLock dCond = dAccess.checkFileInUse( fileName, Message.DELETE );
@@ -399,7 +399,7 @@ public abstract class DBManager
      * 
      * @param filePath  path to the file to delete
     */
-    protected void deleteFileOnDisk( final String filePath ) {
+    protected void deleteFileOnDisk( String filePath ) {
         deleteFileOnDisk( new File( filePath ) );
     }
     
@@ -408,7 +408,7 @@ public abstract class DBManager
      * 
      * @param file    file to remove
     */
-    protected void deleteFileOnDisk( final File file )
+    protected void deleteFileOnDisk( File file )
     {
         String fileName = root + normalizeFileName( file.getPath() );
         DataLock dCond = dAccess.checkFileInUse( fileName, Message.DELETE );
@@ -449,7 +449,7 @@ public abstract class DBManager
     /**
      * Adds a new database listener.
     */
-    public void addListener( final DBListener listener )
+    public void addListener( DBListener listener )
     {
         if(listener != null) {
             if(listeners == null)
@@ -461,7 +461,7 @@ public abstract class DBManager
     /**
      * Removes the given listener.
     */
-    public void removeListener( final DBListener listener )
+    public void removeListener( DBListener listener )
     {
         if(listener != null && listeners != null)
             listeners.remove( listener );
@@ -473,7 +473,7 @@ public abstract class DBManager
      * @param fileName     name of the file
      * @param operation    type of operation ({@code GET} or {@code DELETE})
     */
-    protected void notifyListeners( final String fileName, final byte operation )
+    protected void notifyListeners( String fileName, byte operation )
     {
         if(listeners != null) {
             for(DBListener listener : listeners)
@@ -483,7 +483,7 @@ public abstract class DBManager
     
     public static interface DBListener
     {
-        public void dbEvent( final String fileName, final byte code );
+        public void dbEvent( String fileName, byte code );
     }
     
     /**
@@ -520,7 +520,7 @@ public abstract class DBManager
          *         previously associated <tt>null</tt> with <tt>key</tt>,
          *         if the implementation supports <tt>null</tt> values.)
         */
-        private void put( final String key, final byte[] value )
+        private void put( String key, byte[] value )
         {
             if(value == null)
                 return;
@@ -553,7 +553,7 @@ public abstract class DBManager
          * @return the previous value associated with <tt>key</tt>, or
          *         <tt>null</tt> if there was no mapping for <tt>key</tt>.
         */
-        private void remove( final String key )
+        private void remove( String key )
         {
             byte[] val = files.remove( key );
             if(val != null)
@@ -573,7 +573,7 @@ public abstract class DBManager
          * @return the value to which the specified key is mapped, or
          *         {@code null} if this map contains no mapping for the key
         */
-        private byte[] get( final String key )
+        private byte[] get( String key )
         {
             // Remove the node and put it in the bottom of the list.
             byte[] data = files.remove( key );
@@ -587,8 +587,7 @@ public abstract class DBManager
          * Returns the free space
          * used to store the files.
         */
-        private int getLeftSpace()
-        {
+        private int getLeftSpace() {
             return MAX_SIZE - spaceOccupancy;
         }
     }
@@ -620,7 +619,7 @@ public abstract class DBManager
          * 
          * @return the object needed to access the file
         */
-        public final DataLock checkFileInUse( final String fileName, final byte opType )
+        public final DataLock checkFileInUse( String fileName, byte opType )
         {
             dataLock.lock();
             
@@ -642,7 +641,7 @@ public abstract class DBManager
          * @param fileName    name of the file
          * @param dAccess     object used to access the file
         */
-        public final void notifyFileInUse( final String fileName, final DataLock dAccess )
+        public final void notifyFileInUse( String fileName, DataLock dAccess )
         {
             dataLock.lock();
             
@@ -659,7 +658,7 @@ public abstract class DBManager
             private int activeFlows = 1;
             private Deque<DataAccessCondition> queue;
             
-            public DataLock( final byte opType )
+            public DataLock( byte opType )
             {
                 this.opType = opType;
                 queue = new ArrayDeque<>();
@@ -669,7 +668,7 @@ public abstract class DBManager
              * Checks if the thread have to wait on queue,
              * depending on the operation type.
             */
-            public void checkWaitOnQueue( final byte opType )
+            public void checkWaitOnQueue( byte opType )
             {
                 if(this.opType == Message.GET && this.opType == opType)
                     activeFlows++;

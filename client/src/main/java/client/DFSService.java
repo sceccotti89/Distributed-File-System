@@ -54,13 +54,13 @@ public class DFSService extends DFSManager implements IDFSService
     
     
     
-    public DFSService( final String ipAddress,
-                       final int port,
-                       final boolean useLoadBalancer,
-                       final List<GossipMember> members,
-                       final String resourcesLocation,
-                       final String databaseLocation,
-                       final DBListener listener ) throws IOException, DFSException
+    public DFSService( String ipAddress,
+                       int port,
+                       boolean useLoadBalancer,
+                       List<GossipMember> members,
+                       String resourcesLocation,
+                       String databaseLocation,
+                       DBListener listener ) throws IOException, DFSException
     {
         super( ipAddress, port, useLoadBalancer, members );
         
@@ -88,7 +88,7 @@ public class DFSService extends DFSManager implements IDFSService
      * 
      * @return this builder
     */
-    public DFSService setSyncThread( final boolean enable )
+    public DFSService setSyncThread( boolean enable )
     {
         disableSyncThread = !enable;
         if(enable) {
@@ -131,7 +131,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the file, if present, {@code null} otherwise
      * @throws InterruptedException 
     */
-    public DistributedFile getFile( final String fileName )
+    public DistributedFile getFile( String fileName )
     {
         DistributedFile file = database.getFile( fileName );
         if(file == null || file.isDeleted())
@@ -201,7 +201,7 @@ public class DFSService extends DFSManager implements IDFSService
     }
     
     @Override
-    public DistributedFile get( final String fileName ) throws DFSException
+    public DistributedFile get( String fileName ) throws DFSException
     {
         if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
@@ -322,13 +322,13 @@ public class DFSService extends DFSManager implements IDFSService
     }
     
     @Override
-    public boolean put( final String fileName ) throws DFSException, IOException
+    public boolean put( String fileName ) throws DFSException, IOException
     {
         return doWrite( Message.PUT, fileName );
     }
     
     @Override
-    public boolean delete( final String fileName ) throws IOException, DFSException
+    public boolean delete( String fileName ) throws IOException, DFSException
     {
         return doWrite( Message.DELETE, fileName );
     }
@@ -342,7 +342,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return {@code true} if the operation has been completed successfully,
      *         {@code false} otherwise
     */
-    private boolean doWrite( final byte opType, final String fileName ) throws IOException, DFSException
+    private boolean doWrite( byte opType, String fileName ) throws IOException, DFSException
     {
         if(isClosed()) {
             LOGGER.error( "Sorry but the service is closed." );
@@ -445,7 +445,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the TCP session if at least one remote node is available,
      *         {@code null} otherwise.
     */
-    private Session contactRemoteNode( final String fileName, final byte opType )
+    private Session contactRemoteNode( String fileName, byte opType )
     {
         Session session;
         
@@ -466,7 +466,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the TCP session if at least one remote node is available,
      *            {@code false} otherwise.
     */
-    private Session contactLoadBalancerNode( final byte opType )
+    private Session contactLoadBalancerNode( byte opType )
     {
         if(opType != Message.GET_ALL)
             LOGGER.info( "Contacting a balancer node..." );
@@ -513,7 +513,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the TCP session if at least one remote node is available,
      *         {@code null} otherwise.
     */
-    private Session contactStorageNode( final String fileName, final byte opType )
+    private Session contactStorageNode( String fileName, byte opType )
     {
         if(opType != Message.GET_ALL)
             LOGGER.info( "Contacting a storage node..." );
@@ -573,7 +573,7 @@ public class DFSService extends DFSManager implements IDFSService
      * 
      * @return list of nodes taken from the given node's preference list.
     */
-    private List<GossipMember> getNodesFromPreferenceList( final String id, final GossipMember sourceNode )
+    private List<GossipMember> getNodesFromPreferenceList( String id, GossipMember sourceNode )
     {
         final int PREFERENCE_LIST = QuorumSession.getMaxNodes();
         List<GossipMember> nodes = getSuccessorNodes( id, sourceNode.getAddress(), PREFERENCE_LIST );
@@ -591,7 +591,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the list of successor nodes;
      *         it could contains less than {@code numNodes} elements.
     */
-    private List<GossipMember> getSuccessorNodes( final String id, final String addressToRemove, final int numNodes )
+    private List<GossipMember> getSuccessorNodes( String id, String addressToRemove, int numNodes )
     {
         List<GossipMember> nodes = new ArrayList<>( numNodes );
         Set<String> filterAddress = new HashSet<>();
@@ -628,7 +628,7 @@ public class DFSService extends DFSManager implements IDFSService
      * @return the TCP session if the connection if it has been established,
      *            {@code null} otherwise
     */
-    private Session waitRemoteConnection( final Session session ) throws IOException
+    private Session waitRemoteConnection( Session session ) throws IOException
     {
         session.close();
         LOGGER.info( "Wait the incoming connection..." );
@@ -641,7 +641,7 @@ public class DFSService extends DFSManager implements IDFSService
      *
      * @return a random member
      */
-    private <T> T selectNode( final List<T> nodes )
+    private <T> T selectNode( List<T> nodes )
     {
         int randomNeighborIndex = random.nextInt( nodes.size() );
         return nodes.get( randomNeighborIndex );

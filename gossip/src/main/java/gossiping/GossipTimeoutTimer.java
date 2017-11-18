@@ -24,7 +24,7 @@ public class GossipTimeoutTimer extends Timer
 	 * @param notificationListener
 	 * @param member
 	 */
-	public GossipTimeoutTimer( final long millisecondsSleepTime, final NotificationListener notificationListener, final LocalGossipMember member ) 
+	public GossipTimeoutTimer( long millisecondsSleepTime, NotificationListener notificationListener, LocalGossipMember member ) 
 	{
 		super();
 		_sleepTime = millisecondsSleepTime;
@@ -56,7 +56,7 @@ public class GossipTimeoutTimer extends Timer
 	 *
 	 * @param milliseconds
 	 */
-	private void setWakeupTime( final long milliseconds )
+	private void setWakeupTime( long milliseconds )
 	{
 		addNotification( "type", "message", _source, new Date( System.currentTimeMillis() + milliseconds ) );
 	}

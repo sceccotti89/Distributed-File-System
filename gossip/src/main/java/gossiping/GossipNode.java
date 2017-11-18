@@ -17,7 +17,7 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
     
     private static final long serialVersionUID = -3223285624395772477L;
 
-    public GossipNode( final GossipMember member )
+    public GossipNode( GossipMember member )
     {
         timestamp = System.currentTimeMillis();
         this.member = member;
@@ -29,7 +29,7 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
     public GossipMember getMember() { return member; }
     
     @Override
-    public int compareTo( final GossipNode other )
+    public int compareTo( GossipNode other )
     {
         if(timestamp > other.timestamp) return 1;
         if(timestamp < other.timestamp) return -1;
@@ -37,7 +37,7 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
     }
 
     @Override
-    public boolean equals( final Object obj )
+    public boolean equals( Object obj )
     {
         if(!(obj instanceof GossipNode)) {
             System.err.println( "equals(): obj is not of type GossipNode." );
@@ -60,7 +60,7 @@ public class GossipNode implements Serializable, Comparable<GossipNode>
     public static class CompareNodes implements Comparator<GossipNode>
     {
         @Override
-        public int compare( final GossipNode o1, final GossipNode o2 )
+        public int compare( GossipNode o1, GossipNode o2 )
         {
             return o1.getMember().compareTo( o2.getMember() );
         }

@@ -29,7 +29,7 @@ public abstract class Message implements Serializable
     /** Current type of the message. */
     private final byte opType;
     
-    public Message( final byte opType )
+    public Message( byte opType )
     {
         this.opType = opType;
     }

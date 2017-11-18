@@ -11,9 +11,9 @@ import gossiping.manager.impl.OnlyProcessReceivedPassiveGossipThread;
 
 public class RandomGossipManager extends GossipManager 
 {
-	public RandomGossipManager( final String address, final int port, final String id, final int virtualNodes, final int nodeType,
-								final GossipSettings settings, final List<GossipMember> gossipMembers,
-								final GossipListener listener ) 
+	public RandomGossipManager( String address, int port, String id, int virtualNodes, int nodeType,
+								GossipSettings settings, List<GossipMember> gossipMembers,
+								GossipListener listener ) 
 	{
 		super( OnlyProcessReceivedPassiveGossipThread.class, RandomActiveGossipThread.class,
 			   address, port, id, virtualNodes, nodeType, settings, gossipMembers, listener );

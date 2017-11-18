@@ -14,7 +14,7 @@ public class RandomActiveGossipThread extends SendMembersActiveGossipThread
 	/** The Random used for choosing a member to gossip with. */
 	private final Random random;
 
-	public RandomActiveGossipThread( final GossipManager gossipManager ) 
+	public RandomActiveGossipThread( GossipManager gossipManager ) 
 	{
 		super( gossipManager );
 		random = new Random();
@@ -27,7 +27,7 @@ public class RandomActiveGossipThread extends SendMembersActiveGossipThread
 	 *
 	 * @return Member random member if list is greater than 1, null otherwise
 	 */
-	protected LocalGossipMember selectPartner( final List<GossipNode> memberList ) 
+	protected LocalGossipMember selectPartner( List<GossipNode> memberList ) 
 	{
 		LocalGossipMember member = null;
 		if (memberList.size() > 0) {

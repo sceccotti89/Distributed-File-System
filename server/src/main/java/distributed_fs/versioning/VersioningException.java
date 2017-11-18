@@ -28,17 +28,17 @@ public class VersioningException extends RuntimeException
         super();
     }
 
-    public VersioningException( final String s, final Throwable t )
+    public VersioningException( String s, Throwable t )
     {
         super( s, t );
     }
 
-    public VersioningException( final String s )
+    public VersioningException( String s )
     {
         super( s );
     }
 
-    public VersioningException( final Throwable t )
+    public VersioningException( Throwable t )
     {
         super( t );
     }

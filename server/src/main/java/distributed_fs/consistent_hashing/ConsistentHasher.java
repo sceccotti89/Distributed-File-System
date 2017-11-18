@@ -32,14 +32,14 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * 
      * @throws NullPointerException    if the given argument is null.
      */
-    void addBucket( final B bucketName, final int virtualNodes );
+    void addBucket( B bucketName, int virtualNodes );
     
     /**
      * Returns the bucket specified by the input id.
      * 
      * @param id    the input identifier
     */
-    B getBucket( final String id );
+    B getBucket( String id );
     
     /**
      * Returns <tt>true</tt> if this map contains a mapping for the specified
@@ -51,7 +51,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param bucket key whose presence in this map is to be tested
      * @return <tt>true</tt> if this map contains a mapping for the specified bucket
     */
-    public boolean containsBucket( final B bucket );
+    public boolean containsBucket( B bucket );
 
     /**
      * Removes the bucket. There can be virtual nodes for given a bucket.
@@ -68,7 +68,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param bucketName  the bucket name to remove.
      * @throws NullPointerException if the given argument is null.
      */
-    void removeBucket( final B bucketName ) throws InterruptedException;
+    void removeBucket( B bucketName ) throws InterruptedException;
 
     /**
      * Similar to {@link #removeBucket(Object)}, except that this function
@@ -79,7 +79,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param unit            the time measure for the timeout.
      * @throws NullPointerException    if the given argument is null.
      */
-    boolean tryRemoveBucket( final B bucketName, final long timeout, final TimeUnit unit ) throws InterruptedException;
+    boolean tryRemoveBucket( B bucketName, long timeout, TimeUnit unit ) throws InterruptedException;
 
     /**
      * Adds member to the consistent hashing ring.
@@ -87,7 +87,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param memberName    the member name to add.
      * @throws NullPointerException    if the given argument is null.
      */
-    void addMember( final M memberName );
+    void addMember( M memberName );
 
     /**
      * Removes member from the consistent hashing ring.
@@ -95,7 +95,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param memberName    the member name to remove.
      * @throws NullPointerException    if the given argument is null.
      */
-    void removeMember( final M memberName );
+    void removeMember( M memberName );
     
     /**
      * Returns <tt>true</tt> if this map contains a mapping for the specified
@@ -107,7 +107,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @param member key whose presence in this map is to be tested
      * @return <tt>true</tt> if this map contains a mapping for the specified member
     */
-    public boolean containsMember( final M member );
+    public boolean containsMember( M member );
 
     /**
      * Returns all the members that belong to the given bucket. If there is no
@@ -117,7 +117,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @return the list of members of the given bucket, otherwise an empty list.
      * @throws NullPointerException     if the given argument is null.
      */
-    List<M> getMembersFor( final B bucketName );
+    List<M> getMembersFor( B bucketName );
 
     /**
      * Returns all the buckets and corresponding members of that buckets.
@@ -156,14 +156,14 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * 
      * @param id    the given bucket
     */
-    public ArrayList<String> getSuccessors( final String id );
+    public ArrayList<String> getSuccessors( String id );
     
     /**
      * Returns the successor bucket of the given id.
      * 
      * @param id    the given identifier
     */
-    public String getSuccessor( final String id );
+    public String getSuccessor( String id );
     
     /**
      * Returns the successor bucket of the given bucket id.<br>
@@ -174,21 +174,21 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @return the next bucket in the consistent hashing table, if present,
      *         {@code null} otherwise
     */
-    public String getNextBucket( final String id );
+    public String getNextBucket( String id );
     
     /**
      * Returns the predecessor buckets of the given bucket id.
      * 
      * @param id    the given bucket
     */
-    public ArrayList<String> getPredecessors( final String id );
+    public ArrayList<String> getPredecessors( String id );
     
     /**
      * Returns the predecessor bucket of the given bucket id.
      * 
      * @param id    the given bucket
     */
-    public String getPredecessor( final String id );
+    public String getPredecessor( String id );
     
     /**
      * Returns the predecessor bucket of the given bucket id.<br>
@@ -199,7 +199,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @return the previous bucket in the consistent hashing table, if present,
      *         {@code null} otherwise
     */
-    public String getPreviousBucket( final String id );
+    public String getPreviousBucket( String id );
 
     /**
      * This fetches the members for the given bucket from the given members
@@ -211,7 +211,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
      * @return
      * @throws NullPointerException  if any of the arguments is null.
      */
-    List<M> getMembersFor( final B bucketName, final List<? extends M> members );
+    List<M> getMembersFor( B bucketName, List<? extends M> members );
 
     /**
      * Returns all members that are stored in this instance. If there are no
@@ -224,7 +224,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
     /**
      * Returns the list of virtual buckets associated to the given bucket node.
     */
-    List<String> getVirtualBucketsFor( final B bucketName );
+    List<String> getVirtualBucketsFor( B bucketName );
     
     /**
      * Returns {@code true} if this map contains no key-value mappings.
@@ -261,7 +261,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
          * @param data  the data to be converted.
          * @return the data represented as array of bytes.
          */
-        byte[] convert( final T data );
+        byte[] convert( T data );
     }
     
     /**
@@ -273,7 +273,7 @@ public interface ConsistentHasher<B extends GossipMember, M>
         return new BytesConverter<String>() 
         {
             @Override
-            public byte[] convert( final String data ) 
+            public byte[] convert( String data ) 
             {
                 Preconditions.checkNotNull( data );
                 return data.getBytes();

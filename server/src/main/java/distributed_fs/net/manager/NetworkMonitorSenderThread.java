@@ -18,7 +18,7 @@ public class NetworkMonitorSenderThread extends NetworkMonitorThread
     
     private static final int SLEEP = 5000;
     
-    public NetworkMonitorSenderThread( final String address, final DFSNode node ) throws IOException
+    public NetworkMonitorSenderThread( String address, DFSNode node ) throws IOException
     {
         super( address );
         setName( "NetworkMonitorSender" );
@@ -61,7 +61,7 @@ public class NetworkMonitorSenderThread extends NetworkMonitorThread
     }
 
     @Override
-    public NodeStatistics getStatisticsFor( final String address ) {
+    public NodeStatistics getStatisticsFor( String address ) {
         return null;
     }
 }

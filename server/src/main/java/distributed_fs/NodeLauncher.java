@@ -24,7 +24,7 @@ import gossiping.GossipMember;
 */
 public class NodeLauncher
 {
-    public static void main( final String args[] ) throws ParseException, IOException, InterruptedException, DFSException
+    public static void main( String args[] ) throws ParseException, IOException, InterruptedException, DFSException
     {
         NodeArgsParser.parseArgs( args );
         if(NodeArgsParser.hasOnlyHelpOptions())

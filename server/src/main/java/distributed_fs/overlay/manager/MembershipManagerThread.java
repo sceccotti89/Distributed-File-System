@@ -38,8 +38,8 @@ public class MembershipManagerThread extends Thread
      * Constructor used when the list of members may vary,
      * according to the gossiping protocol.
     */
-    public MembershipManagerThread( final String address, final int port,
-                                    final GossipMember me, final GossipManager manager )
+    public MembershipManagerThread( String address, int port,
+                                    GossipMember mel GossipManager manager )
     {
         setName( "MembershipManager" );
         
@@ -53,8 +53,8 @@ public class MembershipManagerThread extends Thread
     /**
      * Constructor used when the list of members is fixed.
     */
-    public MembershipManagerThread( final String address, final int port,
-                                    final List<GossipMember> members )
+    public MembershipManagerThread( String address, int port,
+                                    List<GossipMember> members )
     {
         setName( "MembershipManager" );
         
@@ -101,7 +101,7 @@ public class MembershipManagerThread extends Thread
      * 
      * @param session   the incoming connection
     */
-    private void sendMembershipList( final Session session ) throws IOException
+    private void sendMembershipList( Session session ) throws IOException
     {
         // Get the list of members and send it to the user.
         List<GossipNode> members;

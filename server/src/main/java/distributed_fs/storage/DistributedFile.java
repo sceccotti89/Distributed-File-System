@@ -48,7 +48,7 @@ public class DistributedFile implements Serializable, IOSerializable
      * Constructor used to create the file from its serialized form.<br>
      * The serialization must be done using the {@link IOSerializable} interface.
     */
-    public DistributedFile( final byte[] data )
+    public DistributedFile( byte[] data )
     {
         write( data );
     }
@@ -56,7 +56,7 @@ public class DistributedFile implements Serializable, IOSerializable
     /**
      * Constructor.
     */
-    public DistributedFile( final String name, final boolean isDirectory, final VectorClock version, final String hintedHandoff )
+    public DistributedFile( String name, boolean isDirectory, VectorClock version, String hintedHandoff )
     {
         this.name = name;
         this.version = version;
@@ -66,7 +66,7 @@ public class DistributedFile implements Serializable, IOSerializable
         fileId = DFSUtils.getId( this.name );
     }
     
-    public void loadContent( final DBManager db )
+    public void loadContent( DBManager db )
     {
         if(!deleted && !isDirectory) {
             try {
@@ -94,7 +94,7 @@ public class DistributedFile implements Serializable, IOSerializable
             return DFSUtils.decompressData( content );
     }
     
-    public void setHintedHandoff( final String address ) {
+    public void setHintedHandoff( String address ) {
         HintedHandoff = address;
     }
     
@@ -118,7 +118,7 @@ public class DistributedFile implements Serializable, IOSerializable
         return deleted;
     }
     
-    public void setDeleted( final boolean value )
+    public void setDeleted( boolean value )
     {
         if(deleted != value) {
             deleted = value;
@@ -186,7 +186,7 @@ public class DistributedFile implements Serializable, IOSerializable
      * 
      * @param version    the new version
     */
-    public void setVersion( final Version version )
+    public void setVersion( Version version )
     {
         if(version instanceof VectorClock)
             this.version = (VectorClock) version;
@@ -197,13 +197,13 @@ public class DistributedFile implements Serializable, IOSerializable
      * 
      * @param nodeId    the version to increment
     */
-    public void incrementVersion( final String nodeId )
+    public void incrementVersion( String nodeId )
     {
         version.incrementVersion( nodeId );
     }
     
     @Override
-    public boolean equals( final Object o )
+    public boolean equals( Object o )
     {
         if(!(o instanceof DistributedFile))
             return false;

@@ -14,30 +14,30 @@ public class MessageRequest extends Message
     
     private static final long serialVersionUID = 307888610331132428L;
     
-    public MessageRequest( final byte opType )
+    public MessageRequest( byte opType )
     {
         this( opType, null );
     }
     
-    public MessageRequest( final byte opType, final String fileName )
+    public MessageRequest( byte opType, String fileName )
     {
         this( opType, fileName, null );
     }
     
-    public MessageRequest( final byte opType, final String fileName, final byte[] data )
+    public MessageRequest( byte opType, String fileName, byte[] data )
     {
         this( opType, fileName, data, false );
     }
     
-    public MessageRequest( final byte opType, final String fileName,
-                           final byte[] data, final boolean startQuorum )
+    public MessageRequest( byte opType, String fileName,
+                           byte[] datal boolean startQuorum )
     {
         this( opType, fileName, data, startQuorum, null, null );
     }
     
-    public MessageRequest( final byte opType, final String fileName,
-                              final byte[] data, final boolean startQuorum,
-                              final String destId, final Metadata meta )
+    public MessageRequest( byte opType, String fileName,
+                              byte[] datal boolean startQuorum,
+                              String destIdl Metadata meta )
     {
         super( opType );
         
@@ -76,7 +76,7 @@ public class MessageRequest extends Message
         return meta;
     }
     
-    public void putMetadata( final String sourceAddress, final String hintedHandoff )
+    public void putMetadata( String sourceAddress, String hintedHandoff )
     {
         meta = new Metadata( sourceAddress, hintedHandoff );
     }

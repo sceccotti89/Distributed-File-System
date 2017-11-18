@@ -15,7 +15,7 @@ public class GossipRunner
 	/** The startup gossiping service. */
 	private GossipService gossipService;
 	
-	public GossipRunner( final String configFile, final GossipListener listener, final String _address, final int port, final int virtualNodes, final int nodeType ) 
+	public GossipRunner( String configFile, GossipListener listener, String _address, int port, int virtualNodes, int nodeType ) 
 	{
 		if (configFile != null) {
 			try {
@@ -41,15 +41,15 @@ public class GossipRunner
 		}
 	}
 	
-	public GossipRunner( final GossipListener listener, final String _address, final int port,
-						 final String id, final int virtualNodes, final int nodeType )
+	public GossipRunner( GossipListener listener, String _address, int port,
+						 String id, int virtualNodes, int nodeType )
 	{
 		this( listener, _address, port, id, virtualNodes, nodeType, new ArrayList<>() );
 	}
 	
-	public GossipRunner( final GossipListener listener, final String _address, final int port,
-                         final String id, final int virtualNodes,
-                         final int nodeType, final List<GossipMember> members )
+	public GossipRunner( GossipListener listener, String _address, int port,
+                         String id, int virtualNodes,
+                         int nodeType, List<GossipMember> members )
     {
         try {
             StartupSettings settings = new StartupSettings( _address, port, id, virtualNodes, nodeType, LogLevel.DEBUG, new ArrayList<>( members ) );

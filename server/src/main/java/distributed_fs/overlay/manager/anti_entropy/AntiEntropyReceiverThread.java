@@ -50,10 +50,10 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
     
     
     
-    public AntiEntropyReceiverThread( final GossipMember _me,
-                                      final DFSDatabase database,
-                                      final FileTransfer fMgr,
-                                      final ConsistentHasher<GossipMember, String> cHasher )
+    public AntiEntropyReceiverThread( GossipMember _me,
+                                      DFSDatabase database,
+                                      FileTransfer fMgr,
+                                      ConsistentHasher<GossipMember, String> cHasher )
     {
         super( _me, database, fMgr, cHasher );
         setName( "AntiEntropyReceiver" );
@@ -106,7 +106,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
         private String sourceId = null;
         private BitSet bitSet = new BitSet();
         
-        public AntiEntropyNode( final Session session )
+        public AntiEntropyNode( Session session )
         {
             setName( "AntiEntropyNode" );
             
@@ -205,7 +205,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
          * @param inputTree        the input tree status (empty or not)
          * @param inputHeight    the height of the input tree
         */
-        private void checkTreeDifferences( final byte inputTree, final int inputHeight ) throws IOException
+        private void checkTreeDifferences( byte inputTree, int inputHeight ) throws IOException
         {
             bitSet.clear();
             
@@ -249,7 +249,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
          *
          * @return {@code true} if the input level is equal with the current one, {@code false} otherwise
         */
-        private boolean compareLevel( final Deque<Node> nodes, final List<Node> pTree ) throws IOException
+        private boolean compareLevel( Deque<Node> nodes, List<Node> pTree ) throws IOException
         {
             BitSet _bitSet = new BitSet();
             int pTreeSize = pTree.size();
@@ -308,7 +308,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
          * 
          * @param files        list of files in the range
         */
-        private void getMissingFiles( final List<DistributedFile> files ) throws IOException
+        private void getMissingFiles( List<DistributedFile> files ) throws IOException
         {
             // Flip the values.
             bitSet.flip( 0, m_tree.getNumLeaves() );
@@ -326,7 +326,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
             bitSet.flip( 0, m_tree.getNumLeaves() );
         }
         
-        private List<VectorClock> getVersions( final ByteBuffer versions )
+        private List<VectorClock> getVersions( ByteBuffer versions )
         {
             int size = bitSet.cardinality();
             List<VectorClock> vClocks = new ArrayList<>( size );
@@ -347,11 +347,11 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
          * @param address        source node address
          * @param sourceNodeId    identifier of the source node
         */
-        private void checkVersions( final int port,
-                                    final List<DistributedFile> files,
-                                    final List<VectorClock> inClocks,
-                                    final String address,
-                                    final String sourceNodeId ) throws IOException
+        private void checkVersions( int port,
+                                    List<DistributedFile> files,
+                                    List<VectorClock> inClocks,
+                                    String address,
+                                    String sourceNodeId ) throws IOException
         {
             BitSet filesToReceive = new BitSet();
             
@@ -378,12 +378,12 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
         }
     }
     
-    private boolean isSynch( final String nodeId )
+    private boolean isSynch( String nodeId )
     {
         return syncNodes.contains( nodeId );
     }
     
-    private void addToSynch( final String nodeId )
+    private void addToSynch( String nodeId )
     {
         syncNodes.add( nodeId );
     }
@@ -393,7 +393,7 @@ public class AntiEntropyReceiverThread extends AntiEntropyThread
      * 
      * @param nodeId    identifier of the node to remove
     */
-    public void removeFromSynch( final String nodeId )
+    public void removeFromSynch( String nodeId )
     {
         syncNodes.remove( nodeId );
     }

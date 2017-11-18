@@ -21,7 +21,7 @@ public class RemoteGossipMember extends GossipMember implements Serializable
 	 * @param nodeType		
 	 * @param heartbeat 	The current heartbeat.
 	*/
-	public RemoteGossipMember( final String hostname, final int port, final String id, final int virtualNodes, final int nodeType, final int heartbeat ) 
+	public RemoteGossipMember( String hostname, int port, String id, int virtualNodes, int nodeType, int heartbeat ) 
 	{
 		super( hostname, port, id, virtualNodes, nodeType, heartbeat );
 	}
@@ -35,7 +35,7 @@ public class RemoteGossipMember extends GossipMember implements Serializable
 	 * @param virtualNodes	
 	 * @param nodeType		
 	*/
-	public RemoteGossipMember( final String hostname, final int port, final String id, final int virtualNodes, final int nodeType ) 
+	public RemoteGossipMember( String hostname, int port, String id, int virtualNodes, int nodeType ) 
 	{
 		super( hostname, port, id, virtualNodes, nodeType, 0 );
 	}

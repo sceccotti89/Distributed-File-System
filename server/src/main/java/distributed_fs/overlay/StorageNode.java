@@ -71,12 +71,12 @@ public class StorageNode extends DFSNode
      * @param databaseLocation        the root where the database is located.
      *                                 If {@code null} the default one will be selected ({@link distributed_fs.storage.DFSDatabase#DATABASE_LOCATION});
     */
-    public StorageNode( final String address,
-                        final int port,
-                        final int virtualNodes,
-                        final List<GossipMember> startupMembers,
-                        final String resourcesLocation,
-                        final String databaseLocation ) throws IOException, InterruptedException, DFSException
+    public StorageNode( String address,
+                        int port,
+                        int virtualNodes,
+                        List<GossipMember> startupMembers,
+                        String resourcesLocation,
+                        String databaseLocation ) throws IOException, InterruptedException, DFSException
     {
         super( address, port, virtualNodes, GossipMember.STORAGE, startupMembers );
         setName( "StorageNode" );
@@ -122,7 +122,7 @@ public class StorageNode extends DFSNode
      * 
      * @param configFile   the configuration file
     */
-    public static StorageNode fromJSONFile( final JSONObject configFile ) throws IOException, InterruptedException, DFSException
+    public static StorageNode fromJSONFile( JSONObject configFile ) throws IOException, InterruptedException, DFSException
     {
         String address = configFile.has( "Address" ) ? configFile.getString( "Address" ) : null;
         int port = configFile.has( "Port" ) ? configFile.getInt( "Port" ) : 0;
@@ -141,7 +141,7 @@ public class StorageNode extends DFSNode
      * @param enable    {@code true} to enable the anti-entropy mechanism,
      *                  {@code false} otherwise
     */
-    public void setAntiEntropy( final boolean enable ) {
+    public void setAntiEntropy( boolean enable ) {
         fMgr.setAntiEntropy( enable );
     }
     
@@ -151,7 +151,7 @@ public class StorageNode extends DFSNode
      * @param dbBackupPath     the database backup location
      * @param resBackupPath    the resources backup location
     */
-    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException {
+    public void setBackup( String dbBackupPath, String resBackupPath ) throws IOException, DFSException {
         fMgr.getDatabase().setBackup( dbBackupPath, resBackupPath );
     }
     
@@ -162,7 +162,7 @@ public class StorageNode extends DFSNode
      * 
      * @param launchAsynch   {@code true} to launch the process asynchronously, {@code false} otherwise
     */
-    public void launch( final boolean launchAsynch )
+    public void launch( boolean launchAsynch )
     {
         if(launchAsynch) {
             // Create a new Thread.
@@ -253,14 +253,14 @@ public class StorageNode extends DFSNode
          * @param session               the TCP session
          * @param netMonitor            the network monitor
         */
-        private StorageWorker( final long id,
-                               final boolean replacedThread,
-                               final FileTransferThread fMgr,
-                               final QuorumThread quorum_t,
-                               final ConsistentHasher<GossipMember, String> cHasher,
-                               final TCPnet net,
-                               final Session session,
-                               final NetworkMonitorThread netMonitor ) throws IOException
+        private StorageWorker( long id,
+                               boolean replacedThread,
+                               FileTransferThread fMgr,
+                               QuorumThread quorum_t,
+                               ConsistentHasher<GossipMember, String> cHasher,
+                               TCPnet net,
+                               Session session,
+                               NetworkMonitorThread netMonitor ) throws IOException
         {
             super( net, fMgr, cHasher );
             setName( "StorageNode" );
@@ -369,7 +369,7 @@ public class StorageNode extends DFSNode
             closeWorker();
         }
         
-        private void handlePUT( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException
+        private void handlePUT( boolean isCoordinator, DistributedFile file, String hintedHandoff ) throws IOException
         {
             VectorClock clock;
             if(!replacedThread || actionsList.isEmpty()) {
@@ -401,7 +401,7 @@ public class StorageNode extends DFSNode
             sendClientResponse( clock );
         }
         
-        private void handleGET( final boolean isCoordinator, final String fileName, final VectorClock userVersion, final long fileId ) throws IOException
+        private void handleGET( boolean isCoordinator, String fileName, VectorClock userVersion, long fileId ) throws IOException
         {
             if(isCoordinator) {
                 // Send the GET request to all the agreed nodes,
@@ -503,7 +503,7 @@ public class StorageNode extends DFSNode
          * 
          * @return list of sessions opened with other replica nodes.
         */
-        private List<Session> sendGETRequestToReplicaNodes( final String fileName )
+        private List<Session> sendGETRequestToReplicaNodes( String fileName )
         {
             List<Session> openSessions = state.getValue( ThreadState.OPENED_SESSIONS );
             if(openSessions == null) {
@@ -558,8 +558,8 @@ public class StorageNode extends DFSNode
          * @param filesToSend      
          * @param openSessions     
         */
-        private void getReplicaVersions( final List<DistributedFile> filesToSend,
-                                         final List<Session> openSessions ) throws IOException
+        private void getReplicaVersions( List<DistributedFile> filesToSend,
+                                         List<Session> openSessions ) throws IOException
         {
             // Get the value of the indexes.
             Integer errors = state.getValue( ThreadState.QUORUM_ERRORS );
@@ -626,7 +626,7 @@ public class StorageNode extends DFSNode
          * @param reconciledFiles  list of actual reconciled versions.
          *                         It will contains all the non superseded files.
         */
-        private void compareVersions( final VectorClock userVersion, final List<DistributedFile> reconciledFiles )
+        private void compareVersions( VectorClock userVersion, List<DistributedFile> reconciledFiles )
         {
             for(int i = reconciledFiles.size() - 1; i >= 0; i--) {
                 DistributedFile file = reconciledFiles.get( i );
@@ -636,7 +636,7 @@ public class StorageNode extends DFSNode
             }
         }
         
-        private void handleGET_ALL( final String clientAddress ) throws IOException
+        private void handleGET_ALL( String clientAddress ) throws IOException
         {
             openClientConnection( clientAddress );
             
@@ -658,7 +658,7 @@ public class StorageNode extends DFSNode
             }
         }
         
-        private void handleDELETE( final boolean isCoordinator, final DistributedFile file, final String hintedHandoff ) throws IOException
+        private void handleDELETE( boolean isCoordinator, DistributedFile file, String hintedHandoff ) throws IOException
         {
             VectorClock clock;
             if(!replacedThread || actionsList.isEmpty()) {
@@ -698,7 +698,7 @@ public class StorageNode extends DFSNode
          * 
          * @param clientAddress    the address where the connection is oriented
         */
-        private void openClientConnection( final String clientAddress ) throws IOException
+        private void openClientConnection( String clientAddress ) throws IOException
         {
             if(clientAddress != null) {
                 // If the address is not null means that it's a LoadBalancer address.
@@ -719,7 +719,7 @@ public class StorageNode extends DFSNode
          * 
          * @param clock    the updated clock to send
         */
-        private void sendClientResponse( final VectorClock clock ) throws IOException
+        private void sendClientResponse( VectorClock clock ) throws IOException
         {
             if(!replacedThread || actionsList.isEmpty()) {
                 LOGGER.debug( "[SN] Sending the response to the client..." );
@@ -763,7 +763,7 @@ public class StorageNode extends DFSNode
      * @param threadPool   the pool of threads
      * @param state        the state of the dead Thread
     */
-    public static DFSNode startThread( final ExecutorService threadPool, final ThreadState state ) throws IOException
+    public static DFSNode startThread( ExecutorService threadPool, ThreadState state ) throws IOException
     {
         StorageWorker node =
                 new StorageWorker( state.getId(), true,

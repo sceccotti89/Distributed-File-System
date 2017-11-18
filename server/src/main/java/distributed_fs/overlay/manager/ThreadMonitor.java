@@ -51,12 +51,12 @@ public class ThreadMonitor extends Thread
     
     
     
-    public ThreadMonitor( final DFSNode parentNode,
-                          final ExecutorService threadPool,
-                          final List<Thread> threads,
-                          final String address,
-                          final int port,
-                          final int MAX_USERS )
+    public ThreadMonitor( DFSNode parentNode,
+                          ExecutorService threadPool,
+                          List<Thread> threads,
+                          String address,
+                          int port,
+                          int MAX_USERS )
     {
         setName( "ThreadMonitor" );
         
@@ -70,11 +70,11 @@ public class ThreadMonitor extends Thread
         restarted = new HashMap<>( MAX_USERS );
     }
     
-    public void addElements( final GossipMember me,
-                             final QuorumThread quorum_t,
-                             final ConsistentHasher<GossipMember, String> cHasher,
-                             final String resourcesLocation,
-                             final String databaseLocation )
+    public void addElements( GossipMember me,
+                             QuorumThread quorum_t,
+                             ConsistentHasher<GossipMember, String> cHasher,
+                             String resourcesLocation,
+                             String databaseLocation )
     {
         this.me = me;
         this.quorum_t = quorum_t;
@@ -172,7 +172,7 @@ public class ThreadMonitor extends Thread
         return threads;
     }
     
-    public synchronized void addThread( final Thread node )
+    public synchronized void addThread( Thread node )
     {
         threads.add( node );
     }
@@ -198,15 +198,15 @@ public class ThreadMonitor extends Thread
         
         private Map<String, Object> values;
         
-        public ThreadState( final long id,
-                            final boolean replacedThread,
-                            final Deque<Object> actionsList,
-                            final FileTransferThread fMgr,
-                            final QuorumThread quorum_t,
-                            final ConsistentHasher<GossipMember, String> cHasher,
-                            final TCPnet net,
-                            final Session session,
-                            final NetworkMonitorThread netMonitor )
+        public ThreadState( long id,
+                            boolean replacedThread,
+                            Deque<Object> actionsList,
+                            FileTransferThread fMgr,
+                            QuorumThread quorum_t,
+                            ConsistentHasher<GossipMember, String> cHasher,
+                            TCPnet net,
+                            Session session,
+                            NetworkMonitorThread netMonitor )
         {
             this.fMgr = fMgr;
             this.quorum_t = quorum_t;
@@ -235,9 +235,9 @@ public class ThreadMonitor extends Thread
         public Session getSession(){ return session; }
         
         @SuppressWarnings("unchecked")
-        public <T> T getValue( final String key ) { return (T) values.get( key ); }
-        public void setValue( final String key, final Object value ) { if(value != null) values.put( key, value ); }
-        public void removeValue( final String key ) { values.remove( key ); }
+        public <T> T getValue( String key ) { return (T) values.get( key ); }
+        public void setValue( String key, Object value ) { if(value != null) values.put( key, value ); }
+        public void removeValue( String key ) { values.remove( key ); }
         //public int getValuesSize() { return values.size(); }
         
         /* Keys used to save the objects for the recovery phase. */

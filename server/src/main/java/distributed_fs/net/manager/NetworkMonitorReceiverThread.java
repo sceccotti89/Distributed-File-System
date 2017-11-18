@@ -13,7 +13,7 @@ public class NetworkMonitorReceiverThread extends NetworkMonitorThread
 {
     private final HashMap<String, NodeStatistics> nodes;
     
-    public NetworkMonitorReceiverThread( final String address ) throws IOException
+    public NetworkMonitorReceiverThread( String address ) throws IOException
     {
         super( address );
         
@@ -48,7 +48,7 @@ public class NetworkMonitorReceiverThread extends NetworkMonitorThread
     }
     
     @Override
-    public NodeStatistics getStatisticsFor( final String address )
+    public NodeStatistics getStatisticsFor( String address )
     {
         return nodes.get( address );
     }

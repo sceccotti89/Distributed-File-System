@@ -41,8 +41,8 @@ public class StartupSettings
 	 *
 	 * @param port      The port to start the service on.
 	*/
-	public StartupSettings( final String _address, final int port, final String id, final int virtualNodes,
-							final int nodeType, final int logLevel ) 
+	public StartupSettings( String _address, int port, String id, int virtualNodes,
+							int nodeType, int logLevel ) 
 	{
 		this( _address, port, id, virtualNodes, nodeType, logLevel, new ArrayList<>(), new GossipSettings() );
 	}
@@ -52,8 +52,8 @@ public class StartupSettings
      *
      * @param port      The port to start the service on.
     */
-	public StartupSettings( final String _address, final int port, final String id, final int virtualNodes,
-                            final int nodeType, final int logLevel, final List<GossipMember> members )
+	public StartupSettings( String _address, int port, String id, int virtualNodes,
+                            int nodeType, int logLevel, List<GossipMember> members )
 	{
 	    this( _address, port, id, virtualNodes, nodeType, logLevel, members, new GossipSettings() );
     }
@@ -63,8 +63,8 @@ public class StartupSettings
 	 *
 	 * @param port		The port to start the service on.
 	*/
-	public StartupSettings( final String address, final int port, final String id, final int virtualNodes,
-							final int nodeType, final int logLevel, final List<GossipMember> members, final GossipSettings gossipSettings ) 
+	public StartupSettings( String address, int port, String id, int virtualNodes,
+							int nodeType, int logLevel, List<GossipMember> members, GossipSettings gossipSettings ) 
 	{
 		_address = address;
 		_port = port;
@@ -81,7 +81,7 @@ public class StartupSettings
 	 *
 	 * @param port		The port for the gossip service.
 	*/
-	public void setPort( final int port ) 
+	public void setPort( int port ) 
 	{
 		_port = port;
 	}
@@ -141,7 +141,7 @@ public class StartupSettings
 	 *
 	 * @param logLevel	The log level({LogLevel}).
 	*/
-	public void setLogLevel( final int logLevel ) 
+	public void setLogLevel( int logLevel ) 
 	{
 		_logLevel = logLevel;
 	}
@@ -171,7 +171,7 @@ public class StartupSettings
 	 *
 	 * @param member	The member to add.
 	*/
-	public void addGossipMember( final GossipMember member ) 
+	public void addGossipMember( GossipMember member ) 
 	{
 		_gossipMembers.add( member );
 	}
@@ -201,7 +201,7 @@ public class StartupSettings
 	 * @throws FileNotFoundException	Thrown when the file cannot be found.
 	 * @throws IOException	            Thrown when reading the file gives problems.
 	*/
-	public static StartupSettings fromJSONFile( final String jsonFile, final String _address, int port, final int virtualNodes, final int nodeType )
+	public static StartupSettings fromJSONFile( String jsonFile, String _address, int port, int virtualNodes, int nodeType )
 			throws JSONException, FileNotFoundException, IOException
 	{
 	    InputStream stream;
@@ -267,7 +267,7 @@ public class StartupSettings
 	 * 
 	 * @return identifier in a byte array representation
 	*/
-	/*private static byte[] getNodeId( final int virtualNode, final String host )
+	/*private static byte[] getNodeId( int virtualNode, String host )
 	{
 		byte[] hostInBytes = host.getBytes( StandardCharsets.UTF_8 );
 		ByteBuffer bb = ByteBuffer.allocate( Integer.BYTES + hostInBytes.length );

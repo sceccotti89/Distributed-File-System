@@ -29,7 +29,7 @@ public final class MerkleDeserializer
      * 
      * @return the Merkle tree
     */
-    public static MerkleTree deserializeTree( final byte[] serializedTree )
+    public static MerkleTree deserializeTree( byte[] serializedTree )
     {
         ByteBuffer buf = ByteBuffer.wrap( serializedTree );
         
@@ -102,7 +102,7 @@ public final class MerkleDeserializer
      * Serialization format:
      * (numnodes:int)[(siglength:int)(signature:byte[])]
     */
-    public static List<Node> deserializeNodes( final ByteBuffer data ) throws IOException
+    public static List<Node> deserializeNodes( ByteBuffer data ) throws IOException
     {
         int numNodes = data.getInt();
         
@@ -119,7 +119,7 @@ public final class MerkleDeserializer
     /**
      * Returns true if the two byte arrays passed in are exactly identical.
     */
-    public static boolean signaturesEqual( final byte[] sig, final byte[] sig2 )
+    public static boolean signaturesEqual( byte[] sig, byte[] sig2 )
     {
         if(sig.length != sig2.length) {
             return false;
@@ -134,7 +134,7 @@ public final class MerkleDeserializer
         return true;
     }
     
-    private static void readNextSignature( final ByteBuffer buf, final Node nd )
+    private static void readNextSignature( ByteBuffer buf, Node nd )
     {
         nd.sig = new byte[MerkleTree.sigLength];
         buf.get( nd.sig );

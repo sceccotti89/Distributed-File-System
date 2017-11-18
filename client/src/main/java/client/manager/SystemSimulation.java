@@ -27,20 +27,20 @@ public class SystemSimulation implements Closeable
     
     private static final String IpAddress = "127.0.0.1";
     
-    public SystemSimulation( final String ipAddress ) throws IOException, DFSException, InterruptedException
+    public SystemSimulation( String ipAddress ) throws IOException, DFSException, InterruptedException
     {
         this( ipAddress, 0 );
     }
     
-    public SystemSimulation( final String ipAddress,
-                             final int virtualNodes ) throws IOException, DFSException, InterruptedException
+    public SystemSimulation( String ipAddress,
+                             int virtualNodes ) throws IOException, DFSException, InterruptedException
     {
         this( ipAddress, virtualNodes, null );
     }
     
-    public SystemSimulation( final String ipAddress,
-                             final int virtualNodes,
-                             final List<GossipMember> members ) throws IOException, DFSException, InterruptedException
+    public SystemSimulation( String ipAddress,
+                             int virtualNodes,
+                             List<GossipMember> members ) throws IOException, DFSException, InterruptedException
     {
         //DFSUtils.testing = true;
         String address = (ipAddress == null) ? IpAddress : ipAddress;
@@ -71,7 +71,7 @@ public class SystemSimulation implements Closeable
         createNodes( address, virtualNodes );
     }
     
-    private void createNodes( final String IpAddress, final int vNodes ) throws IOException, DFSException, InterruptedException
+    private void createNodes( String IpAddress, int vNodes ) throws IOException, DFSException, InterruptedException
     {
         nodes = new ArrayList<>( members.size() );
         

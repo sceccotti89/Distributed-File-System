@@ -19,13 +19,13 @@ import gossiping.manager.GossipManager;
 
 abstract public class SendMembersActiveGossipThread extends ActiveGossipThread 
 {
-	public SendMembersActiveGossipThread( final GossipManager gossipManager ) 
+	public SendMembersActiveGossipThread( GossipManager gossipManager ) 
 	{
 		super( gossipManager );
 	}
 
 	@Override
-	protected void sendMembershipList( final LocalGossipMember me, final List<GossipNode> memberList ) 
+	protected void sendMembershipList( LocalGossipMember me, List<GossipNode> memberList ) 
 	{
 		GossipService.LOGGER.debug( "Send sendMembershipList() is called." );
 		me.setHeartbeat( me.getHeartbeat() + 1 );
@@ -76,7 +76,7 @@ abstract public class SendMembersActiveGossipThread extends ActiveGossipThread
 	 * 
 	 * @return the compressed bytes array
 	*/
-	private byte[] compressData( final byte[] data )
+	private byte[] compressData( byte[] data )
 	{
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		

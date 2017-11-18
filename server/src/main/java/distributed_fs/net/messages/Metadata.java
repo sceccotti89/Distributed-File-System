@@ -16,7 +16,7 @@ public class Metadata implements Serializable
     
     private static final long serialVersionUID = 3654063796036107949L;
 
-    public Metadata( final String clientAddress, final String hintedHandoff )
+    public Metadata( String clientAddress, String hintedHandoff )
     {
         this.clientAddress = clientAddress;
         this.hintedHandoff = hintedHandoff;

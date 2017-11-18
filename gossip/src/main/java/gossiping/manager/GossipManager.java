@@ -50,14 +50,14 @@ public abstract class GossipManager extends Thread implements NotificationListen
     
     
 	
-	public GossipManager( final Class<? extends PassiveGossipThread> passiveGossipThreadClass,
-						  final Class<? extends ActiveGossipThread>  activeGossipThreadClass, 
+	public GossipManager( Class<? extends PassiveGossipThread> passiveGossipThreadClass,
+						  Class<? extends ActiveGossipThread>  activeGossipThreadClass, 
 						  final String address, 
 						  final int port, 
 						  final String id,
-						  final int virtualNodes,
-						  final int nodeType,
-						  final GossipSettings settings, 
+						  int virtualNodes,
+						  int nodeType,
+						  GossipSettings settings, 
 						  final List<GossipMember> gossipMembers, 
 						  final GossipListener listener ) 
 	{
@@ -89,7 +89,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	 * <code>_settings.getCleanupInterval()</code> time.
 	 */
 	@Override
-	public void handleNotification( final Notification notification, final Object handback ) 
+	public void handleNotification( Notification notification, Object handback ) 
 	{
 		LocalGossipMember deadMember = (LocalGossipMember) notification.getUserData();
 		
@@ -109,7 +109,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 		LOCK.unlock();
 	}
 
-	public void createOrRevivieMember( final LocalGossipMember member )
+	public void createOrRevivieMember( LocalGossipMember member )
 	{
 	    GossipNode node = new GossipNode( member );
 	    
@@ -151,7 +151,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
 	    return vNodes;
 	}
 	
-	public void removeMember( final GossipMember member )
+	public void removeMember( GossipMember member )
 	{
 	    GossipNode node = new GossipNode( member );
 	    LOCK.lock();
@@ -159,7 +159,7 @@ public abstract class GossipManager extends Thread implements NotificationListen
         LOCK.unlock();
 	}
 	
-	public void addMember( final GossipMember member )
+	public void addMember( GossipMember member )
     {
 	    GossipNode node = new GossipNode( member );
 	    LOCK.lock();

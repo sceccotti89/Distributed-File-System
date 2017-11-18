@@ -55,9 +55,9 @@ public class QuorumThread extends Thread
     
     
     
-    public QuorumThread( final int port,
-                         final String address,
-                         final DFSNode node ) throws IOException
+    public QuorumThread( int port,
+                         String address,
+                         DFSNode node ) throws IOException
     {
         setName( "Quorum" );
         
@@ -70,7 +70,7 @@ public class QuorumThread extends Thread
         // If the TTL reachs 0, the file is removed from queue.
         timer = new Timer( BLOCKED_TIME, new ActionListener() {
             @Override
-            public void actionPerformed( final ActionEvent e )
+            public void actionPerformed( ActionEvent e )
             {
                 if(!shutDown.get()) {
                     QUORUM_LOCK.lock();
@@ -171,11 +171,11 @@ public class QuorumThread extends Thread
      * 
      * @return list of contacted nodes that have agreed to the quorum
     */
-    public List<QuorumNode> checkQuorum( final ThreadState state,
-                                         final Session session,
-                                         final byte opType,
-                                         final String fileName,
-                                         final String destId ) throws IOException
+    public List<QuorumNode> checkQuorum( ThreadState state,
+                                         Session session,
+                                         byte opType,
+                                         String fileName,
+                                         String destId ) throws IOException
     {
         // Get the list of successor nodes.
         List<GossipMember> nodes = state.getValue( ThreadState.SUCCESSOR_NODES );
@@ -212,11 +212,11 @@ public class QuorumThread extends Thread
      * 
      * @return list of nodes that agreed to the quorum
     */
-    private List<QuorumNode> contactNodes( final ThreadState state,
-                                           final Session session,
-                                           final byte opType,
-                                           final String fileName,
-                                           final List<GossipMember> nodes ) throws IOException
+    private List<QuorumNode> contactNodes( ThreadState state,
+                                           Session session,
+                                           byte opType,
+                                           String fileName,
+                                           List<GossipMember> nodes ) throws IOException
     {
         List<QuorumNode> agreedNodes = state.getValue( ThreadState.AGREED_NODES );
         if(agreedNodes == null) {
@@ -323,9 +323,9 @@ public class QuorumThread extends Thread
      * @param session       network channel with the client
      * @param agreedNodes   list of contacted nodes
     */
-    public void cancelQuorum( final ThreadState state,
-                              final Session session,
-                              final List<QuorumNode> agreedNodes ) throws IOException
+    public void cancelQuorum( ThreadState state,
+                              Session session,
+                              List<QuorumNode> agreedNodes ) throws IOException
     {
         if(session != null)
             DFSNode.LOGGER.info( "[SN] The quorum cannot be reached. The transaction will be closed." );
@@ -341,7 +341,7 @@ public class QuorumThread extends Thread
      * @param state         state of the caller thread
      * @param agreedNodes   list of agreed nodes
     */
-    public void closeQuorum( final ThreadState state, final List<QuorumNode> agreedNodes )
+    public void closeQuorum( ThreadState state, List<QuorumNode> agreedNodes )
     {
         TCPnet net = new TCPnet();
         for(int i = agreedNodes.size() - 1; i >= 0; i--) {
@@ -386,9 +386,9 @@ public class QuorumThread extends Thread
      * @param session   the actual TCP connection
      * @param response  the quorum response
     */
-    public void sendQuorumResponse( final ThreadState state,
-                                    final Session session,
-                                    final byte response ) throws IOException
+    public void sendQuorumResponse( ThreadState state,
+                                    Session session,
+                                    byte response ) throws IOException
     {
         if(session != null) {
             if(!state.isReplacedThread() || state.getActionsList().isEmpty()) {
@@ -408,7 +408,7 @@ public class QuorumThread extends Thread
      * 
      * @return the quorum file, if present, {@code null} otherwise
     */
-    public QuorumFile getQuorumFile( final String fileName )
+    public QuorumFile getQuorumFile( String fileName )
     {
         QUORUM_LOCK.lock();
         QuorumFile qFile = fileLock.get( fileName );
@@ -426,7 +426,7 @@ public class QuorumThread extends Thread
      * 
      * @return {@code true} if the file has been locked, {@code false} otherwise.
     */
-    public boolean lockFile( final String fileName, final long fileId, final byte opType )
+    public boolean lockFile( String fileName, long fileId, byte opType )
     {
         return setLocked( true, fileName, fileId, opType );
     }
@@ -439,7 +439,7 @@ public class QuorumThread extends Thread
      * 
      * @return {@code true} if the file has been unlocked, {@code false} otherwise.
     */
-    public boolean unlockFile( final String fileName, final long fileId )
+    public boolean unlockFile( String fileName, long fileId )
     {
         return setLocked( false, fileName, fileId, (byte) 0x0 );
     }
@@ -454,7 +454,7 @@ public class QuorumThread extends Thread
      * 
      * @return {@code true} if the file has been locked, {@code false} otherwise.
     */
-    private boolean setLocked( final boolean toLock, final String fileName, final long fileId, final byte opType )
+    private boolean setLocked( boolean toLock, String fileName, long fileId, byte opType )
     {
         boolean isLocked = true;
         
@@ -510,8 +510,8 @@ public class QuorumThread extends Thread
         private final byte opType;
         private final long id;
         
-        public QuorumNode( final GossipMember node, final String fileName,
-                           final byte opType, final long id )
+        public QuorumNode( GossipMember node, String fileName,
+                           byte opTypel long id )
         {
             this.node = node;
             this.fileName = fileName;
@@ -527,7 +527,7 @@ public class QuorumThread extends Thread
          * Method used, during the transmission of the files,
          * to set the list of agreed nodes.
         */
-        public void addAgreedNodes( final List<QuorumNode> nodes ) {
+        public void addAgreedNodes( List<QuorumNode> nodes ) {
             this.nodes = nodes;
         }
         
@@ -564,7 +564,7 @@ public class QuorumThread extends Thread
         private int readers = 0;
         private boolean isUpdated = false;
         
-        public QuorumFile( final long id, final byte opType )
+        public QuorumFile( long id, byte opType )
         {
             this.id = id;
             this.opType = opType;
@@ -579,7 +579,7 @@ public class QuorumThread extends Thread
          * 
          * @param delta   amount of time to add
         */
-        public void updateTTL( final int delta )
+        public void updateTTL( int delta )
         {
             if(!isUpdated())
                 ttl += delta;
@@ -595,7 +595,7 @@ public class QuorumThread extends Thread
          * 
          * @param value   +1/-1
         */
-        public void setReaders( final int value )
+        public void setReaders( int value )
         {
             readers += value;
             if(value == +1) // Restart the time to live.
@@ -624,7 +624,7 @@ public class QuorumThread extends Thread
         }
 
         @Override
-        public void update( final int bytesToReceive, final double throughput )
+        public void update( int bytesToReceive, double throughput )
         {
             setUpdated();
             final int DELAY = 10;
@@ -658,19 +658,19 @@ public class QuorumThread extends Thread
             return R - 1;
         }
         
-        public static boolean isReadQuorum( final int readers ) {
+        public static boolean isReadQuorum( int readers ) {
             return readers >= getReaders();
         }
         
-        public static boolean isWriteQuorum( final int writers ) {
+        public static boolean isWriteQuorum( int writers ) {
             return writers >= getWriters();
         }
         
-        public static boolean isDeleteQuorum( final int deleters ) {
+        public static boolean isDeleteQuorum( int deleters ) {
             return deleters >= getWriters();
         }
         
-        public static boolean isQuorum( final byte opType, final int replicaNodes )
+        public static boolean isQuorum( byte opType, int replicaNodes )
         {
             if(opType == Message.PUT || opType == Message.DELETE)
                 return isWriteQuorum( replicaNodes );
@@ -678,7 +678,7 @@ public class QuorumThread extends Thread
                 return isReadQuorum( replicaNodes );
         }
         
-        public static boolean unmakeQuorum( final int errors, final byte opType )
+        public static boolean unmakeQuorum( int errors, byte opType )
         {
             if(opType == Message.PUT || opType == Message.DELETE)
                 return (getMaxNodes() - errors) < getWriters();
@@ -686,7 +686,7 @@ public class QuorumThread extends Thread
                 return (getMaxNodes() - errors) < getReaders();
         }
         
-        public static int getMinQuorum( final byte opType )
+        public static int getMinQuorum( byte opType )
         {
             if(opType == Message.GET)
                 return getReaders();

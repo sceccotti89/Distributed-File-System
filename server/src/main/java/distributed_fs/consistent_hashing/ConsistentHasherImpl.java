@@ -58,7 +58,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
         // Acts as a cache, and used while listing members of the actual bucket.
         private final List<String> virtBuckets;
 
-        public BucketInfo( final ReadWriteLock rwLock, final List<String> virtBuckets ) 
+        public BucketInfo( ReadWriteLock rwLock, List<String> virtBuckets ) 
         {
             this.rwLock = rwLock;
             this.virtBuckets = virtBuckets;
@@ -78,7 +78,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     /**
      * Creates a consistent hashing ring with the specified initial capacity.
      */
-    public ConsistentHasherImpl( final int initialCapacity )
+    public ConsistentHasherImpl( int initialCapacity )
     {
         this.bucketsMap = new ConcurrentSkipListMap<>();
         this.membersMap = new ConcurrentSkipListMap<>();
@@ -86,7 +86,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
     
     @Override
-    public void addBucket( final B bucketName, final int virtualNodes )
+    public void addBucket( B bucketName, int virtualNodes )
     {
         Preconditions.checkNotNull( bucketName,    "bucket name cannot be null" );
         Preconditions.checkNotNull( virtualNodes, "virtualNodes cannot be null" );
@@ -102,30 +102,30 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
     
     @Override
-    public B getBucket( final String id )
+    public B getBucket( String id )
     {
         return bucketsMap.get( id );
     }
     
     @Override
-    public boolean containsBucket( final B bucket )
+    public boolean containsBucket( B bucket )
     {
         return bucketsMap.containsKey( bucket.getId() );
     }
 
     @Override
-    public void removeBucket( final B bucketName ) throws InterruptedException 
+    public void removeBucket( B bucketName ) throws InterruptedException 
     {
         removeBucket( bucketName, 0, null, false );
     }
 
     @Override
-    public boolean tryRemoveBucket( final B bucketName, final long timeout, final TimeUnit unit ) throws InterruptedException 
+    public boolean tryRemoveBucket( B bucketName, long timeout, TimeUnit unit ) throws InterruptedException 
     {
         return removeBucket( bucketName, timeout, unit, true );
     }
 
-    private boolean removeBucket( final B bucketName, final long timeout, final TimeUnit unit, final boolean tryLock ) throws InterruptedException 
+    private boolean removeBucket( B bucketName, long timeout, TimeUnit unit, boolean tryLock ) throws InterruptedException 
     {
         Preconditions.checkNotNull( bucketName, "Bucket name cannot be null" );
         
@@ -157,27 +157,27 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
 
     @Override
-    public void addMember( final M memberName )
+    public void addMember( M memberName )
     {
         Preconditions.checkNotNull( memberName, "Member name cannot be null" );
         membersMap.put( DFSUtils.getId( memberName ), memberName );
     }
 
     @Override
-    public void removeMember( final M memberName )
+    public void removeMember( M memberName )
     {
         Preconditions.checkNotNull( memberName, "Member name cannot be null" );
         membersMap.remove( DFSUtils.getId( memberName ) );
     }
     
     @Override
-    public boolean containsMember( final M member )
+    public boolean containsMember( M member )
     {
         return membersMap.containsKey( DFSUtils.getId( member ) );
     }
 
     @Override
-    public List<M> getMembersFor( final B bucketName, final List<? extends M> members )
+    public List<M> getMembersFor( B bucketName, List<? extends M> members )
     {
         Preconditions.checkNotNull( bucketName, "Bucket name cannot be null." );
         Preconditions.checkNotNull( members,        "Members cannot be null." );
@@ -191,12 +191,12 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
 
     @Override
-    public List<M> getMembersFor( final B bucketName )
+    public List<M> getMembersFor( B bucketName )
     {
         return getMembersInternal( bucketName, membersMap );
     }
 
-    private List<M> getMembersInternal( final B bucketName, final NavigableMap<String, M> members )
+    private List<M> getMembersInternal( B bucketName, NavigableMap<String, M> members )
     {
         Preconditions.checkNotNull( bucketName, "Bucket name cannot be null." );
         Preconditions.checkNotNull( members,        "Members cannot be null." );
@@ -271,21 +271,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
     
     @Override
-    public ArrayList<String> getSuccessors( final String id )
+    public ArrayList<String> getSuccessors( String id )
     {
         Preconditions.checkNotNull( id, "Id can not be null" );
         return new ArrayList<String>( bucketsMap.tailMap( id ).keySet() );
     }
     
     @Override
-    public String getSuccessor( final String id )
+    public String getSuccessor( String id )
     {
         Preconditions.checkNotNull( id, "Id cannot be null" );
         return bucketsMap.higherKey( id );
     }
     
     @Override
-    public String getNextBucket( final String id )
+    public String getNextBucket( String id )
     {
         String succ = getSuccessor( id );
         if(succ == null)
@@ -295,21 +295,21 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
     
     @Override
-    public ArrayList<String> getPredecessors( final String id )
+    public ArrayList<String> getPredecessors( String id )
     {
         Preconditions.checkNotNull( id, "Id can not be null" );
         return new ArrayList<String>( bucketsMap.headMap( id ).keySet() );
     }
     
     @Override
-    public String getPredecessor( final String id )
+    public String getPredecessor( String id )
     {
         Preconditions.checkNotNull( id, "Id can not be null" );
         return bucketsMap.lowerKey( id );
     }
     
     @Override
-    public String getPreviousBucket( final String id )
+    public String getPreviousBucket( String id )
     {
         String prev = getPredecessor( id );
         if(prev == null)
@@ -319,7 +319,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
     }
     
     @Override
-    public List<String> getVirtualBucketsFor( final B bucketName )
+    public List<String> getVirtualBucketsFor( B bucketName )
     {
         Preconditions.checkNotNull( bucketName, "Bucket name can not be null" );
         return bucketsAndLocks.get( bucketName ).virtBuckets;
@@ -364,12 +364,12 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
      *         contains a map of bucket names and corresponding members.
      */
     public static <B  extends GossipMember, M extends Serializable> Map<Integer, Map<B, List<M>>> getDistribution(
-            final int startVirtNodeId, 
-            final int endVirtNodeId,
-            final BytesConverter<B> bucketDataToBytesConverter,
-            final BytesConverter<M> memberDataToBytesConverter,
-            final HashFunction hashFunction, List<? extends B> buckets,
-            final List<? extends M> members ) 
+            int startVirtNodeId, 
+            int endVirtNodeId,
+            BytesConverter<B> bucketDataToBytesConverter,
+            BytesConverter<M> memberDataToBytesConverter,
+            HashFunction hashFunction, List<? extends B> buckets,
+            List<? extends M> members ) 
     {
         Map<Integer, Map<B, List<M>>> result = new HashMap<>();
         for (int virtNodeId = startVirtNodeId; virtNodeId <= endVirtNodeId; virtNodeId++) {
@@ -398,13 +398,13 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
      *         contains a map of bucket names and corresponding members size.
      */
     public static <B extends GossipMember, M extends Serializable> Map<Integer, Map<Integer, B>> getDistributionCount(
-            final int startVirtNodeId, 
-            final int endVirtNodeId,
-            final BytesConverter<B> bucketDataToBytesConverter,
-            final BytesConverter<M> memberDataToBytesConverter,
-            final HashFunction hashFunction, 
-            final List<? extends B> buckets,
-            final List<? extends M> members ) 
+            int startVirtNodeId, 
+            int endVirtNodeId,
+            BytesConverter<B> bucketDataToBytesConverter,
+            BytesConverter<M> memberDataToBytesConverter,
+            HashFunction hashFunction, 
+            List<? extends B> buckets,
+            List<? extends M> members ) 
     {
         Map<Integer, Map<B, List<M>>> distribution = getDistribution(
                 startVirtNodeId, 
@@ -442,13 +442,13 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
      *         members.
      */
     public static <B extends GossipMember, M extends Serializable> Map<Integer, Map<Double, B>> getDistributionPercentage(
-            final int startVirtNodeId, 
-            final int endVirtNodeId,
-            final BytesConverter<B> bucketDataToBytesConverter,
-            final BytesConverter<M> memberDataToBytesConverter,
-            final HashFunction hashFunction, 
-            final List<? extends B> buckets,
-            final List<? extends M> members ) 
+            int startVirtNodeId, 
+            int endVirtNodeId,
+            BytesConverter<B> bucketDataToBytesConverter,
+            BytesConverter<M> memberDataToBytesConverter,
+            HashFunction hashFunction, 
+            List<? extends B> buckets,
+            List<? extends M> members ) 
     {
         Map<Integer, Map<B, List<M>>> distribution = getDistribution(
                 startVirtNodeId, 
@@ -478,7 +478,7 @@ public class ConsistentHasherImpl<B extends GossipMember, M extends Serializable
      * @param map
      * @return
      */
-    private static <T> Optional<T> getLastKey( final NavigableMap<T, ?> map ) 
+    private static <T> Optional<T> getLastKey( NavigableMap<T, ?> map ) 
     {
         T key = null;
         try {

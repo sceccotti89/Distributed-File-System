@@ -43,8 +43,8 @@ public class ClientSynchronizer extends Thread
     
     
     
-    public ClientSynchronizer( final DFSService service,
-                               final DFSDatabase database )
+    public ClientSynchronizer( DFSService service,
+                               DFSDatabase database )
     {
         setName( "ClientSynchronizer" );
         
@@ -108,7 +108,7 @@ public class ClientSynchronizer extends Thread
      * 
      * @param files   the list of files
     */
-    public void checkFiles( final List<DistributedFile> files ) throws DFSException
+    public void checkFiles( List<DistributedFile> files ) throws DFSException
     {
         for(DistributedFile file : files) {
             String fileName = file.getName();
@@ -135,7 +135,7 @@ public class ClientSynchronizer extends Thread
                         // Update the file on database and
                         // write-back the reconciled version.
                         if(!finalVersion.isDeleted()) {
-                            database.saveFile( finalVersion, clock, null, true );
+                            database.saveFile( ersion, clock, null, true );
                             service.put( fileName );
                         }
                         else {
@@ -167,8 +167,8 @@ public class ClientSynchronizer extends Thread
      * 
      * @return the occurred version between the two files
     */
-    private Occurred reconcileVersions( final DistributedFile myFile,
-                                        final DistributedFile otherFile )
+    private Occurred reconcileVersions( DistributedFile myFile,
+                                        DistributedFile otherFile )
     {
         VectorClock myClock = myFile.getVersion();
         VectorClock otherClock = otherFile.getVersion();
@@ -182,7 +182,7 @@ public class ClientSynchronizer extends Thread
      * 
      * @return Index of the selected file
     */
-    public static synchronized int makeReconciliation( final List<DistributedFile> versions )
+    public static synchronized int makeReconciliation( List<DistributedFile> versions )
     {
         reconciliation = true;
         
@@ -224,7 +224,7 @@ public class ClientSynchronizer extends Thread
      * @param waitTermination   {@code true} if the calling thread must wait for the termination,
      *                          {@code false} otherwise
     */
-    public void shutDown( final boolean waitTermination )
+    public void shutDown( boolean waitTermination )
     {
         interrupt();
         if(waitTermination) {

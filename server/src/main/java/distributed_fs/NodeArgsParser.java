@@ -32,7 +32,7 @@ public class NodeArgsParser
                                 NODES = "n", V_NODES = "v", RESOURCES = "r",
                                 DATABASE = "d", FILE = "f", HELP = "h";
     
-    public static void parseArgs( final String[] args ) throws ParseException
+    public static void parseArgs( String[] args ) throws ParseException
     {
         // Look for the node type.
         int nodeType;
@@ -148,7 +148,7 @@ public class NodeArgsParser
         return DFSUtils.parseJSONFile( cmd.getOptionValue( FILE ) );
     }
 
-    private static List<GossipMember> parseNodes( final String[] nodes ) throws ParseException
+    private static List<GossipMember> parseNodes( String[] nodes ) throws ParseException
     {
         List<GossipMember> members = new ArrayList<>( nodes.length );
         

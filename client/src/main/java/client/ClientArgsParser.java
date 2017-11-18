@@ -33,7 +33,7 @@ public class ClientArgsParser
                                 DATABASE = "d", LOCAL_ENV = "locale",
                                 FILE = "f", HELP = "h";
     
-    public static void parseArgs( final String[] args ) throws ParseException
+    public static void parseArgs( String[] args ) throws ParseException
     {
         options = new Options();
         
@@ -101,7 +101,7 @@ public class ClientArgsParser
         return DFSUtils.parseJSONFile( cmd.getOptionValue( FILE ) );
     }
 
-    private static List<GossipMember> parseNodes( final String[] nodes ) throws ParseException
+    private static List<GossipMember> parseNodes( String[] nodes ) throws ParseException
     {
         List<GossipMember> members = new ArrayList<>( nodes.length );
         

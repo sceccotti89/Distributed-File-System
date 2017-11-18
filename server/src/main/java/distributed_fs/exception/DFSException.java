@@ -13,17 +13,17 @@ public class DFSException extends Exception
         super();
     }
     
-    public DFSException( final String message )
+    public DFSException( String message )
     {
         super( message );
     }
     
-    public DFSException( final String s, final Throwable t )
+    public DFSException( String s, Throwable t )
     {
         super( s, t );
     }
 
-    public DFSException( final Throwable t )
+    public DFSException( Throwable t )
     {
         super( t );
     }

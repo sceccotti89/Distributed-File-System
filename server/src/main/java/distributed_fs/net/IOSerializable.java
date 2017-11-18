@@ -24,5 +24,5 @@ public interface IOSerializable
      * 
      * @param data    object from which the informations are taken
     */
-    public void write( final byte[] data );
+    public void write( byte[] data );
 }

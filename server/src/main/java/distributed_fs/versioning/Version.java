@@ -33,5 +33,5 @@ public interface Version
      * 
      * @param v The other version
     */
-    public Occurred compare( final Version v );
+    public Occurred compare( Version v );
 }

@@ -27,10 +27,10 @@ public class LocalGossipMember extends GossipMember
 	 * @param notificationListener	 
 	 * @param cleanupTimeout         The cleanup timeout for this gossip member.
 	 */
-	public LocalGossipMember( final String hostname, final int port, final String id,
-							  final int virtualNodes, final int nodeType, final int heartbeat,
-							  final NotificationListener notificationListener,
-							  final int cleanupTimeout ) 
+	public LocalGossipMember( String hostname, int port, String id,
+							  int virtualNodes, int nodeType, int heartbeat,
+							  NotificationListener notificationListener,
+							  int cleanupTimeout ) 
 	{
 		super( hostname, port, id, virtualNodes, nodeType, heartbeat );
 		timeoutTimer = new GossipTimeoutTimer( cleanupTimeout, notificationListener, this );

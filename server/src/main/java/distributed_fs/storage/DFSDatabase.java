@@ -66,9 +66,9 @@ public class DFSDatabase extends DBManager implements Closeable
      *                                If {@code null} the database for the hinted handoff
      *                                 nodes does not start
     */
-    public DFSDatabase( final String resourcesLocation,
-                        final String databaseLocation,
-                        final FileTransfer fileMgr ) throws DFSException
+    public DFSDatabase( String resourcesLocation,
+                        String databaseLocation,
+                        FileTransfer fileMgr ) throws DFSException
     {
         super( resourcesLocation );
         
@@ -98,7 +98,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * @param dbBackupPath     the database backup location
      * @param resBackupPath    the resources backup location
     */
-    public void setBackup( final String dbBackupPath, final String resBackupPath ) throws DFSException, IOException
+    public void setBackup( String dbBackupPath, String resBackupPath ) throws DFSException, IOException
     {
         String dbRoot = createResourcePath( dbBackupPath, null );
         if(!createDirectory( dbRoot )) {
@@ -147,7 +147,7 @@ public class DFSDatabase extends DBManager implements Closeable
         db.commit();
     }
     
-    private void doLoadFiles( final File dir ) throws IOException
+    private void doLoadFiles( File dir ) throws IOException
     {
         for(File f : dir.listFiles()) {
             String fileName = f.getPath().replace( "\\", "/" );
@@ -219,8 +219,8 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @return the new clock, if updated, {@code null} otherwise
     */
-    public VectorClock saveFile( final DistributedFile file, final VectorClock clock,
-                                 final String hintedHandoff, final boolean saveOnDisk )
+    public VectorClock saveFile( DistributedFile file, VectorClock clock,
+                                 String hintedHandoff, boolean saveOnDisk )
                                          throws IOException
     {
         return saveFile( file.getName(), file.getContent(), clock,
@@ -230,19 +230,19 @@ public class DFSDatabase extends DBManager implements Closeable
     /**
      * Saves a file on the database.
      * 
-     * @param filePath          path of the file to save
+     * @param filePath         path of the file to save
      * @param content          file's content
-     * @param clock              the associated vector clock
-     * @param isDirectory     {@code true} if the file is a directory, {@code false} otherwise
-     * @param hintedHandoff      the hinted handoff address in the form {@code ipAddress:port}
-     * @param saveOnDisk      {@code true} if the file has to be saved on disk,
-     *                           {@code false} otherwise
+     * @param clock            the associated vector clock
+     * @param isDirectory      {@code true} if the file is a directory, {@code false} otherwise
+     * @param hintedHandoff    the hinted handoff address in the form {@code ipAddress:port}
+     * @param saveOnDisk       {@code true} if the file has to be saved on disk,
+     *                         {@code false} otherwise
      * 
      * @return the new clock, if updated, {@code null} otherwise.
     */
-    public VectorClock saveFile( final String filePath, final byte[] content,
-                                 final VectorClock clock, final boolean isDirectory,
-                                 final String hintedHandoff, final boolean saveOnDisk )
+    public VectorClock saveFile( String filePath, byte[] content,
+                                 VectorClock clock, boolean isDirectory,
+                                 String hintedHandoff, boolean saveOnDisk )
                                          throws IOException
     {
         Preconditions.checkNotNull( filePath, "filePath cannot be null." );
@@ -289,9 +289,9 @@ public class DFSDatabase extends DBManager implements Closeable
         return updated;
     }
     
-    private void doSave( final DistributedFile file,
-                         final byte[] content,
-                         final boolean saveOnDisk ) throws IOException
+    private void doSave( DistributedFile file,
+                         byte[] content,
+                         boolean saveOnDisk ) throws IOException
     {
         if(saveOnDisk) {
             if(disableAsyncWrites)
@@ -311,10 +311,12 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @param f    the current file
     */
-    private void addParentFile( final File f, final boolean saveOnDisk ) throws IOException
+    private void addParentFile( File f, boolean saveOnDisk ) throws IOException
     {
-        if(f == null)
+        if(f == null) {
             return;
+        }
+        
         addParentFile( f.getParentFile(), saveOnDisk );
         
         // Add the file on database. It's obviously a directory.
@@ -325,10 +327,11 @@ public class DFSDatabase extends DBManager implements Closeable
             database.put( file.getId(), file );
             
             if(saveOnDisk) {
-                if(disableAsyncWrites)
+                if(disableAsyncWrites) {
                     writeFileOnDisk( root + fileName, null );
-                else
+                } else {
                     asyncWriter.enqueue( null, root + fileName, Message.PUT );
+                }
             }
             
             notifyListeners( fileName, Message.GET );
@@ -346,8 +349,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @return the new clock, if updated, {@code null} otherwise.
     */
-    public VectorClock deleteFile( final DistributedFile file, final String hintedHandoff )
-    {
+    public VectorClock deleteFile( DistributedFile file, String hintedHandoff ) {
         return deleteFile( file.getName(), file.getVersion(), file.isDirectory(), hintedHandoff );
     }
     
@@ -364,10 +366,8 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @return the new clock, if updated, {@code null} otherwise.
     */
-    public VectorClock deleteFile( final String filePath,
-                                   final VectorClock clock,
-                                   final boolean isDirectory,
-                                   final String hintedHandoff )
+    public VectorClock deleteFile( String filePath, VectorClock clock,
+                                   boolean isDirectory, String hintedHandoff )
     {
         Preconditions.checkNotNull( filePath, "filePath cannot be null." );
         Preconditions.checkNotNull( clock,    "clock cannot be null." );
@@ -420,10 +420,10 @@ public class DFSDatabase extends DBManager implements Closeable
     /**
      * Delete recursively all the content of a folder.
      * 
-     * @param dir      current directory
-     * @param nodeId   
+     * @param dir       current directory
+     * @param nodeId    associated node identifier
     */
-    private void removeDirectory( final File dir, final String nodeId )
+    private void removeDirectory( File dir, String nodeId )
     {
         File[] files = dir.listFiles();
         if(files != null) {
@@ -438,10 +438,11 @@ public class DFSDatabase extends DBManager implements Closeable
                     file.incrementVersion( nodeId );
                     database.put( file.getId(), file );
                     
-                    if(disableAsyncWrites)
+                    if(disableAsyncWrites) {
                         deleteFileOnDisk( root + fileName );
-                    else
+                    } else {
                         asyncWriter.enqueue( null, root + fileName, Message.DELETE );
+                    }
                     notifyListeners( fileName, Message.DELETE );
                 }
             }
@@ -449,15 +450,15 @@ public class DFSDatabase extends DBManager implements Closeable
     }
     
     /**
-     * Resolve the (possible) inconsistency through the versions.
+     * Resolves the (possible) inconsistency through the versions.
      * 
      * @param myClock    the current vector clock
-     * @param vClock    the input vector clock
+     * @param vClock     the input vector clock
      * 
      * @return {@code true} if the received file has the most updated version,
-     *            {@code false} otherwise.
+     *         {@code false} otherwise.
     */
-    private boolean updateVersion( final VectorClock myClock, final VectorClock vClock )
+    private boolean updateVersion( VectorClock myClock, VectorClock vClock )
     {
         if(disableReconciliation)
             return false;
@@ -470,7 +471,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @param file  the file to delete
     */
-    private void removeFile( final DistributedFile file )
+    private void removeFile( DistributedFile file )
     {
         boolean deleted = false;
         
@@ -504,7 +505,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @return TRUE if the file is contained, FALSE otherwise
     */
-    public boolean containsKey( final String fileName )
+    public boolean containsKey( String fileName )
     {
         boolean contains;
         String fileId = DFSUtils.getId( fileName );
@@ -528,7 +529,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @return The list of keys. It can be null if, at least, one of the input ids is null.
     */
-    public List<DistributedFile> getKeysInRange( final String fromId, final String destId )
+    public List<DistributedFile> getKeysInRange( String fromId, String destId )
     {
         if(fromId == null || destId == null)
             return null;
@@ -558,7 +559,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * 
      * @param fileName    name of the file
     */
-    public DistributedFile getFile( final String fileName )
+    public DistributedFile getFile( String fileName )
     {
         String fileId = DFSUtils.getId( normalizeFileName( fileName ) );
         LOCK_READERS.lock();
@@ -596,7 +597,7 @@ public class DFSDatabase extends DBManager implements Closeable
      * @param nodeAddress    address of the node
      * @param state         state of the node
     */
-    public void checkHintedHandoffMember( final String nodeAddress, final GossipState state )
+    public void checkHintedHandoffMember( String nodeAddress, GossipState state )
     {
         hhThread.checkMember( nodeAddress, state );
     }
@@ -693,7 +694,7 @@ public class DFSDatabase extends DBManager implements Closeable
         private final ReentrantLock MUTEX_LOCK = new ReentrantLock( true );
         private static final int CHECK_TIMER = 10; // 10 minutes.
         
-        public CheckHintedHandoffDatabase( final DBManager db )
+        public CheckHintedHandoffDatabase( DBManager db )
         {
             setName( "HintedHandoff" );
             
@@ -758,7 +759,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * 
          * @param address     the input address
         */
-        private List<DistributedFile> getFiles( final String address )
+        private List<DistributedFile> getFiles( String address )
         {
             List<DistributedFile> files;
             
@@ -775,7 +776,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * @param hintedHandoff        the node to which the file has to be sent, in the form {@code ipAddress:port}
          * @param file                the corresponding file
         */
-        public void saveFile( final DistributedFile file )
+        public void saveFile( DistributedFile file )
         {
             MUTEX_LOCK.lock();
             
@@ -792,7 +793,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * 
          * @param file    the file to remove
         */
-        public void removeFiles( final DistributedFile file )
+        public void removeFiles( DistributedFile file )
         {
             String address = file.getHintedHandoff();
             if(address != null) {
@@ -807,7 +808,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * 
          * @param address   the hinted handoff address
         */
-        private void removeAddress( final String address )
+        private void removeAddress( String address )
         {
             if(address != null) {
                 MUTEX_LOCK.lock();
@@ -823,7 +824,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * @param nodeAddress    address of the node
          * @param state         state of the node
         */
-        public void checkMember( final String nodeAddress, final GossipState state )
+        public void checkMember( String nodeAddress, GossipState state )
         {
             boolean wakeUp = false;
             
@@ -867,7 +868,7 @@ public class DFSDatabase extends DBManager implements Closeable
         
         
         
-        public BackupThread( final String dbBackupPath, final String resBackupPath ) throws IOException, DFSException
+        public BackupThread( String dbBackupPath, String resBackupPath ) throws IOException, DFSException
         {
             backup = new DFSDatabase( resBackupPath, dbBackupPath, null );
             backup.disableAsyncWrites();
@@ -935,7 +936,7 @@ public class DFSDatabase extends DBManager implements Closeable
          * @param content  the file's content. It may be {@code null} in case of a directory or in a delete or remove operation
          * @param opType   the operation to perform ({@link #PUT}, {@link #DELETE} or {@link #REMOVE})
         */
-        public void enqueue( final DistributedFile file, final byte[] content, final byte opType )
+        public void enqueue( DistributedFile file, byte[] content, byte opType )
         {
             lock.lock();
             
@@ -954,7 +955,7 @@ public class DFSDatabase extends DBManager implements Closeable
             public final byte[] content;
             public final byte opType;
             
-            public QueueNode( final DistributedFile file, final byte[] content, final byte opType )
+            public QueueNode( DistributedFile file, byte[] content, byte opType )
             {
                 this.file = file;
                 this.content = content;
