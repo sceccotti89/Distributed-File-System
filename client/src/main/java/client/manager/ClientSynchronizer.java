@@ -135,7 +135,7 @@ public class ClientSynchronizer extends Thread
                         // Update the file on database and
                         // write-back the reconciled version.
                         if(!finalVersion.isDeleted()) {
-                            database.saveFile( ersion, clock, null, true );
+                            database.saveFile( finalVersion, clock, null, true );
                             service.put( fileName );
                         }
                         else {
