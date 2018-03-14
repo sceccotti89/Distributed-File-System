@@ -511,7 +511,7 @@ public class QuorumThread extends Thread
         private final long id;
         
         public QuorumNode( GossipMember node, String fileName,
-                           byte opTypel long id )
+                           byte opType, long id )
         {
             this.node = node;
             this.fileName = fileName;
