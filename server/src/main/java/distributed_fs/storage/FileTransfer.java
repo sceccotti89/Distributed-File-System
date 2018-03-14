@@ -25,7 +25,7 @@ public interface FileTransfer
      * @return {@code true} if the files are successfully transmitted, {@code false} otherwise
     */
     public boolean sendFiles( String address, int port, List<DistributedFile> files,
-                              boolean wait_responsel String synchNodeIdl QuorumNode node );
+                              boolean wait_response, String synchNodeId, QuorumNode node );
     
     /** 
      * Reads the incoming files and apply the appropriate operation,
