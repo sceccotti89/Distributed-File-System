@@ -14,24 +14,20 @@ public class MessageRequest extends Message
     
     private static final long serialVersionUID = 307888610331132428L;
     
-    public MessageRequest( byte opType )
-    {
+    public MessageRequest( byte opType ) {
         this( opType, null );
     }
     
-    public MessageRequest( byte opType, String fileName )
-    {
+    public MessageRequest( byte opType, String fileName ) {
         this( opType, fileName, null );
     }
     
-    public MessageRequest( byte opType, String fileName, byte[] data )
-    {
+    public MessageRequest( byte opType, String fileName, byte[] data ) {
         this( opType, fileName, data, false );
     }
     
     public MessageRequest( byte opType, String fileName,
-                           byte[] datal boolean startQuorum )
-    {
+                           byte[] data, boolean startQuorum ) {
         this( opType, fileName, data, startQuorum, null, null );
     }
     
