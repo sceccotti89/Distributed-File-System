@@ -36,8 +36,8 @@ public class MessageRequest extends Message
     }
     
     public MessageRequest( byte opType, String fileName,
-                              byte[] datal boolean startQuorum,
-                              String destIdl Metadata meta )
+                              byte[] data, boolean startQuorum,
+                              String destId, Metadata meta )
     {
         super( opType );
         
@@ -48,36 +48,30 @@ public class MessageRequest extends Message
         this.meta = meta;
     }
     
-    public String getFileName()
-    {
+    public String getFileName() {
         return fileName;
     }
     
     /**
      * Returns the payload of the message.
     */
-    public byte[] getPayload()
-    {
+    public byte[] getPayload() {
         return data;
     }
     
-    public boolean startQuorum()
-    {
+    public boolean startQuorum() {
         return startQuorum;
     }
     
-    public String getDestId()
-    {
+    public String getDestId() {
         return destId;
     }
     
-    public Metadata getMetadata()
-    {
+    public Metadata getMetadata() {
         return meta;
     }
     
-    public void putMetadata( String sourceAddress, String hintedHandoff )
-    {
+    public void putMetadata( String sourceAddress, String hintedHandoff ) {
         meta = new Metadata( sourceAddress, hintedHandoff );
     }
 }
