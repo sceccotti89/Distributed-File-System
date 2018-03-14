@@ -39,7 +39,7 @@ public class MembershipManagerThread extends Thread
      * according to the gossiping protocol.
     */
     public MembershipManagerThread( String address, int port,
-                                    GossipMember mel GossipManager manager )
+                                    GossipMember me, GossipManager manager )
     {
         setName( "MembershipManager" );
         
