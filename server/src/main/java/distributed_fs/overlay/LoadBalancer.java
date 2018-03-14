@@ -382,7 +382,7 @@ public class LoadBalancer extends DFSNode
          *                         in {@code PUT/DELETE} operations the content of the file
         */
         private void forwardRequest( Session session, byte opType, String destId,
-                                     String hintedHandoffl String fileName, byte[] data )
+                                     String hintedHandoff, String fileName, byte[] data )
                                              throws IOException
         {
             if(!replacedThread || actionsList.isEmpty()) {
